@@ -12,7 +12,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 6
-const CHECKS := 103
+const CHECKS := 104
 
 var _passed := 0
 var _failed := 0
@@ -134,6 +134,17 @@ func _test_metrics() -> void:
 	var wire := DotPlayerCharDef.from_dict(c.to_dict())
 	_check(is_equal_approx(wire.height, c.height), "a definition survives the wire")
 	_check(is_equal_approx(wire.eye_height, c.eye_height), "with its eye height")
+
+	c.voice_set = &"scout_voice"
+	c.footstep_set = &"light_steps"
+	c.requires_entitlement = &"scout_unlock"
+	var ids := DotPlayerCharDef.from_dict(c.to_dict())
+	_check(
+		ids.voice_set == &"scout_voice" and ids.footstep_set == &"light_steps"
+		and ids.requires_entitlement == &"scout_unlock",
+		"and every content id it names — an id declared on the definition and absent "
+		+ "from its wire form is an id a mirroring client never learns"
+	)
 	_check(c.describe().contains("medium"), "and describes itself")
 
 

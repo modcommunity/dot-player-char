@@ -245,6 +245,9 @@ func to_dict() -> Dictionary:
 		"model": String(model_id),
 		"sprite": String(sprite_id),
 		"anims": String(animation_set),
+		"voice": String(voice_set),
+		"footsteps": String(footstep_set),
+		"entitlement": String(requires_entitlement),
 		"channels": colour_channels,
 		"slots": slots.duplicate(true),
 	}
@@ -262,6 +265,9 @@ static func from_dict(d: Dictionary) -> DotPlayerCharDef:
 	c.model_id = StringName(str(d.get("model", "")))
 	c.sprite_id = StringName(str(d.get("sprite", "")))
 	c.animation_set = StringName(str(d.get("anims", "")))
+	c.voice_set = StringName(str(d.get("voice", "")))
+	c.footstep_set = StringName(str(d.get("footsteps", "")))
+	c.requires_entitlement = StringName(str(d.get("entitlement", "")))
 	c.colour_channels = int(d.get("channels", 0))
 
 	var s: Variant = d.get("slots", {})
