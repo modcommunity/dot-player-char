@@ -58,13 +58,13 @@ extends Resource
 
 @export_group("Content ids")
 
-## dot-player-char-model id, for a 3D game.
+## [DotPlayerModelDef] id, for a 3D game.
 @export var model_id: StringName = &""
 
-## dot-player-char-sprite id, for a 2D game.
+## [DotPlayerSpriteDef] id, for a 2D game.
 @export var sprite_id: StringName = &""
 
-## dot-player-char-animations set id.
+## [DotPlayerAnimSet] id.
 @export var animation_set: StringName = &""
 
 ## dot-audio voice set id.

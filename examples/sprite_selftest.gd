@@ -1,6 +1,6 @@
 extends Node
 
-## Exercises dot-player-char-sprite with no art on disk.
+## Exercises dot-player-char's sprite half with no art on disk.
 ##
 ## The frame arithmetic and the facing resolution are the two halves worth checking
 ## hardest, because both are the kind of four-line calculation that is wrong in one of
@@ -25,7 +25,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	_line("dot-player-char-sprite self-test")
+	_line("dot-player-char sprite self-test")
 	_line("")
 
 	_test_def()

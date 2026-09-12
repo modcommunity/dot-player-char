@@ -9,7 +9,7 @@ extends DotPlayerCharVisual
 ## animation would then need a second table that somebody has to keep in step.
 ##
 ## The node does not animate. It exposes [method set_frame] and
-## [method set_facing_angle], and dot-player-char-animations drives them — or a game
+## [method set_facing_angle], and [DotPlayerAnimDriver] drives them — or a game
 ## does, in four lines, if it has no use for an animation layer.
 
 ## Not [code]CHANNEL[/code]: the parent chain already has one.

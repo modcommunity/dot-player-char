@@ -14,7 +14,7 @@ The second idea is dot-user-avatar's, restated smaller: **the customisation docu
 
 ## It was four addons
 
-`dot-player-char-model`, `dot-player-char-sprite` and `dot-player-char-animations` were separate and were merged in. The merge is recorded in the top-level `tmp.md`; the short version is that none of them was useful without this one and none was useful beside another, so the split bought three repositories and bought nothing else — and two of the seams between them existed *only* to avoid a dependency.
+`dot-player-char-model`, `dot-player-char-sprite` and `dot-player-char-animations` were separate and were merged in. None of the three was ever pushed, so there is nothing to go and read: the reason is that none of them was useful without this one and none was useful beside another, so the split bought three repositories and bought nothing else — and two of the seams between them existed *only* to avoid a dependency.
 
 Both of those seams stayed, with honest reasons:
 

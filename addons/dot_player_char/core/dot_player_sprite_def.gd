@@ -18,7 +18,7 @@ extends Resource
 @export_group("The sheet")
 
 ## The base sheet. A path rather than a [Texture2D] export, for the same reason
-## dot-player-char-model's rig is: a catalogue of forty would load forty textures.
+## [DotPlayerModelDef]'s rig is: a catalogue of forty would load forty textures.
 @export_file("*.png", "*.webp", "*.svg") var sheet: String = ""
 
 ## One frame's size in pixels.

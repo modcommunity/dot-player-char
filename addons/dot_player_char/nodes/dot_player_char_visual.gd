@@ -3,10 +3,10 @@ extends Node
 
 ## The seam between "who this character is" and "what is drawn".
 ##
-## [b]One abstract node, three implementations, and the reason they are separate
-## addons.[/b] dot-player-char-model builds a 3D rig, dot-player-char-sprite builds a
-## 2D one, and a game with its own art pipeline writes a third — and none of them is a
-## dependency of this one. A game that ships no art at all still gets the metrics, the
+## [b]One abstract node, three implementations, and the reason none of them is
+## required.[/b] [DotPlayerModelVisual] builds a 3D rig, [DotPlayerSpriteVisual] builds
+## a 2D one, and a game with its own art pipeline writes a third — and a project that
+## deletes the two it does not want still has this one. A game that ships no art at all still gets the metrics, the
 ## customisation document and the validation, which is most of the value.
 ##
 ## Overriding is four methods, and the first is the only compulsory one.

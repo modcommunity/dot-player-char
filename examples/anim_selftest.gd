@@ -1,6 +1,6 @@
 extends Node
 
-## Exercises dot-player-char-animations with no rig, no sheet and no renderer.
+## Exercises dot-player-char's animation half with no rig, no sheet and no renderer.
 ##
 ## Which covers the half that matters: the state machine is a pure function, so every
 ## branch of it — including the two kinds of flicker it exists to prevent — is checkable
@@ -26,7 +26,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	_line("dot-player-char-animations self-test")
+	_line("dot-player-char animation self-test")
 	_line("")
 
 	_test_states()
@@ -55,7 +55,7 @@ func _run() -> void:
 	get_tree().quit(1 if _failed > 0 else 0)
 
 
-## Stands in for dot-player-char-sprite's visual, which this project does not depend on.
+## Stands in for [DotPlayerSpriteVisual], which the driver must never name.
 class StubSprite extends Node:
 	var row := -1
 	var frame := -1
@@ -450,7 +450,7 @@ func _test_sinks() -> void:
 	_check(
 		sprite_sink.target() == stub,
 		"a sprite sink finds anything with set_row and set_frame — which is how this "
-		+ "addon drives dot-player-char-sprite without depending on it"
+		+ "driver reaches a sprite visual without naming its class"
 	)
 	_check(sprite_sink.is_ready_to_play(), "and is ready")
 

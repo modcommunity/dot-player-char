@@ -92,7 +92,7 @@ func apply_char(def: DotPlayerCharDef, look: DotPlayerCharLook) -> void:
 
 func set_stance(crouched: bool) -> void:
 	# Deliberately not a rebuild. A stance is an animation's business — see
-	# dot-player-char-animations — and re-instantiating a wardrobe every time somebody
+	# [DotPlayerAnimDriver] — and re-instantiating a wardrobe every time somebody
 	# ducks is the eager half of the mistake this class's documentation names.
 	if rig != null:
 		rig.set_meta("crouched", crouched)

@@ -158,7 +158,7 @@ func set_facing(angle: float) -> void:
 	_facing = angle
 
 	# Duck-typed through the sink, for the same reason the sprite sink itself is: this
-	# addon does not depend on dot-player-char-sprite, and a sink whose target happens
+	# driver does not depend on [DotPlayerSpriteVisual], and a sink whose target happens
 	# to understand a facing angle should get one.
 	for sink in sinks():
 		if not sink.has_method("target"):

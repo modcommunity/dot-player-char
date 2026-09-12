@@ -11,7 +11,7 @@ extends Node
 ## The two shipped sinks are in this addon and neither imports the thing it drives:
 ## [DotPlayerAnimPlayerSink] takes an [AnimationPlayer], which is native, and
 ## [DotPlayerAnimSpriteSink] duck-types [code]set_row[/code] and [code]set_frame[/code]
-## — so dot-player-char-animations stays installable without dot-player-char-sprite.
+## — so the animation half drives a sprite this addon never has to name.
 
 ## Start a clip. [param elapsed] is where in it to start, for a resumed state.
 func play(_clip: DotPlayerAnimClip, _elapsed: float) -> void:

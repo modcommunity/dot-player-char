@@ -1,6 +1,6 @@
 extends Node
 
-## Exercises dot-player-char-model with rigs built in code and no art on disk.
+## Exercises dot-player-char's model half with rigs built in code and no art on disk.
 ##
 ## The planning half is checked as arithmetic over ids, which is the half that was
 ## generalised out of dot-user-avatar and the half a server could run. The node half is
@@ -25,7 +25,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	_line("dot-player-char-model self-test")
+	_line("dot-player-char model self-test")
 	_line("")
 
 	_test_def()
