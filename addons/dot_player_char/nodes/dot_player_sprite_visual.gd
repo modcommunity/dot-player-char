@@ -49,6 +49,18 @@ func _ready() -> void:
 
 	_facing = DotPlayerSpriteFacing.Facing.new(0, false)
 
+	# Onto the player body, not left here: a Node2D under a plain Node is placed on the
+	# canvas, not on the player. See [member DotPlayerCharVisual.anchor_ref].
+	var _seated := seat()
+
+
+func _drawn_node() -> Node:
+	return _root
+
+
+func _anchor_class() -> StringName:
+	return &"Node2D"
+
 
 # --- The seam ---------------------------------------------------------------
 

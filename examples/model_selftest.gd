@@ -11,8 +11,8 @@ extends Node
 ## godot --headless --path . res://examples/model_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 6
-const CHECKS := 80
+const SECTIONS := 7
+const CHECKS := 91
 
 var _passed := 0
 var _failed := 0
@@ -36,6 +36,7 @@ func _run() -> void:
 	await _test_build()
 	_test_rig()
 	await _test_visual()
+	await _test_placement()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -490,6 +491,130 @@ func _test_visual() -> void:
 	)
 
 	player.queue_free()
+
+
+## Where the rig is DRAWN, which nothing above asks.
+##
+## A visual is a plain [Node], and a [Node3D] under a plain Node inherits nobody's transform:
+## it is placed in world space. The rig was this visual's own child, so every body drawn
+## through it stood at the world origin whatever its player did — game-playground drew every
+## player at (0, 0, 0) for as long as it had bodies, and worked round it from the game. Every
+## check in `_test_visual` passed throughout, because none of them asks where anything is.
+func _test_placement() -> void:
+	_section("where the rig is drawn")
+
+	var cat := DotPlayerModelCatalogue.new()
+	cat.id = &"placed"
+	cat.models = [_model()]
+	cat.default_model = &"humanoid"
+	var _built := cat.build()
+
+	# A body somewhere other than the origin, facing somewhere other than -Z, with the
+	# character component between it and the visual as a game has it.
+	var body := Node3D.new()
+	body.name = "Body"
+	body.position = Vector3(12.0, 3.0, -7.0)
+	body.rotation.y = PI * 0.5
+	add_child(body)
+
+	var holder := Node.new()
+	holder.name = "Components"
+	body.add_child(holder)
+
+	var visual := DotPlayerModelVisual.new()
+	visual.catalogue = cat
+	holder.add_child(visual)
+
+	_check(
+		visual.rig != null and visual.rig.get_parent() == body and visual.is_seated(),
+		"the rig hangs off the nearest Node3D above the visual, at once when that body is "
+		+ "already in the world"
+	)
+	_check(
+		visual.rig != null and visual.rig.global_position.is_equal_approx(body.global_position),
+		"so it is drawn where the body is, not at the world origin (%s)"
+			% str(visual.rig.global_position if visual.rig != null else Vector3.INF)
+	)
+
+	body.position = Vector3(-4.0, 0.0, 30.0)
+	body.rotation.y = -PI * 0.25
+	_check(
+		visual.rig.global_position.is_equal_approx(body.global_position)
+			and absf(visual.rig.global_rotation.y - body.global_rotation.y) < 0.001,
+		"and it moves and turns with the body"
+	)
+
+	visual.apply_char(null, _look())
+	visual.set_shown(false)
+	_check(not visual.rig.is_visible_in_tree(), "hiding still reaches the seated rig")
+	visual.set_shown(true)
+	_check(visual.attachment_names().size() == 3, "and so do its mounts")
+
+	# A whole player added at once: the body is readying its children when the visual's own
+	# `_ready` runs, and Godot refuses add_child on a node in that state. So it is deferred,
+	# and lands before the frame is drawn.
+	var late_body := Node3D.new()
+	late_body.name = "LateBody"
+	late_body.position = Vector3(3.0, 0.0, 3.0)
+	var late := DotPlayerModelVisual.new()
+	late.catalogue = cat
+	late_body.add_child(late)
+	add_child(late_body)
+	await get_tree().process_frame
+	_check(
+		late.rig != null and late.rig.get_parent() == late_body
+			and late.rig.global_position.is_equal_approx(late_body.global_position),
+		"a player added whole is seated too, by the next frame"
+	)
+
+	# An explicit anchor wins over the nearest one.
+	var mount := Node3D.new()
+	mount.name = "Mount"
+	mount.position = Vector3(0.0, 1.0, 0.0)
+	body.add_child(mount)
+	var chosen := DotPlayerModelVisual.new()
+	chosen.catalogue = cat
+	chosen.anchor_ref = DotNodeRef.of_path(NodePath("../../Mount"))
+	holder.add_child(chosen)
+	_check(
+		chosen.rig != null and chosen.rig.get_parent() == mount,
+		"anchor_ref names another anchor, and is honoured"
+	)
+
+	# Taken off the player, it takes its body with it.
+	var rig := visual.rig
+	holder.remove_child(visual)
+	await get_tree().process_frame
+	_check(
+		rig.get_parent() == visual and not rig.is_inside_tree(),
+		"a visual taken off its player takes its rig with it rather than leaving a body behind"
+	)
+	holder.add_child(visual)
+	await get_tree().process_frame
+	_check(rig.get_parent() == body, "and put back, it is seated again")
+
+	# Freed, it frees the rig it put somewhere else.
+	visual.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(not is_instance_valid(rig), "freeing the visual frees its seated rig")
+
+	# No spatial ancestor at all: exactly as before, the rig stays the visual's own child.
+	var loose_parent := Node.new()
+	add_child(loose_parent)
+	var loose := DotPlayerModelVisual.new()
+	loose.catalogue = cat
+	loose_parent.add_child(loose)
+	await get_tree().process_frame
+	_check(
+		loose.rig != null and loose.rig.get_parent() == loose and not loose.is_seated(),
+		"with no Node3D above it, the rig stays where it was"
+	)
+
+	body.queue_free()
+	late_body.queue_free()
+	loose_parent.queue_free()
+	await get_tree().process_frame
 
 
 # --- Harness ---------------------------------------------------------------

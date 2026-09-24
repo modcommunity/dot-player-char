@@ -96,6 +96,18 @@ Four self-tests, four scenes, one project: `char_selftest` (the default), `model
 
 `DotPlayerChar` connects `child_entered_tree` and pushes the current character at any `DotPlayerCharVisual` that arrives. Without it, a game that instances its character and *then* attaches a first-person arms rig — the ordinary way round — sees an empty player and debugs it in the renderer. The push is deferred, because the child's own `_ready` has not run and a visual that builds its root node there would be told what to draw before it had anywhere to draw it.
 
+## A visual's drawn node hangs off the player, not off the visual
+
+A visual is a plain `Node` — a behaviour, not a place — and **a `Node3D` whose parent is not a `Node3D` inherits nobody's transform**: it is placed in world space. `DotPlayerModelVisual` kept its rig as its own child, so every body drawn through it stood at the world origin whatever its player did, and `DotPlayerSpriteVisual`'s sheet stood at the canvas origin the same way. No suite could see it: every check asked what was built, none asked where it was. game-playground, the one game drawing through it, drew every player at (0, 0, 0) — hidden for months because its lobby spawn *is* the origin — and worked round it from the game with `_seat_rig`.
+
+`DotPlayerCharVisual.seat()` moves the drawn node (`_drawn_node()`: the rig, the sprite root) onto the anchor — `anchor_ref` if set, else the nearest ancestor of `_anchor_class()` (`Node3D`, `Node2D`) — and the visual keeps its reference, so hiding, mounts, tints and rebuilds still reach it. Three details are load-bearing:
+
+- **It defers when the anchor is still readying its children.** A whole player added at once runs the visual's `_ready` while the body is mid-setup, and Godot refuses `add_child` on a node in that state with an error rather than a result. Deferred, it lands before the frame is drawn; added to a body already in the world, it is immediate.
+- **`reparent(anchor, false)`, not keeping the global transform.** Under a plain `Node` the local transform *was* the global one, so keeping it would carry the world origin over as an offset from the player — the bug, one level down.
+- **The drawn node goes where the visual goes.** Taken off its player, the visual takes its rig back (deferred, since a node leaving the tree cannot rearrange its parent's children); freed, it frees it. Otherwise a visual removed from a player leaves a body standing in the world for a player who is gone.
+
+With no anchor at all — a character screen with no spatial parent — the drawn node stays the visual's own child, exactly as before. `model_selftest`'s *where the rig is drawn* (11 checks) and `sprite_selftest`'s *where the sheet is drawn* (4) are armed: no seat in `_ready` fires 5 and 3, no unseat/free fires 2.
+
 ## What this does not do
 
 It does not load content over the network — `content_paths()` lists what a preloader or a dot-cloud manifest needs, and something else fetches it. It does not blend, do inverse kinematics or aim. It does not decide who may use which character: `allows()` answers about teams and classes, and `requires_entitlement` is an id the *game* checks, because an addon that decided entitlement is one a client could patch.

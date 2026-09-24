@@ -11,8 +11,8 @@ extends Node
 ## godot --headless --path . res://examples/sprite_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 5
-const CHECKS := 68
+const SECTIONS := 6
+const CHECKS := 72
 
 var _passed := 0
 var _failed := 0
@@ -33,6 +33,7 @@ func _run() -> void:
 	_test_facing()
 	_test_catalogue()
 	await _test_visual()
+	await _test_placement()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -347,6 +348,59 @@ func _test_visual() -> void:
 	_check(bare.frame() == 1, "and still takes instructions without drawing anything")
 
 	player.queue_free()
+
+
+## Where the sheet is DRAWN. A [Node2D] under a plain [Node] is placed on the canvas, not on
+## anybody, so the sprite root kept as this visual's own child stood at the canvas origin
+## whatever its player did — the 2D half of the rig bug `model_selftest` describes.
+func _test_placement() -> void:
+	_section("where the sheet is drawn")
+
+	var cat := DotPlayerSpriteCatalogue.new()
+	cat.id = &"placed"
+	cat.sprites = [_def()]
+	cat.default_sprite = &"hero"
+	var _built := cat.build()
+
+	var body := Node2D.new()
+	body.name = "Body"
+	body.position = Vector2(300.0, -120.0)
+	add_child(body)
+
+	var holder := Node.new()
+	holder.name = "Components"
+	body.add_child(holder)
+
+	var visual := DotPlayerSpriteVisual.new()
+	visual.catalogue = cat
+	holder.add_child(visual)
+
+	_check(visual.is_seated(), "the sheet hangs off the nearest Node2D above the visual")
+	var root := visual.get_node_or_null("../../Sprite") as Node2D
+	_check(
+		root != null and root.global_position.is_equal_approx(body.global_position),
+		"so it is drawn where the body is, not at the canvas origin"
+	)
+	body.position = Vector2(-50.0, 40.0)
+	_check(
+		root != null and root.global_position.is_equal_approx(body.global_position),
+		"and it moves with the body"
+	)
+
+	var loose_parent := Node.new()
+	add_child(loose_parent)
+	var loose := DotPlayerSpriteVisual.new()
+	loose.catalogue = cat
+	loose_parent.add_child(loose)
+	await get_tree().process_frame
+	_check(
+		not loose.is_seated() and loose.get_node_or_null("Sprite") != null,
+		"with no Node2D above it, the sheet stays where it was"
+	)
+
+	body.queue_free()
+	loose_parent.queue_free()
+	await get_tree().process_frame
 
 
 # --- Harness ---------------------------------------------------------------

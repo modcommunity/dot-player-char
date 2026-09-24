@@ -39,6 +39,17 @@ func _ready() -> void:
 		rig.name = "Rig"
 		add_child(rig)
 
+	# Onto the player body, not left here: see [member DotPlayerCharVisual.anchor_ref].
+	var _seated := seat()
+
+
+func _drawn_node() -> Node:
+	return rig
+
+
+func _anchor_class() -> StringName:
+	return &"Node3D"
+
 
 func apply_char(def: DotPlayerCharDef, look: DotPlayerCharLook) -> void:
 	if catalogue == null:
