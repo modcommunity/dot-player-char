@@ -12,7 +12,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 8
-const CHECKS := 102
+const CHECKS := 106
 
 var _passed := 0
 var _failed := 0
@@ -141,6 +141,22 @@ func _test_body_break() -> void:
 		DotPlayerBodyBreak.break_apart(untouched, world, rules, Vector3.ZERO, Vector3.FORWARD, 1) == null,
 		"mode NONE breaks nothing"
 	)
+
+	# First person: the head stops drawing but keeps its shadow; the body moves back; restore
+	# undoes both.
+	var mine := _break_body()
+	world.add_child(mine)
+	var fp := DotPlayerFirstPersonBody.new()
+	fp.apply(mine)
+	var head := mine.get_node("Rig/Head/Mesh") as MeshInstance3D
+	_check(fp.hidden_count() == 1 and head.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY,
+		"first person stops drawing the head and keeps its shadow")
+	_check((mine.get_node("Rig/Chest/Mesh") as MeshInstance3D).cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY,
+		"and draws the rest")
+	_check(is_equal_approx(mine.position.z, fp.back_offset), "and pulls the body back behind the eye")
+	fp.restore()
+	_check(head.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON and mine.position == Vector3.ZERO,
+		"restore draws the head again where it stood")
 
 	# Pieces shrink away after lifetime + fade and free themselves.
 	blast.advance(rules.lifetime + rules.fade + 0.1)

@@ -52,6 +52,7 @@ addons/dot_player_char/
     dot_player_anim_sprite_sink.gd  a sprite, duck-typed
     dot_player_anim_driver.gd       the component that ties it together
     dot_player_body_break.gd        a body's meshes, copied into tumbling pieces that fade
+    dot_player_first_person_body.gd your own body in first person: head shadow-only, body back
 ```
 
 Four self-tests, four scenes, one project: `char_selftest` (the default), `model_selftest`, `sprite_selftest`, `anim_selftest`. **Run all four.** The first is the main scene and is the one a careless check runs alone.
@@ -118,7 +119,9 @@ With no anchor at all — a character screen with no spatial parent — the draw
 - **Seeded from the death, never `randf()` or `Array.shuffle()`**, both of which use the global generator: the game passes a seed made of the victim and the tick, so every viewer sees the same arm come off.
 - **Pieces collide with the world (`collision_mask`) and sit on layer 0**: nothing collides with them, so a piece cannot change the game. A server never calls it.
 
-`model_selftest`'s *a body coming apart* (11 checks). The suite leaked five `Node3D`s at exit before this section existed and still does; that is not it.
+**Your own body in first person is the same kind of helper** (`DotPlayerFirstPersonBody`): the head's meshes go `SHADOWS_ONLY` rather than invisible — the camera is inside the head, and a shadow with no head on it is a stranger — and the body is pulled `back_offset` behind the eye so looking down shows the torso rather than its inside. `restore()` undoes both. A game's setting, local player only.
+
+`model_selftest`'s *a body coming apart* (15 checks, the first-person body included). The suite leaked five `Node3D`s at exit before this section existed and still does; that is not it.
 
 ## What this does not do
 
