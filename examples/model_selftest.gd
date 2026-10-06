@@ -11,8 +11,8 @@ extends Node
 ## godot --headless --path . res://examples/model_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 7
-const CHECKS := 91
+const SECTIONS := 8
+const CHECKS := 102
 
 var _passed := 0
 var _failed := 0
@@ -37,6 +37,7 @@ func _run() -> void:
 	_test_rig()
 	await _test_visual()
 	await _test_placement()
+	await _test_body_break()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -55,6 +56,99 @@ func _run() -> void:
 		return
 
 	get_tree().quit(1 if _failed > 0 else 0)
+
+
+## A stand-in body with the humanoid mounts' names: five meshes, one of them the torso.
+func _break_body() -> Node3D:
+	var body := Node3D.new()
+	body.name = "Body"
+	var rig := Node3D.new()
+	rig.name = "Rig"
+	body.add_child(rig)
+
+	for part in ["Head", "Chest", "LeftHand", "RightHand", "LeftFoot"]:
+		var mount := Node3D.new()
+		mount.name = part
+		rig.add_child(mount)
+		var mesh := MeshInstance3D.new()
+		mesh.name = "Mesh"
+		mesh.mesh = BoxMesh.new()
+		mount.add_child(mesh)
+
+	return body
+
+
+func _test_body_break() -> void:
+	_section("a body coming apart")
+
+	var world := Node3D.new()
+	add_child(world)
+	var rules := DotPlayerBreakRules.new()
+
+	var body := _break_body()
+	world.add_child(body)
+	_check(DotPlayerBodyBreak.visible_meshes(body).size() == 5, "the stand-in body has five meshes")
+	_check(
+		DotPlayerBodyBreak.limbs_of(body, DotPlayerBodyBreak.visible_meshes(body), rules.limb_names).size() == 4,
+		"and four of them are limbs: the chest is not"
+	)
+
+	# Criticals only, by default: an ordinary death leaves the body whole.
+	_check(
+		DotPlayerBodyBreak.break_apart(body, world, rules, Vector3.ZERO, Vector3.FORWARD, 7, true, false) == null,
+		"an ordinary death breaks nothing while criticals_only is on"
+	)
+
+	rules.limbs = 2
+	var limbs := DotPlayerBodyBreak.break_apart(body, world, rules, Vector3.ZERO, Vector3.FORWARD, 7, true, true)
+	_check(limbs != null and limbs.piece_count() == 2, "a lethal critical takes two limbs off")
+	var hidden := 5 - DotPlayerBodyBreak.visible_meshes(body).size()
+	_check(hidden == 2 and body.visible, "their originals are hidden and the body stays")
+
+	# The same death breaks the same way: every viewer seeds from the death.
+	var a := _break_body()
+	var b := _break_body()
+	world.add_child(a)
+	world.add_child(b)
+	DotPlayerBodyBreak.break_apart(a, world, rules, Vector3.ZERO, Vector3.FORWARD, 99)
+	DotPlayerBodyBreak.break_apart(b, world, rules, Vector3.ZERO, Vector3.FORWARD, 99)
+	var gone_a: Array[String] = []
+	var gone_b: Array[String] = []
+	for mount in a.get_node("Rig").get_children():
+		if not (mount.get_child(0) as Node3D).visible:
+			gone_a.append(String(mount.name))
+	for mount in b.get_node("Rig").get_children():
+		if not (mount.get_child(0) as Node3D).visible:
+			gone_b.append(String(mount.name))
+	_check(gone_a == gone_b and gone_a.size() == 2, "the same seed takes the same limbs off (%s)" % ", ".join(gone_a))
+
+	rules.mode = DotPlayerBreakRules.Mode.EXPLODE
+	rules.criticals_only = false
+	var whole := _break_body()
+	world.add_child(whole)
+	var blast := DotPlayerBodyBreak.break_apart(whole, world, rules, Vector3.ZERO, Vector3.FORWARD, 3, true, false)
+	_check(blast != null and blast.piece_count() == 5 and not whole.visible,
+		"explode throws every piece and hides the body")
+
+	var piece := blast.get_child(0) as RigidBody3D
+	_check(piece != null and piece.collision_layer == 0, "a piece collides with the world and nothing collides with it")
+	_check(piece.linear_velocity.length() > rules.force * 0.5, "and leaves at speed (%.1f m/s)" % piece.linear_velocity.length())
+
+	rules.mode = DotPlayerBreakRules.Mode.NONE
+	var untouched := _break_body()
+	world.add_child(untouched)
+	_check(
+		DotPlayerBodyBreak.break_apart(untouched, world, rules, Vector3.ZERO, Vector3.FORWARD, 1) == null,
+		"mode NONE breaks nothing"
+	)
+
+	# Pieces shrink away after lifetime + fade and free themselves.
+	blast.advance(rules.lifetime + rules.fade + 0.1)
+	await get_tree().process_frame
+	_check(not is_instance_valid(blast), "the pieces free themselves once faded")
+
+	world.queue_free()
+	await get_tree().process_frame
 
 
 func _model() -> DotPlayerModelDef:

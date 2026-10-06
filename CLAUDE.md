@@ -40,6 +40,7 @@ addons/dot_player_char/
     dot_player_anim_state.gd        the locomotion state machine, pure
     dot_player_anim_clip.gd         one clip, for a rig AND a sheet
     dot_player_anim_set.gd          the clip table, and the locomotion preset
+    dot_player_break_rules.gd       how a body comes apart on death: none, limbs, explode
   nodes/
     dot_player_char.gd              the component: metrics, stance, body, visuals
     dot_player_char_visual.gd       the abstract seam
@@ -50,6 +51,7 @@ addons/dot_player_char/
     dot_player_anim_player_sink.gd  an AnimationPlayer
     dot_player_anim_sprite_sink.gd  a sprite, duck-typed
     dot_player_anim_driver.gd       the component that ties it together
+    dot_player_body_break.gd        a body's meshes, copied into tumbling pieces that fade
 ```
 
 Four self-tests, four scenes, one project: `char_selftest` (the default), `model_selftest`, `sprite_selftest`, `anim_selftest`. **Run all four.** The first is the main scene and is the one a careless check runs alone.
@@ -107,6 +109,16 @@ A visual is a plain `Node` — a behaviour, not a place — and **a `Node3D` who
 - **The drawn node goes where the visual goes.** Taken off its player, the visual takes its rig back (deferred, since a node leaving the tree cannot rearrange its parent's children); freed, it frees it. Otherwise a visual removed from a player leaves a body standing in the world for a player who is gone.
 
 With no anchor at all — a character screen with no spatial parent — the drawn node stays the visual's own child, exactly as before. `model_selftest`'s *where the rig is drawn* (11 checks) and `sprite_selftest`'s *where the sheet is drawn* (4) are armed: no seat in `_ready` fires 5 and 3, no unseat/free fires 2.
+
+## A body coming apart is presentation, seeded from the death
+
+`DotPlayerBodyBreak.break_apart(body, world, rules, origin, direction, seed, lethal, critical)` copies the chosen meshes into `RigidBody3D` pieces under `world`, hides the originals, and frees itself after `lifetime` + `fade`. `DotPlayerBreakRules` (a `DotConfig`, so a server owner sets it per mode) picks NONE, LIMBS (`limbs` of the meshes whose name or an ancestor's matches `limb_names` — the humanoid mounts all do) or EXPLODE, and by default only a lethal **critical** breaks anything (`criticals_only`), because a body that comes apart on every death stops meaning anything. Three decisions:
+
+- **Copies, not the originals reparented.** The body is the player's, which a game frees or respawns on its own schedule; a piece that was still its child would vanish mid-flight or come back on respawn.
+- **Seeded from the death, never `randf()` or `Array.shuffle()`**, both of which use the global generator: the game passes a seed made of the victim and the tick, so every viewer sees the same arm come off.
+- **Pieces collide with the world (`collision_mask`) and sit on layer 0**: nothing collides with them, so a piece cannot change the game. A server never calls it.
+
+`model_selftest`'s *a body coming apart* (11 checks). The suite leaked five `Node3D`s at exit before this section existed and still does; that is not it.
 
 ## What this does not do
 
