@@ -22,6 +22,15 @@ extends RefCounted
 ## faces hang off the head mount, so they go with it.
 var head_names: PackedStringArray = PackedStringArray(["head", "face", "hat", "hair", "eye"])
 
+## When not empty, only meshes whose names (or an ancestor's) contain one of these stay drawn;
+## every other one casts its shadow and is not drawn, like the head.
+##
+## [b]Empty by default, which is the old behaviour (everything but the head).[/b] Set it to
+## the legs ([code]["leg", "foot", "shoe", "boot"][/code]) for a body built of boxes: a camera
+## at eye height inside a box torso looks down into the torso, and the first render of the
+## arena's showed a grey slab filling half the screen.
+var shown_names: PackedStringArray = PackedStringArray()
+
 ## Metres the body is pulled back behind the eye, along the body's own facing.
 var back_offset: float = 0.22
 
@@ -43,7 +52,7 @@ func apply(body: Node3D) -> void:
 	_body = body
 
 	for mesh in DotPlayerBodyBreak.visible_meshes(body):
-		if _is_head(body, mesh):
+		if _is_head(body, mesh) or not _is_shown(body, mesh):
 			_hidden.append(mesh)
 			_was.append(mesh.cast_shadow)
 			mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
@@ -73,6 +82,31 @@ func hidden_count() -> int:
 	return _hidden.size()
 
 
+func _is_shown(body: Node, mesh: MeshInstance3D) -> bool:
+	if shown_names.is_empty():
+		return true
+
+	return _named(body, mesh, shown_names)
+
+
+func _named(body: Node, mesh: MeshInstance3D, fragments: PackedStringArray) -> bool:
+	var node: Node = mesh
+
+	while node != null:
+		var lower := String(node.name).to_lower()
+
+		for fragment in fragments:
+			if fragment != "" and lower.contains(fragment):
+				return true
+
+		if node == body:
+			break
+
+		node = node.get_parent()
+
+	return false
+
+
 func _is_head(body: Node, mesh: MeshInstance3D) -> bool:
 	var node: Node = mesh
 
@@ -89,4 +123,4 @@ func _is_head(body: Node, mesh: MeshInstance3D) -> bool:
 
 
 func describe() -> Dictionary:
-	return {"applied": _body != null, "head_meshes": _hidden.size(), "back_offset": back_offset}
+	return {"applied": _body != null, "head_meshes": _hidden.size(), "back_offset": back_offset, "shown": shown_names}

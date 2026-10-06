@@ -12,7 +12,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 8
-const CHECKS := 106
+const CHECKS := 107
 
 var _passed := 0
 var _failed := 0
@@ -157,6 +157,14 @@ func _test_body_break() -> void:
 	fp.restore()
 	_check(head.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON and mine.position == Vector3.ZERO,
 		"restore draws the head again where it stood")
+
+	# Only the named parts stay drawn when asked: a box torso under the eye is a grey slab.
+	var legs_only := DotPlayerFirstPersonBody.new()
+	legs_only.shown_names = PackedStringArray(["leg"])
+	legs_only.apply(mine)
+	_check((mine.get_node("Rig/Chest/Mesh") as MeshInstance3D).cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY,
+		"with shown_names set, the chest only casts its shadow")
+	legs_only.restore()
 
 	# Pieces shrink away after lifetime + fade and free themselves.
 	blast.advance(rules.lifetime + rules.fade + 0.1)
