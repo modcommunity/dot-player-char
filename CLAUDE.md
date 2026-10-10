@@ -1,128 +1,59 @@
 # dot-player-char
 
-Who a player looks like — the metrics, the document, and the two ways of drawing one.
+Who a player looks like: the metrics, the customisation document, a 3D rig and a 2D sheet to draw it with, the locomotion animation layer, a body that comes apart on death, and your own body in first person.
 
-Read the family-wide conventions in [`../../CLAUDE.md`](../../CLAUDE.md) first — no autoloads, `DotNodeRef` instead of scene paths, `DotResult` for anything fallible, `Dot`-prefixed class names, layered configuration, `describe()` on anything stateful. This file is only what is specific to characters.
+Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is specific to characters.
 
-## The one idea
+**The distributable is `addons/dot_player_char/`.** It requires dot-core and dot-player (`DotPlayerChar` and `DotPlayerAnimDriver` extend `DotPlayerComponent`), both symlinked and in `.gitignore`.
 
-**Five systems have to agree about how tall somebody is, so there is one number.**
+## Read before
 
-The collision capsule, the crouch test, the camera, the muzzle and the hitbox layout. In most projects those are five numbers in five files that were the same on the day they were typed, and the bug they produce — a character visibly two metres tall that collides as if it were 1.8 — is one nobody files, because it does not look like a bug. It looks like bad aim.
-
-The second idea is dot-user-avatar's, restated smaller: **the customisation document is validated from ids alone.** If a change here ever needs a `load()` or a `ResourceLoader.exists()` to decide whether a look is legal, that is the thing to push back on.
-
-## It was four addons
-
-`dot-player-char-model`, `dot-player-char-sprite` and `dot-player-char-animations` were separate and were merged in. None of the three was ever pushed, so there is nothing to go and read: the reason is that none of them was useful without this one and none was useful beside another, so the split bought three repositories and bought nothing else — and two of the seams between them existed *only* to avoid a dependency.
-
-Both of those seams stayed, with honest reasons:
-
-- `DotPlayerAnimSpriteSink` still duck-types `set_row` / `set_frame`, because a game with its own sprite node, its own `AnimatedSprite2D` wrapper or a tilemap character gets the whole animation layer by offering two methods.
-- `DotPlayerCharVisual` is still abstract with no implementation named by `DotPlayerChar`, because a game with its own art pipeline writes a third.
-
-The one thing that did **not** stay was the duplicated 2D heading helper in `DotPlayerAnimDriver`. It was a duplicate to avoid a dependency a 3D game would not have installed; it is `DotPlayerSpriteFacing.angle_of` now.
+| Read | Before |
+| --- | --- |
+| [docs/design.md](docs/design.md) | anything: the one height, ids-only validation, the seams, the rebuild signature, seating a visual, breaking a body, the smaller traps, what is not here |
+| [docs/history.md](docs/history.md) | the four-addon merge, and the bodies that all stood at the origin |
 
 ## Layout
 
-```
-addons/dot_player_char/
-  core/
-    dot_player_char_def.gd          the metrics, the ids, the slots
-    dot_player_char_look.gd         what a player chose, as a bounded document
-    dot_player_char_catalogue.gd    the set, and three presets
-    dot_player_model_def.gd         a 3D rig: mounts, parts, tints
-    dot_player_model_catalogue.gd   the set, and the nine humanoid mount names
-    dot_player_model_builder.gd     plan (pure) and apply (the only node work)
-    dot_player_sprite_def.gd        a 2D sheet: the grid, the layers, the anchor
-    dot_player_sprite_facing.gd     angle -> row offset and flip, static
-    dot_player_sprite_catalogue.gd  the set, and two presets
-    dot_player_anim_state.gd        the locomotion state machine, pure
-    dot_player_anim_clip.gd         one clip, for a rig AND a sheet
-    dot_player_anim_set.gd          the clip table, and the locomotion preset
-    dot_player_break_rules.gd       how a body comes apart on death: none, limbs, explode
-  nodes/
-    dot_player_char.gd              the component: metrics, stance, body, visuals
-    dot_player_char_visual.gd       the abstract seam
-    dot_player_model_rig.gd         a built rig: mount lookup, measured eye height
-    dot_player_model_visual.gd      the 3D seam implementation
-    dot_player_sprite_visual.gd     the 2D one
-    dot_player_anim_sink.gd         where an animation decision goes (abstract)
-    dot_player_anim_player_sink.gd  an AnimationPlayer
-    dot_player_anim_sprite_sink.gd  a sprite, duck-typed
-    dot_player_anim_driver.gd       the component that ties it together
-    dot_player_body_break.gd        a body's meshes, copied into tumbling pieces that fade
-    dot_player_first_person_body.gd your own body in first person: head shadow-only, body back
-```
+| Path | What |
+| --- | --- |
+| `core/dot_player_char_def.gd` | the metrics, the ids, the slots; `capsule_3d()`, `allows()` |
+| `core/dot_player_char_look.gd` | what a player chose, as a bounded document; `validate`, `conform` |
+| `core/dot_player_char_catalogue.gd` | the set, and its presets |
+| `core/dot_player_model_def.gd`, `dot_player_model_catalogue.gd` | a 3D rig (mounts, parts, tints), and the set with the humanoid mount names |
+| `core/dot_player_model_builder.gd` | `plan` (pure) and `apply` (the only node work) |
+| `core/dot_player_sprite_def.gd`, `dot_player_sprite_catalogue.gd` | a 2D sheet (grid, layers, anchor), and the set with its presets |
+| `core/dot_player_sprite_facing.gd` | angle to row offset and flip, static |
+| `core/dot_player_anim_state.gd`, `dot_player_anim_clip.gd`, `dot_player_anim_set.gd` | the locomotion state machine (pure), one clip for a rig and a sheet, the clip table |
+| `core/dot_player_break_rules.gd` | how a body comes apart on death: none, limbs, explode |
+| `nodes/dot_player_char.gd` | the component: metrics, stance, body, visuals |
+| `nodes/dot_player_char_visual.gd` | the abstract seam; `seat()` |
+| `nodes/dot_player_model_rig.gd`, `dot_player_model_visual.gd` | a built rig (mount lookup, measured eye height), and the 3D visual |
+| `nodes/dot_player_sprite_visual.gd` | the 2D visual |
+| `nodes/dot_player_anim_sink.gd`, `dot_player_anim_player_sink.gd`, `dot_player_anim_sprite_sink.gd` | where an animation decision goes: abstract, an `AnimationPlayer`, a duck-typed sprite |
+| `nodes/dot_player_anim_driver.gd` | the component that ties animation together |
+| `nodes/dot_player_body_break.gd` | a body's meshes, copied into tumbling pieces that fade |
+| `nodes/dot_player_first_person_body.gd` | your own body in first person: head shadow-only, body back |
+| `examples/` | four suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest` |
 
-Four self-tests, four scenes, one project: `char_selftest` (the default), `model_selftest`, `sprite_selftest`, `anim_selftest`. **Run all four.** The first is the main scene and is the one a careless check runs alone.
+Paths under `core/` and `nodes/` are in `addons/dot_player_char/`.
 
-## `validate` and `conform` are in different places on purpose
+## Running and testing
 
-`validate` is for the trust boundary: a document arriving from a client, refused whole. `conform` is for the loading path: somebody's saved character after the hat they chose was retired, where refusing would lock them out of their own character. Dropping three things and keeping the rest is the correct answer there and the wrong one at the boundary.
+The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything)), then **all four** suites: `char_selftest.tscn`, `model_selftest.tscn`, `sprite_selftest.tscn`, `anim_selftest.tscn` under `res://examples/`. The first is the main scene, and the one a careless check runs alone.
 
-`DotPlayerChar.set_look` calls `conform`, and says so. The game calls `validate` where the document arrives.
+## Rules that bite
 
-## Planning never touches the filesystem
+- One `DotPlayerCharDef` height feeds capsule, crouch, camera, muzzle and hitboxes; never a second copy of the number. [design](docs/design.md#one-number-for-how-tall-somebody-is)
+- A look is validated from ids alone: no `load()` or `ResourceLoader.exists()` in a legality check, and `plan()` touches no file. [design](docs/design.md#planning-never-touches-the-filesystem)
+- `validate` at the trust boundary (refuse whole), `conform` on load (drop what was retired); `set_look` conforms. [design](docs/design.md#validate-and-conform-are-in-different-places-on-purpose)
+- Rebuild signature excludes colours; reset `_last_signature` on a model change. [design](docs/design.md#the-signature-is-the-whole-performance-story)
+- A visual's drawn node is seated on the player with `reparent(anchor, false)`, deferred while the anchor readies, and follows the visual out. [design](docs/design.md#a-visuals-drawn-node-hangs-off-the-player-not-off-the-visual)
+- A visual attached later is pushed the character (deferred) via `child_entered_tree`. [design](docs/design.md#a-visual-added-later-is-still-told-what-to-draw)
+- `_refresh` recurses once through `char_id`'s setter; keep the `return` after the assignment. [design](docs/design.md#_refresh-recurses-exactly-once-on-purpose)
+- Body breaking copies meshes, is seeded by the game (never `randf()` / `shuffle()`), sits on layer 0, and never runs on a server. [design](docs/design.md#a-body-coming-apart-is-presentation-seeded-from-the-death)
+- `capsule_3d()` returns a fresh shape and clamps to two radii; `eye_offset()` < 0 means "no opinion". [design](docs/design.md#smaller-traps)
+- Run thresholds have a gap (`run_exit_speed`), events fire through `events_between`, and the reset is `forget_state`. [design](docs/design.md#smaller-traps)
+- Entitlement is the game's: `requires_entitlement` is only an id. [design](docs/design.md#what-this-does-not-do)
 
-`DotPlayerModelBuilder.plan()` calls neither `load` nor `ResourceLoader.exists`. A dedicated server plans from ids and holds none of the content, so a plan that consulted the filesystem would produce a different answer on the server than on the client — and the difference shows up as a desync in something that is not the netcode.
-
-`missing` therefore means *the definition names no path*, not *the file is absent*. Whether the scene is really there is `apply()`'s question and the placeholder is its answer. The suite asserts this explicitly, because it is the assertion somebody will otherwise "fix".
-
-## The signature is the whole performance story
-
-`DotPlayerModelVisual` rebuilds when slot→scene changes and not otherwise. Colours are deliberately **excluded**, because a tint is applied to instances that already exist — including them would put back the case the comparison is for: a player dragging a colour slider, calling `apply_char` several times a second, rebuilding forty parts a frame for a change that is not a change.
-
-`_last_signature = ""` on a model change is load-bearing. A new rig has empty mounts, so a signature carried over would suppress the rebuild, and changing to a character wearing the same parts would show an empty body.
-
-## Traps already paid for, in each half
-
-**Shape aliasing.** A `Shape3D` handed to two bodies is shared by them, so `capsule_3d()` returns a fresh one — otherwise resizing one character resizes every player using the resource, which presents as everybody crouching at once. `to_physics_material` in dot-physics and the model builder's tints avoid the same family of bug.
-
-**`capsule_3d` clamps to two radii.** A capsule shorter than that is silently a sphere, which stops climbing stairs in a way that reads as a movement bug.
-
-**`eye_offset()` returns a negative number for "no opinion"**, not zero — zero would put a first-person camera in the floor. A rig with a real head bone answers properly and `DotPlayerChar` asks it before reading the resource.
-
-**The mirror offset in `_set_region`.** Godot mirrors about the node's origin and the anchor is measured from the left, so a flipped sprite moves by its own width. Its absence presents as *the collision being offset*, not the sprite.
-
-**Two thresholds, not one.** `DotPlayerAnimState` enters `run` at `run_speed` and leaves at `run_exit_speed`, and `validate()` refuses a configuration with no gap. `_land_time` is decremented *before* its test so a frame longer than the whole landing ends it in the same call — a suite stepping a second at a time is not hypothetical, it is this addon's own.
-
-**Events are a window, never an instant.** `events_between(from, to)` is the only shape that fires an event exactly once; equality never fires and "past it" fires every tick afterwards.
-
-**`forget_state`, not `reset`.** `docs/gdscript-hazards.md` records what `reset_state` cost when it silently bound to `Resource`'s.
-
-## `_refresh` recurses exactly once, on purpose
-
-`char_id`'s setter calls `_refresh`, and `_refresh` assigns `char_id` when it is empty. One level deep, terminating because a fallback id is never empty — and the `return` immediately after the assignment is what keeps it to one. Worth the comment in the file; it is the kind of thing a later reader "simplifies" into an infinite loop.
-
-## A visual added later is still told what to draw
-
-`DotPlayerChar` connects `child_entered_tree` and pushes the current character at any `DotPlayerCharVisual` that arrives. Without it, a game that instances its character and *then* attaches a first-person arms rig — the ordinary way round — sees an empty player and debugs it in the renderer. The push is deferred, because the child's own `_ready` has not run and a visual that builds its root node there would be told what to draw before it had anywhere to draw it.
-
-## A visual's drawn node hangs off the player, not off the visual
-
-A visual is a plain `Node` — a behaviour, not a place — and **a `Node3D` whose parent is not a `Node3D` inherits nobody's transform**: it is placed in world space. `DotPlayerModelVisual` kept its rig as its own child, so every body drawn through it stood at the world origin whatever its player did, and `DotPlayerSpriteVisual`'s sheet stood at the canvas origin the same way. No suite could see it: every check asked what was built, none asked where it was. game-playground, the one game drawing through it, drew every player at (0, 0, 0) — hidden for months because its lobby spawn *is* the origin — and worked round it from the game with `_seat_rig`.
-
-`DotPlayerCharVisual.seat()` moves the drawn node (`_drawn_node()`: the rig, the sprite root) onto the anchor — `anchor_ref` if set, else the nearest ancestor of `_anchor_class()` (`Node3D`, `Node2D`) — and the visual keeps its reference, so hiding, mounts, tints and rebuilds still reach it. Three details are load-bearing:
-
-- **It defers when the anchor is still readying its children.** A whole player added at once runs the visual's `_ready` while the body is mid-setup, and Godot refuses `add_child` on a node in that state with an error rather than a result. Deferred, it lands before the frame is drawn; added to a body already in the world, it is immediate.
-- **`reparent(anchor, false)`, not keeping the global transform.** Under a plain `Node` the local transform *was* the global one, so keeping it would carry the world origin over as an offset from the player — the bug, one level down.
-- **The drawn node goes where the visual goes.** Taken off its player, the visual takes its rig back (deferred, since a node leaving the tree cannot rearrange its parent's children); freed, it frees it. Otherwise a visual removed from a player leaves a body standing in the world for a player who is gone.
-
-With no anchor at all — a character screen with no spatial parent — the drawn node stays the visual's own child, exactly as before. `model_selftest`'s *where the rig is drawn* (11 checks) and `sprite_selftest`'s *where the sheet is drawn* (4) are armed: no seat in `_ready` fires 5 and 3, no unseat/free fires 2.
-
-## A body coming apart is presentation, seeded from the death
-
-`DotPlayerBodyBreak.break_apart(body, world, rules, origin, direction, seed, lethal, critical)` copies the chosen meshes into `RigidBody3D` pieces under `world`, hides the originals, and frees itself after `lifetime` + `fade`. `DotPlayerBreakRules` (a `DotConfig`, so a server owner sets it per mode) picks NONE, LIMBS (`limbs` of the meshes whose name or an ancestor's matches `limb_names` — the humanoid mounts all do) or EXPLODE, and by default only a lethal **critical** breaks anything (`criticals_only`), because a body that comes apart on every death stops meaning anything. Three decisions:
-
-- **Copies, not the originals reparented.** The body is the player's, which a game frees or respawns on its own schedule; a piece that was still its child would vanish mid-flight or come back on respawn.
-- **Seeded from the death, never `randf()` or `Array.shuffle()`**, both of which use the global generator: the game passes a seed made of the victim and the tick, so every viewer sees the same arm come off.
-- **Pieces collide with the world (`collision_mask`) and sit on layer 0**: nothing collides with them, so a piece cannot change the game. A server never calls it.
-
-**Your own body in first person is the same kind of helper** (`DotPlayerFirstPersonBody`): the head's meshes go `SHADOWS_ONLY` rather than invisible — the camera is inside the head, and a shadow with no head on it is a stranger — and the body is pulled `back_offset` behind the eye so looking down shows the torso rather than its inside. `restore()` undoes both. A game's setting, local player only.
-
-`model_selftest`'s *a body coming apart* (15 checks, the first-person body included). The suite leaked five `Node3D`s at exit before this section existed and still does; that is not it.
-
-## What this does not do
-
-It does not load content over the network — `content_paths()` lists what a preloader or a dot-cloud manifest needs, and something else fetches it. It does not blend, do inverse kinematics or aim. It does not decide who may use which character: `allows()` answers about teams and classes, and `requires_entitlement` is an id the *game* checks, because an addon that decided entitlement is one a client could patch.
+Deliberately not here: network content loading (`content_paths()` lists it), blending, IK, aiming, entitlement decisions. [design](docs/design.md#what-this-does-not-do)
