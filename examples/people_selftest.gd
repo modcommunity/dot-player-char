@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 7
-const CHECKS := 60
+const CHECKS := 61
 
 var _passed := 0
 var _failed := 0
@@ -240,6 +240,9 @@ func _test_hand_and_aim() -> void:
 	_check(steady, "the bend is put on the clip's pose each frame, not added to last frame's")
 	f.aim(INF)
 	_check(f.aim_pitch == 0.0, "a pitch that is not a number is level")
+	f.set_motion({"aim": 0.4})
+	f.set_motion({"crouched": true})
+	_check(is_equal_approx(f.aim_pitch, 0.4), "the motion's `aim` sets it, and a motion without one leaves it")
 
 	f.aim(0.0)
 	f.set_motion({"seated": true})

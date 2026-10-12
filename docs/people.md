@@ -56,7 +56,7 @@ Only `people_matt.glb` carries clips; the others are a quarter of the size witho
 - **Most of the pitch goes to the arm, not the spine.** The first try put it all in the waist and chest: on a cartoon-proportioned body a player looking down was bowing and one looking up was falling over backwards.
 - **The parents' poses come from the local poses up the chain**, not `get_bone_global_pose`, which is last frame's until the skeleton updates (with last frame's bend in it). Each bone's share goes on as `P^-1 * turn * P * local` with every `P` read before anything turns: turns about one axis commute.
 - **Only on a bone the playing clip keys.** A bone no track writes keeps last frame's pose, and a bend put on it would add up frame after frame.
-- A remote player is drawn aiming only if the game sends the pitch; every game's snapshot already carries it for the view.
+- A game passes it as `"aim"` in `set_motion` (left out, it stays). A remote player is drawn aiming only if the game sends the pitch; the games' snapshots already carry it for the view.
 
 ## Legs from the clip, arms from an overlay
 

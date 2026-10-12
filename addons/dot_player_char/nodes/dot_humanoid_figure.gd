@@ -382,11 +382,14 @@ func mend() -> void:
 
 ## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it:
 ## `on_floor`, `vertical`, `crouched`, `swimming`, `climbing`, `alive`; plus `downed` here.
-## `seated` draws the person sitting ([method seat_height] says where their hips are).
+## `seated` draws the person sitting ([method seat_height] says where their hips are), and `aim`
+## (radians, up positive) is [method aim]; left out, the aim stays where it was.
 func set_motion(motion: Dictionary) -> void:
 	_motion = motion
 	downed = bool(motion.get("downed", false))
 	seated = bool(motion.get("seated", false))
+	if motion.has("aim"):
+		aim(float(motion["aim"]))
 
 
 ## Where the player looks, up or down, in radians (up is positive; a first-person controller's
