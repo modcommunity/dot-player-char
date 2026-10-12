@@ -10,7 +10,7 @@ both (docs/people.md). What this does, and why:
 
 - Keeps each survivor's one skinned mesh and drops the eleven weapons on its finger bone (a game
   hangs its own weapon on the hand) and the importer's hidden bone-display icosphere.
-- Decimates to 55% (three to five thousand triangles): a person is seen closer than a zombie in
+- Decimates to 42% (2.6 to 3.7 thousand triangles): a person is seen closer than a zombie in
   a crowd, so more is kept than game-zombie-zone's 35%, and Godot's generated LODs take it down
   with distance.
 - Keeps the clips on `matt` only, renamed to the family's names, plus the zombie's crawl (same
@@ -33,7 +33,7 @@ CLIPS = {"Death": "death", "Duck": "duck", "HitReact": "hit", "Idle": "idle", "I
 BODIES = [("matt", "Characters_Matt", True), ("lis", "Characters_Lis", False),
 	("sam", "Characters_Sam", False), ("shaun", "Characters_Shaun", False)]
 
-RATIO = 0.55
+RATIO = 0.42
 
 
 def base_name(action):

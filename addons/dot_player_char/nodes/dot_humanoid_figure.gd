@@ -28,8 +28,14 @@ const CHANNEL := "player.humanoid"
 const ANIM_NEAR := 22.0
 const ANIM_FAR := 45.0
 
-## Below 1, the mesh switches to its simpler levels sooner.
-const LOD_BIAS := 0.6
+## Below 1, the mesh switches to its simpler levels sooner. A person is small on screen past a
+## few metres; 0.4 is game-zombie-zone's crowd number too.
+const LOD_BIAS := 0.4
+
+## Past this distance from the camera a person casts no shadow. The shadow pass drew every person
+## at full detail and was more than half of a crowd's triangles (docs/people.md), for shadows too
+## far away to read.
+const SHADOW_RANGE := 28.0
 
 ## Nothing drawn past this.
 const DRAW_RANGE := 140.0
@@ -540,6 +546,10 @@ func _step_for_distance() -> int:
 	if camera == null:
 		return 1
 	var d := camera.global_position.distance_to(global_position)
+	if _mesh != null:
+		var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if d <= SHADOW_RANGE else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if _mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY and _mesh.cast_shadow != shadow:
+			_mesh.cast_shadow = shadow
 	if d <= ANIM_NEAR:
 		return 1
 	return 2 if d <= ANIM_FAR else 4

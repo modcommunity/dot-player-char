@@ -54,8 +54,10 @@ A swing, a flinch and a gesture are one-shots that would stop the legs if played
 
 ## What a crowd costs
 
-- One surface and one material per look; the bodies are decimated to 55% at build (3.4 to 4.9 thousand triangles) and Godot's generated LODs take them down with distance (`lod_bias` 0.6); nothing drawn past 140 m.
+- One surface and one material per look; the bodies are decimated to 42% at build (2.6 to 3.7 thousand triangles; 55% was tried first and cost a fifth more for no difference anybody could see in the looks sheet) and Godot's generated LODs take them down with distance (`lod_bias` 0.4); nothing drawn past 140 m.
+- **No shadow past 28 m** (`SHADOW_RANGE`). The shadow pass drew every person at full detail and was more than half of a crowd's triangles: thirty people measured 267 thousand primitives with every shadow and 110 thousand with none.
 - The clip advanced every frame within 22 m of the camera, every second frame to 45 m, every fourth beyond, with the skipped time carried.
+- Measured with `tools/people_sheet.gd --crowd=30` (thirty people running 6 to 30 m from the camera, each a different look) on the dev VM's software renderer (llvmpipe, a worst case, not a browser): 64 draw calls, 174 thousand primitives, about 50 ms a frame at 1280x720 in both renderers, 15 to 18 µs of script per person per frame; sixty people: 124 draw calls. A real browser on a real GPU is not measured.
 - Animation is client side only; a server never builds a figure.
 
 ## The ragdoll, and a critical

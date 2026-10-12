@@ -4,7 +4,7 @@ Every model and animation here is from the **Zombie Apocalypse Kit** by **Quater
 
 | File | From the kit | What was changed |
 | --- | --- | --- |
-| `people_matt.glb` | `Characters/glTF/Characters_Matt.gltf`, plus the `Crawl` action of `Zombie_Basic.gltf` | weapons removed, one mesh decimated to 55%, clips renamed, the zombie's crawl added |
+| `people_matt.glb` | `Characters/glTF/Characters_Matt.gltf`, plus the `Crawl` action of `Zombie_Basic.gltf` | weapons removed, one mesh decimated to 42%, clips renamed, the zombie's crawl added |
 | `people_lis.glb` | `Characters_Lis.gltf` | weapons removed, decimated, no clips (they play matt's) |
 | `people_sam.glb` | `Characters_Sam.gltf` | the same |
 | `people_shaun.glb` | `Characters_Shaun.gltf` | the same |

@@ -19,6 +19,8 @@ var _clips: Array = DotHumanoidClips.ALL.duplicate()
 var _looks := false
 var _ragdoll := false
 var _break := false
+var _hand := false
+var _crowd := 0
 var _root: Node3D
 var _camera: Camera3D
 var _sub: SubViewport
@@ -38,6 +40,10 @@ func _initialize() -> void:
 			_ragdoll = true
 		elif arg == "--break":
 			_break = true
+		elif arg == "--hand":
+			_hand = true
+		elif arg.begins_with("--crowd="):
+			_crowd = int(arg.trim_prefix("--crowd="))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
 	_run.call_deferred()
 
@@ -105,6 +111,10 @@ func _run() -> void:
 		await _sheet_ragdoll()
 	elif _break:
 		await _sheet_break()
+	elif _hand:
+		await _sheet_hand()
+	elif _crowd > 0:
+		await _measure_crowd(_crowd)
 	else:
 		for body in _bodies:
 			await _sheet_body(StringName(body))
@@ -259,6 +269,89 @@ func _sheet_break() -> void:
 	var path := "%s/break.png" % _out
 	sheet.save_png(ProjectSettings.globalize_path(path))
 	print("SHEET ", path)
+
+
+## A stand-in gun (a long box down -Z, a red tip at the muzzle) in the hand through the gun
+## clips, from the side and from the front: the barrel should point where the figure faces.
+func _sheet_hand() -> void:
+	var clips := [DotHumanoidClips.IDLE_GUN, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH]
+	var sheet := Image.create(CELL.x * clips.size(), CELL.y * 2, false, Image.FORMAT_RGBA8)
+	var f := _figure(DotHumanoidLook.stock(3))
+	f.set_hold(DotHumanoidFigure.Hold.GUN)
+	var gun := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.05, 0.1, 0.5)
+	gun.mesh = box
+	gun.position = Vector3(0, 0, -0.2)
+	var tip := MeshInstance3D.new()
+	var tb := BoxMesh.new()
+	tb.size = Vector3(0.07, 0.07, 0.07)
+	tip.mesh = tb
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Color.RED
+	tip.material_override = red
+	tip.position = Vector3(0, 0, -0.47)
+	f.attachment(&"right_hand").add_child(gun)
+	f.attachment(&"right_hand").add_child(tip)
+	var speeds := {DotHumanoidClips.IDLE_GUN: 0.0, DotHumanoidClips.WALK_GUN: 1.8, DotHumanoidClips.RUN_GUN: 6.0, DotHumanoidClips.CROUCH: 0.0}
+	for col in clips.size():
+		f.set_motion({"crouched": clips[col] == DotHumanoidClips.CROUCH})
+		for i in 6:
+			f.animate(speeds[clips[col]], 0.1)
+		for row in 2:
+			if row == 0:
+				_camera.position = Vector3(3.0, 1.2, 0)
+			else:
+				_camera.position = Vector3(0.6, 1.2, -3.0)
+			_camera.look_at(Vector3(0, 0.9, 0))
+			var img := await _frame()
+			img.convert(Image.FORMAT_RGBA8)
+			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
+	var path := "%s/hand.png" % _out
+	sheet.save_png(ProjectSettings.globalize_path(path))
+	print("SHEET ", path)
+
+
+## [param count] people running in a ring in front of the camera, each a different stock look:
+## frame time, script time per person, draw calls and primitives, averaged over 120 frames. The
+## numbers in docs/people.md came from this.
+func _measure_crowd(count: int) -> void:
+	_sub.size = Vector2i(1280, 720)
+	var people: Array[DotHumanoidFigure] = []
+	for i in count:
+		var f := _figure(DotHumanoidLook.stock(i * 31 + 7))
+		var ring := 6.0 + float(i % 5) * 6.0
+		var angle := float(i) * 0.6
+		f.position = Vector3(sin(angle) * ring * 0.6, 0, -ring)
+		f.set_hold(DotHumanoidFigure.Hold.GUN)
+		if OS.get_environment("PEOPLE_LOD_BIAS") != "":
+			f.mesh().lod_bias = float(OS.get_environment("PEOPLE_LOD_BIAS"))
+		if OS.get_environment("PEOPLE_NO_SHADOW") != "":
+			f.mesh().cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		people.append(f)
+	_camera.position = Vector3(0, 1.7, 4)
+	_camera.look_at(Vector3(0, 1.0, -12))
+	_camera.current = true
+	for i in 30:
+		await process_frame
+	var frames := 120
+	var script_us := 0
+	var draw := 0.0
+	var prims := 0.0
+	var start := Time.get_ticks_usec()
+	for i in frames:
+		var t0 := Time.get_ticks_usec()
+		for f in people:
+			f.animate(5.0, 1.0 / 60.0)
+		script_us += Time.get_ticks_usec() - t0
+		await process_frame
+		draw += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+		prims += Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
+	var total_ms := float(Time.get_ticks_usec() - start) / 1000.0 / frames
+	print("CROWD %d people: %.1f ms a frame, %.1f us script per person, %.0f draw calls, %.0f primitives, %d materials" % [
+		count, total_ms, float(script_us) / frames / count, draw / frames, prims / frames, DotHumanoidFigure.material_count()])
+	var img := await _frame()
+	img.save_png(ProjectSettings.globalize_path("%s/crowd_%d.png" % [_out, count]))
 
 
 ## A stand-in for the site's avatar document: `schema_id` and `part_in`.
