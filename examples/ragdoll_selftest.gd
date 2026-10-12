@@ -13,8 +13,8 @@ extends Node
 ## godot --headless --path . res://examples/ragdoll_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 8
-const CHECKS := 64
+const SECTIONS := 9
+const CHECKS := 77
 
 var _passed := 0
 var _failed := 0
@@ -40,6 +40,7 @@ func _run() -> void:
 	await _test_ragdoll_falls()
 	await _test_styles()
 	await _test_cap_and_life()
+	await _test_skinned()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -421,6 +422,84 @@ func _test_cap_and_life() -> void:
 	_check(yard.live().is_empty(), "every body fades and is gone after its lifetime (%.1f s)" % waited)
 	var fps := DotPlayerRagdolls.default_local_cap()
 	_check(fps >= 4, "a machine's own cap is never below four (%d)" % fps)
+
+
+func _person(at: Vector3) -> DotHumanoidFigure:
+	var person := DotHumanoidFigure.new()
+	_world.add_child(person)
+	person.global_position = at
+	person.build(DotHumanoidLook.stock(5), 1.8)
+	person.animate(0.0, 0.2)
+	return person
+
+
+## A skinned person (dot-player-char's people) falls by its bones: the same parts and joints as a
+## block figure, carrying the copied skeleton's bones, so it is the skin that ends up on the floor.
+func _test_skinned() -> void:
+	_section("a skinned body falls by its bones")
+	var yard := DotPlayerRagdolls.new()
+	yard.rules.lifetime = 60.0
+	_world.add_child(yard)
+
+	var person := _person(Vector3(0, 0, 40))
+	var gun := MeshInstance3D.new()
+	var gun_mesh := BoxMesh.new()
+	gun_mesh.size = Vector3(0.06, 0.12, 0.4)
+	gun.mesh = gun_mesh
+	person.attachment(&"right_hand").add_child(gun)
+	var body := yard.spawn(person, _death(&"limp", Vector3(1, 0, 0)))
+	_check(body != null and bool(body.describe()["skinned"]) and body.part_count() == 6 and body.joint_count() == 5,
+		"six parts, five joints, from the skeleton (%s)" % (str(body.describe()) if body != null else "none"))
+	_check(not person.visible and body.skeleton_copy() != null and body.skeleton_copy().get_child_count() >= 1,
+		"the figure is hidden and its skinned mesh is drawn on a copied skeleton")
+	var copies := 0
+	for part in body.part_nodes():
+		for child in part.get_children():
+			if child is MeshInstance3D:
+				copies += 1
+	_check(copies == 1, "the gun in the hand is copied onto a part (%d)" % copies)
+	var skel := body.skeleton_copy()
+	var head := skel.find_bone("Head")
+	var head_before := (skel.global_transform * skel.get_bone_global_pose(head)).origin.y
+	await _settle(body, 8.0)
+	var head_after := (skel.global_transform * skel.get_bone_global_pose(head)).origin.y
+	_check(body.settled, "it settles and freezes (%s)" % str(body.describe()))
+	_check(body.lowest_point() > -0.15 and body.centre().y < 0.6,
+		"lying on the floor, not through it (lowest %.2f, torso %.2f)" % [body.lowest_point(), body.centre().y])
+	_check(head_before > 0.8 and head_after < 0.5, "and the bones went with it: the head bone from %.2f m to %.2f m" % [head_before, head_after])
+
+	var plant := yard.spawn(_person(Vector3(4, 0, 40)), _death(&"face_plant"))
+	_check(plant.part_count() == 1, "a face plant starts as one piece")
+	await _settle(plant, 8.0)
+	_check(plant.landed and plant.part_count() == 6 and plant.joint_count() == 5,
+		"and goes jointed when it lands (%s)" % str(plant.describe()))
+	_check((plant.centre() - Vector3(4, 0, 40)).dot(Vector3(0, 0, -1)) > 0.3, "forward, onto its face")
+
+	yard.rules.enabled = false
+	var topple := yard.spawn(_person(Vector3(8, 0, 40)), _death(&"limp", Vector3(1, 0, 0)))
+	for i in range(90):
+		await get_tree().physics_frame
+	var tskel := topple.skeleton_copy()
+	var thead := (tskel.global_transform * tskel.get_bone_global_pose(tskel.find_bone("Head"))).origin.y
+	_check(topple.style == DotPlayerRagdollRules.Style.TOPPLE and topple.settled and thead < 0.7,
+		"sv_ragdoll 0: the skinned body topples with no physics (head bone at %.2f m)" % thead)
+	_check(absf(topple.lowest_point()) < 0.15, "onto the floor (%.2f)" % topple.lowest_point())
+
+	yard.rules.enabled = true
+	yard.rules.lifetime = 0.5
+	yard.rules.fade = 0.5
+	var fading := yard.spawn(_person(Vector3(12, 0, 40)), _death(&"crumple"))
+	var fskel := fading.skeleton_copy()
+	var smallest := 1.0
+	var waited := 0.0
+	while waited < 3.0 and is_instance_valid(fading):
+		await get_tree().physics_frame
+		waited += get_physics_process_delta_time()
+		if is_instance_valid(fskel):
+			smallest = minf(smallest, fskel.global_basis.get_scale().x / maxf(person.body_node().global_basis.get_scale().x, 0.0001))
+	_check(smallest < 0.5, "the fade shrinks the skeleton, so the skin shrinks with it (to %.2f)" % smallest)
+	_check(not is_instance_valid(fading), "and the body is gone after its lifetime")
+	yard.clear()
 
 
 # --- Plumbing --------------------------------------------------------------------

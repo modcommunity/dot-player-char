@@ -128,7 +128,25 @@ The dead figure becomes a **ragdoll**: its parts, found by name, on rigid bodies
 
 **Death reactions are data.** The stock five are a plain fall, a headshot that throws the body up and back, a powerful weapon that carries it along the shot (a weapon def's `params.death_reaction` or `params.death_power`), a face plant that goes over stiff and lands with a smack, and a crumple. A server weights them or turns them off with `sv_ragdoll_reactions`; a game adds its own. **The server picks** and sends the pick with the kill, so every screen shows the same fall. See [docs/ragdolls.md](docs/ragdolls.md).
 
+## People
+
+```gdscript
+var look := DotHumanoidLook.from_site(site_avatar)   # or DotHumanoidLook.stock(hash(player_id))
+var person := DotHumanoidFigure.new()
+world.add_child(person)
+person.build(look.with_side(team_colour, 0.6), 1.8)
+
+# every frame:
+person.set_motion({"on_floor": on_floor, "vertical": velocity.y, "crouched": crouched})
+person.set_hold(DotHumanoidFigure.Hold.GUN)
+person.pose(drawn_position, yaw, ground_speed)
+```
+
+The family's players, bots and NPCs are four animated people on one rig (the same rig game-zombie-zone's zombies use), coloured by a look: a body and its skin, hair, top and bottom. A member's site avatar becomes a look, a team's colour goes on the top, and everybody dressed alike shares one material. The figure picks the clip from how the player moves (idle, walk, run, crouch, crouch walk, jump, fall, land, crawl when down, swim, death), holds a gun with the gun clips, and plays swings, flinches and gestures on the upper body over whatever the legs are doing. When it dies, `DotPlayerRagdolls.spawn(person, death)` drops it as a ragdoll by its bones, through the same reactions as every other body. See [docs/people.md](docs/people.md).
+
 ## Credits
+
+The people in `addons/dot_player_char/people/` are from the [Zombie Apocalypse Kit](https://quaternius.com/packs/zombieapocalypsekit.html) by [Quaternius](https://quaternius.com), CC0 1.0: the four survivors (Matt, Lis, Sam, Shaun) and their clips, with the zombie's crawl, rebuilt by `tools/build_people.py` (weapons removed, decimated, clips renamed); `people/CREDITS.md` has the details.
 
 The death sounds in `addons/dot_player_char/death/sounds/` are by [Kenney](https://www.kenney.nl) (Impact Sounds and Foley Sounds), CC0 1.0; `death/sounds/CREDITS.md` maps each file to its original.
 

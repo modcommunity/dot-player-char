@@ -75,10 +75,20 @@ A reaction names a `start_sound` (the launches' whoosh) and a `land_sound` (a th
 
 After `sv_ragdoll_time` a body shrinks about one point on the floor under it and frees itself. **Not `GeometryInstance3D.transparency` alone**: the compatibility renderer, which every web client uses, ignores it, and a body that stays solid until it vanishes is exactly the pop the fade is for. It is set as well, for the renderers that honour it. One point for every part, so the parts close in together rather than each shrinking about its own middle and drifting apart, which is what the first version did.
 
+## A skinned body
+
+A figure drawn by a skeleton (the family's people, game-zombie-zone's zombies) falls through the same code as a body of rigid meshes. `DotPlayerRagdoll.build` finds the skinned meshes (`skinned_meshes`), copies their skeleton as it is posed, with copies of the meshes on it, and builds the same six parts with the same joints, pushes, settling, cap and fade. The difference is what a part carries: bones, each with its offset from the part, and after every step the copied skeleton's bones are put where their parts are (`_pose_bones`, parents first). A bone takes the role of its name (`role_of_name`: `UpperArm.L` is the left arm, `Foot.R` the right leg) or its parent's; a part's box is laid along the limb, from where it joins the torso to the middle of its vertices (each vertex by the bone that moves it most, the outer tenth trimmed so a spike of hair is not what it lands on). Anything else on the figure (a gun on a hand bone) is copied as a mesh and rides on the nearest part.
+
+**One path, not `PhysicalBoneSimulator3D`.** A physical-bone ragdoll is a second ragdoll with its own joints, its own limits and its own tuning, and none of what was tuned here would carry over: the plank that becomes jointed only when the face lands, the crumple's fold, the launches. Driving bones from the existing parts gives a skinned body every reaction exactly as tuned, the cap and the frozen settle that make eight bodies cost nothing, `sv_ragdoll 0`'s topple (the bones follow the toppling piece), and the fade (the copied skeleton's node shrinks about the floor point, which shrinks the skin, and works on the compatibility renderer). The cost is the same as a block body: six rigid bodies, not one per bone.
+
+**A part's points are an `Array`, not a `PackedVector3Array`.** A packed array is a value: appending to one read out of a dictionary appends to a copy, and the first version built every box empty.
+
+Like a block body it has no knees or elbows: an arm is one part from shoulder to fingers, posed as it was at the moment of death.
+
 ## Looking at one
 
-No assertion says whether a fall looks right. A frame sequence does: build a figure, `spawn` it with each reaction, and save frames at 0, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2.5 and 4 seconds under `xvfb-run` (not `--headless`, which renders nothing), then look at them as a contact sheet. Every tuning number in the stock reactions came from doing that.
+No assertion says whether a fall looks right. A frame sequence does (`tools/people_sheet.gd --ragdoll` draws a skinned one with each reaction, the camera following the body): build a figure, `spawn` it with each reaction, and save frames at 0, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2.5 and 4 seconds under `xvfb-run` (not `--headless`, which renders nothing), then look at them as a contact sheet. Every tuning number in the stock reactions came from doing that.
 
 ## What it does not do
 
-No knees or elbows: a part is one body, so a block figure with one mesh per limb bends at the hip and shoulder only. A rig with separate upper and lower segments has them welded together. No skeletal (`PhysicalBone3D`) path: nothing here is skinned yet. No get-up, no blending from the ragdoll back into animation; a body is dead until it fades.
+No knees or elbows: a part is one body, so a block figure with one mesh per limb bends at the hip and shoulder only, and a skinned limb keeps the bend it died with. A rig with separate upper and lower segments has them welded together. No get-up, no blending from the ragdoll back into animation; a body is dead until it fades.

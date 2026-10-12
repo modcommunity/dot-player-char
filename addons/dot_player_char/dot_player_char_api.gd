@@ -9,5 +9,7 @@ extends RefCounted
 # 2: dead bodies: DotPlayerRagdolls, DotPlayerRagdoll, DotPlayerRagdollRules, DotPlayerDeath,
 #    DotPlayerDeathReaction(s), DotPlayerDeathSounds and death/sounds/. A pack that draws a
 #    ragdoll needs a shell with this level, and says so in its requires.json.
-const LEVEL := 2
+# 3: people and skinned bodies: DotHumanoidLook, DotHumanoidClips, DotHumanoidFigure, people/,
+#    and DotPlayerRagdoll falling a skinned figure by its bones (skinned_meshes, skeleton_copy).
+const LEVEL := 3
 const OLDEST := 1

@@ -1,6 +1,6 @@
 # dot-player-char
 
-Who a player looks like: the metrics, the customisation document, a 3D rig and a 2D sheet to draw it with, the locomotion animation layer, a body that comes apart on death, a dead body that falls as a ragdoll (with death reactions a server picks), and your own body in first person.
+Who a player looks like: the metrics, the customisation document, a 3D rig and a 2D sheet to draw it with, the locomotion animation layer, the family's animated people (skinned, one rig, one clip set, coloured by a look or a site avatar), a body that comes apart on death, a dead body that falls as a ragdoll (rigid meshes or a skeleton, with death reactions a server picks), and your own body in first person.
 
 Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is specific to characters.
 
@@ -11,7 +11,8 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | Read | Before |
 | --- | --- |
 | [docs/design.md](docs/design.md) | anything: the one height, ids-only validation, the seams, the rebuild signature, seating a visual, breaking a body, the smaller traps, what is not here |
-| [docs/ragdolls.md](docs/ragdolls.md) | dead bodies: the styles, the reaction rule, what travels with a kill, the cvars, the joint and fade traps |
+| [docs/people.md](docs/people.md) | drawing a player, bot or NPC as a person: why this kit, colour looks, the site avatar, retargeting and the made clips, overlays, the left gun hand, cost |
+| [docs/ragdolls.md](docs/ragdolls.md) | dead bodies: the styles, the reaction rule, what travels with a kill, the cvars, the joint and fade traps, the skinned path |
 | [docs/history.md](docs/history.md) | the four-addon merge, and the bodies that all stood at the origin |
 
 ## Layout
@@ -41,14 +42,19 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `nodes/dot_player_ragdoll.gd` | one dead body: parts by name, joints, the push, settle and freeze, the fade |
 | `nodes/dot_player_ragdolls.gd` | where bodies lie: `spawn`, the cap, sounds out |
 | `nodes/dot_player_first_person_body.gd` | your own body in first person: head shadow-only, body back |
-| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 2 since the ragdolls |
-| `examples/` | five suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest` |
+| `core/dot_humanoid_look.gd` | a person as data: body and four colours; `stock(seed)`, `from_site(avatar)`, `with_side` |
+| `core/dot_humanoid_clips.gd` | the family clip names, `retarget`, the made crouch and grounded air clips |
+| `nodes/dot_humanoid_figure.gd` | a person drawn: palette material per look, clip from motion, overlays, the hand, LOD stepping |
+| `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py` |
+| `tools/` | `build_people.py` (Blender), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets) |
+| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 3 since the people and the skinned ragdoll |
+| `examples/` | six suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
-Paths under `core/` and `nodes/` are in `addons/dot_player_char/`.
+Paths under `core/`, `nodes/` and `people/` are in `addons/dot_player_char/`; `tools/` is at the repository root and does not ship.
 
 ## Running and testing
 
-The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything)), then **all five** suites: `char_selftest.tscn`, `model_selftest.tscn`, `sprite_selftest.tscn`, `anim_selftest.tscn`, `ragdoll_selftest.tscn` under `res://examples/`. The ragdoll suite runs real physics and takes about fifteen seconds; what a fall looks like is only seen in a rendered sequence ([docs/ragdolls.md](docs/ragdolls.md#looking-at-one)). The first is the main scene, and the one a careless check runs alone.
+The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything)), then **all six** suites: `char_selftest.tscn`, `model_selftest.tscn`, `sprite_selftest.tscn`, `anim_selftest.tscn`, `ragdoll_selftest.tscn`, `people_selftest.tscn` under `res://examples/`. What people look like and how they fall is only seen in `xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--looks|--ragdoll]` ([docs/people.md](docs/people.md#looking-at-them)). The ragdoll suite runs real physics and takes about fifteen seconds; what a fall looks like is only seen in a rendered sequence ([docs/ragdolls.md](docs/ragdolls.md#looking-at-one)). The first is the main scene, and the one a careless check runs alone.
 
 ## Rules that bite
 
@@ -65,6 +71,11 @@ The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything
 - A ragdoll fades by shrinking about one floor point, not by `transparency` alone: the compatibility renderer (every web client) ignores it. [ragdolls](docs/ragdolls.md#the-fade)
 - `capsule_3d()` returns a fresh shape and clamps to two radii; `eye_offset()` < 0 means "no opinion". [design](docs/design.md#smaller-traps)
 - Run thresholds have a gap (`run_exit_speed`), events fire through `events_between`, and the reset is `forget_state`. [design](docs/design.md#smaller-traps)
+- People: only `people_matt.glb` carries clips; every other body plays them through `DotHumanoidClips.retarget` (played raw they bend). [people](docs/people.md#one-clip-set-carried-to-every-body)
+- The air clips are grounded and the crouch is made (`synthesise`); a rebuilt kit needs both again. [people](docs/people.md#the-made-clips)
+- A person's material is one per look, shared by everybody wearing it, with no per-instance uniforms (game-zombie-zone's palette shader made the same choice for the compatibility renderer). [people](docs/people.md#variety-is-colour-not-texture)
+- The kit's gun hand is the LEFT; `attachment("right_hand")` means it. [people](docs/people.md#legs-from-the-clip-arms-from-an-overlay)
+- A skinned body falls by the same parts with bones riding on them, not a `PhysicalBoneSimulator3D`; a packed array read out of a Dictionary is a copy. [ragdolls](docs/ragdolls.md#a-skinned-body)
 - Entitlement is the game's: `requires_entitlement` is only an id. [design](docs/design.md#what-this-does-not-do)
 
 Deliberately not here: network content loading (`content_paths()` lists it), blending, IK, aiming, entitlement decisions. [design](docs/design.md#what-this-does-not-do)

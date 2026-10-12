@@ -1,0 +1,238 @@
+extends Node
+
+## Exercises the family's people: the look (stock, the site's avatar, a side's colour), the clip
+## set on every body (carried over by retargeting, the made crouch, the grounded air clips), and
+## the figure choosing clips from how it moves, holding, swinging and sharing materials.
+##
+## What a person LOOKS like is not here: that is `tools/people_sheet.gd`'s contact sheets.
+##
+## [codeblock]
+## godot --headless --path . res://examples/people_selftest.tscn
+## [/codeblock]
+
+const SECTIONS := 5
+const CHECKS := 40
+
+var _passed := 0
+var _failed := 0
+var _section_count := 0
+
+
+func _ready() -> void:
+	DotLog.set_level(DotLog.Level.ERROR)
+	_run()
+
+
+func _run() -> void:
+	_line("dot-player-char people self-test")
+	_test_look()
+	_test_site()
+	_test_clips()
+	await _test_figure()
+	_test_materials()
+
+	_line("")
+	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
+	if _section_count != SECTIONS:
+		_line("ERROR: %d of %d sections ran." % [_section_count, SECTIONS])
+		get_tree().quit(1)
+		return
+	if _passed + _failed != CHECKS:
+		_line("ERROR: %d checks ran, %d expected. A section aborted part-way." % [_passed + _failed, CHECKS])
+		get_tree().quit(1)
+		return
+	get_tree().quit(1 if _failed > 0 else 0)
+
+
+func _test_look() -> void:
+	_section("a look")
+	var a := DotHumanoidLook.stock(42)
+	var b := DotHumanoidLook.stock(42)
+	_check(a.key() == b.key(), "the same seed dresses the same person")
+	var keys := {}
+	var bodies := {}
+	for i in range(40):
+		var l := DotHumanoidLook.stock(i * 7919)
+		keys[l.key()] = true
+		bodies[l.body] = true
+	_check(keys.size() >= 35 and bodies.size() == 4, "forty seeds: %d looks on %d bodies" % [keys.size(), bodies.size()])
+	var round := DotHumanoidLook.from_dict(a.to_dict())
+	_check(round != null and round.key() == a.key(), "a look survives a dictionary")
+	_check(DotHumanoidLook.from_dict({"skin": "zz"}) == null, "a dictionary that is not a look is refused")
+	var odd := DotHumanoidLook.from_dict({"body": "retired", "skin": "ffffff", "hair": "000000", "top": "ff0000", "bottom": "0000ff"})
+	_check(odd != null and odd.body == DotHumanoidLook.BODIES[0], "a retired body draws the first body, not nobody")
+	var red := a.with_side(Color.RED, 1.0)
+	_check(red.top == Color.RED and red.skin == a.skin and a.top != Color.RED, "a side's colour goes on the top of a copy")
+
+
+func _test_site() -> void:
+	_section("the site's avatar")
+	var doc := _SiteDoc.new()
+	doc.parts = {&"face": &"face.skin-b", &"top": &"top.skin-n", &"legs": &"legs.skin-q"}
+	var look := DotHumanoidLook.from_site(doc)
+	_check(look != null, "a builtin document becomes a look")
+	_check(look.skin == Color(DotHumanoidLook.SITE_SKINS["b"][0]) and look.hair == Color(DotHumanoidLook.SITE_SKINS["b"][1]),
+		"the face gives skin and hair")
+	_check(look.top == Color(DotHumanoidLook.SITE_SKINS["n"][2]) and look.bottom == Color(DotHumanoidLook.SITE_SKINS["q"][3]),
+		"the top and the legs give the clothes")
+	var bare := _SiteDoc.new()
+	bare.parts = {&"top": &"skin-k"}
+	var only_top := DotHumanoidLook.from_site(bare)
+	_check(only_top != null and only_top.top == Color(DotHumanoidLook.SITE_SKINS["k"][2]) and only_top.bottom == Color(DotHumanoidLook.SITE_SKINS["k"][3]),
+		"a bare part id is read, and one slot dresses the rest")
+	var other := _SiteDoc.new()
+	other.schema_id = &"zz_people"
+	other.parts = doc.parts
+	_check(DotHumanoidLook.from_site(other) == null and DotHumanoidLook.from_site(null) == null, "another schema, or nothing, is no look")
+	var junk := _SiteDoc.new()
+	junk.parts = {&"top": &"top.hat-3"}
+	_check(DotHumanoidLook.from_site(junk) == null, "a part this table does not know is no look")
+
+
+func _test_clips() -> void:
+	_section("the clip set on every body")
+	var everywhere := true
+	var missing := []
+	var libraries := {}
+	for id in DotHumanoidLook.BODIES:
+		var f := DotHumanoidFigure.new()
+		add_child(f)
+		f.build(DotHumanoidLook.make(id, Color.WHITE, Color.BLACK, Color.RED, Color.BLUE), 1.8)
+		var player := f.body_node().find_child("AnimationPlayer", true, false) as AnimationPlayer
+		libraries[id] = player.get_animation_library(&"")
+		for clip in DotHumanoidClips.ALL:
+			if not player.has_animation(clip):
+				everywhere = false
+				missing.append("%s/%s" % [id, clip])
+		f.free()
+	_check(everywhere, "all %d clips on all four bodies %s" % [DotHumanoidClips.ALL.size(), str(missing)])
+	var matt: AnimationLibrary = libraries[&"matt"]
+	_check(matt.get_animation(DotHumanoidClips.WALK).loop_mode == Animation.LOOP_LINEAR
+		and matt.get_animation(DotHumanoidClips.DEATH).loop_mode == Animation.LOOP_NONE, "walks loop, a death does not")
+	_check(libraries[&"lis"] != matt and libraries[&"sam"] != matt, "the other bodies play a retargeted copy, not the clip body's own")
+	_check(libraries[&"lis"] == _library_of(&"lis"), "and that copy is made once per body and shared")
+
+	var idle := matt.get_animation(DotHumanoidClips.IDLE)
+	var crouch := matt.get_animation(DotHumanoidClips.CROUCH)
+	_check(_body_y(crouch, 0.0) < _body_y(idle, 0.0) - 0.05, "the made crouch is lower than standing (%.2f against %.2f)" % [_body_y(crouch, 0.0), _body_y(idle, 0.0)])
+	var highest := -INF
+	var fall := matt.get_animation(DotHumanoidClips.FALL)
+	for i in range(11):
+		highest = maxf(highest, _body_y(fall, fall.length * i / 10.0))
+	_check(highest <= _body_y(idle, 0.0) + 0.001, "the fall does not lift the body above standing: the game lifts it")
+
+
+func _test_figure() -> void:
+	_section("a figure picks its clip")
+	var f := DotHumanoidFigure.new()
+	add_child(f)
+	f.build(DotHumanoidLook.stock(9), 1.8)
+	_check(f.from_art and f.skeleton() != null and f.mesh() != null, "the body loaded: a skeleton and one mesh")
+	var head := f.skeleton().find_bone("Head")
+	var top_y := (f.skeleton().global_transform * f.skeleton().get_bone_global_pose(head)).origin.y
+	_check(top_y > 0.8 and top_y < 1.6, "built to the height asked for (head bone at %.2f m of 1.8)" % top_y)
+
+	f.animate(0.0, 0.1)
+	_check(f.clip == DotHumanoidClips.IDLE, "standing: idle")
+	f.animate(1.5, 0.1)
+	_check(f.clip == DotHumanoidClips.WALK, "walking: walk")
+	f.animate(6.0, 0.1)
+	_check(f.clip == DotHumanoidClips.RUN, "running: run")
+	f.set_hold(DotHumanoidFigure.Hold.GUN)
+	f.animate(6.0, 0.1)
+	_check(f.clip == DotHumanoidClips.RUN_GUN, "running with a gun: the gun run")
+	f.set_motion({"crouched": true})
+	f.animate(0.0, 0.1)
+	_check(f.clip == DotHumanoidClips.CROUCH, "crouched: the crouch")
+	f.animate(1.5, 0.1)
+	_check(f.clip == DotHumanoidClips.CROUCH_WALK, "crouched and moving: the crouch walk")
+	f.set_motion({"on_floor": false, "vertical": 4.0})
+	f.animate(1.0, 0.2)
+	_check(f.clip == DotHumanoidClips.JUMP, "rising: the jump")
+	f.set_motion({"on_floor": false, "vertical": -4.0})
+	f.animate(1.0, 0.2)
+	_check(f.clip == DotHumanoidClips.FALL, "dropping: the fall")
+	f.set_motion({"downed": true})
+	f.animate(0.5, 0.1)
+	_check(f.clip == DotHumanoidClips.CRAWL, "down: crawling")
+	f.set_motion({"swimming": true})
+	f.animate(2.0, 0.1)
+	_check(f.state == DotPlayerAnimState.SWIM and f.clip == DotHumanoidClips.RUN, "swimming: a slow stroke, leaned forward")
+	f.set_motion({"alive": false})
+	f.animate(0.0, 0.1)
+	_check(f.clip == DotHumanoidClips.DEATH, "dead: the death")
+
+	f.set_motion({})
+	f.set_hold(DotHumanoidFigure.Hold.MELEE)
+	f.animate(6.0, 0.1)
+	f.swing()
+	_check(f.overlay == DotHumanoidClips.SLASH and f.clip == DotHumanoidClips.RUN, "a swing plays over the run: the legs keep running")
+	for i in range(20):
+		f.animate(6.0, 0.1)
+	_check(f.overlay == &"", "and ends")
+
+	var hand := f.attachment(&"right_hand")
+	_check(hand != null and hand.get_parent() is BoneAttachment3D and f.attachment(&"right_hand") == hand,
+		"a weapon hangs from a bone attachment in the hand, made once")
+	_check(f.attachment(&"crest") == null, "no other mount")
+	_check(f.anim_step == 1, "with no camera, the clip advances every frame")
+	f.free()
+	await get_tree().process_frame
+
+
+func _test_materials() -> void:
+	_section("one material per look")
+	var before := DotHumanoidFigure.material_count()
+	var look := DotHumanoidLook.stock(1234)
+	var m1 := DotHumanoidFigure.material_for(look)
+	var m2 := DotHumanoidFigure.material_for(look.copy())
+	_check(m1 == m2, "two people dressed alike share a material")
+	_check(DotHumanoidFigure.material_count() == before + 1, "and it was made once")
+	_check(int(m1.get_shader_parameter(&"swaps")) == 4, "skin, hair, top and bottom are swapped (%d)" % int(m1.get_shader_parameter(&"swaps")))
+	var paths := DotHumanoidFigure.content_paths()
+	_check(paths.size() == 5 and Array(paths).all(func(p: String) -> bool: return ResourceLoader.exists(p)), "every file a figure loads is listed, and exists")
+
+
+func _library_of(id: StringName) -> AnimationLibrary:
+	var f := DotHumanoidFigure.new()
+	add_child(f)
+	f.build(DotHumanoidLook.make(id, Color.WHITE, Color.BLACK, Color.RED, Color.BLUE), 1.8)
+	var out := (f.body_node().find_child("AnimationPlayer", true, false) as AnimationPlayer).get_animation_library(&"")
+	f.free()
+	return out
+
+
+static func _body_y(animation: Animation, time: float) -> float:
+	for t in animation.get_track_count():
+		if animation.track_get_type(t) == Animation.TYPE_POSITION_3D \
+				and String(animation.track_get_path(t).get_concatenated_subnames()) == "Body":
+			return animation.position_track_interpolate(t, time).y
+	return INF
+
+
+class _SiteDoc:
+	extends RefCounted
+	var schema_id: StringName = &"builtin"
+	var parts: Dictionary = {}
+
+	func part_in(slot: StringName) -> StringName:
+		return StringName(str(parts.get(slot, "")))
+
+
+func _section(title: String) -> void:
+	_section_count += 1
+	_line("")
+	_line("-- %s" % title)
+
+
+func _check(condition: bool, what: String) -> void:
+	if condition:
+		_passed += 1
+		_line("   ok   %s" % what)
+	else:
+		_failed += 1
+		_line("  FAIL  %s" % what)
+
+
+func _line(text: String) -> void:
+	print(text)
