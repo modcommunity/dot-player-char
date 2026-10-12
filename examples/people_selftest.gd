@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 7
-const CHECKS := 61
+const CHECKS := 62
 
 var _passed := 0
 var _failed := 0
@@ -163,7 +163,24 @@ func _test_figure() -> void:
 	_check(f.clip == DotHumanoidClips.CRAWL, "down: crawling")
 	f.set_motion({"swimming": true})
 	f.animate(2.0, 0.1)
-	_check(f.state == DotPlayerAnimState.SWIM and f.clip == DotHumanoidClips.RUN, "swimming: a slow stroke, leaned forward")
+	_check(f.state == DotPlayerAnimState.SWIM and f.clip == DotHumanoidClips.SWIM, "swimming: the made front crawl, not the run")
+	# The stroke goes round: through one cycle each hand is over its shoulder (the reach) and
+	# under it (the finish), in the clip's own upright frame (the lean is on the model, not the
+	# bones). The leaned run kept both hands at the hips.
+	var sk := f.skeleton()
+	var hand_l := sk.find_bone("Middle1.L") if sk != null else -1
+	var shoulder_l := sk.find_bone("UpperArm.L") if sk != null else -1
+	var over := false
+	var under := false
+	for i in 8:
+		f.animate(2.5, DotHumanoidClips.SWIM_CYCLE / 8.0)
+		if hand_l < 0 or shoulder_l < 0:
+			break
+		sk.force_update_all_bone_transforms()
+		var rise := sk.get_bone_global_pose(hand_l).origin.y - sk.get_bone_global_pose(shoulder_l).origin.y
+		over = over or rise > 0.1
+		under = under or rise < -0.1
+	_check(over and under, "and the arm goes round: the hand over the shoulder and under it in one stroke")
 	f.set_motion({"alive": false})
 	f.animate(0.0, 0.1)
 	_check(f.clip == DotHumanoidClips.DEATH, "dead: the death")

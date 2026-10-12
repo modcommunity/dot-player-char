@@ -46,7 +46,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `core/dot_humanoid_clips.gd` | the family clip names, `retarget`, the made crouch and grounded air clips |
 | `nodes/dot_humanoid_figure.gd` | a person drawn: palette material per look, clip from motion, overlays, the hand, LOD stepping |
 | `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py` |
-| `tools/` | `build_people.py` (Blender), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`), `crowd_bench.tscn` (a browser crowd measurement) |
+| `tools/` | `build_people.py` (Blender), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`), `crowd_bench.tscn` (a browser crowd measurement) |
 | `dot_player_char_api.gd` | the API level (`DotAddonApi`): 3 since the people and the skinned ragdoll |
 | `examples/` | six suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
@@ -76,6 +76,7 @@ The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything
 - A person's material is one per look, shared by everybody wearing it, with no per-instance uniforms (game-zombie-zone's palette shader made the same choice for the compatibility renderer). [people](docs/people.md#variety-is-colour-not-texture)
 - A game newly linking `dot_player_char`: run `--import` again before trusting a render. mg-look-at-me's first import after linking left `people/` unimported, the figure drew its capsule, and every suite still passed. [people](docs/people.md#looking-at-them)
 - The kit is left-handed; `DotHumanoidClips.mirror` makes every clip right-handed at load, before the made clips and the retarget. A rebuilt kit is mirrored the same way, never in the glb. [people](docs/people.md#legs-from-the-clip-arms-from-an-overlay)
+- The swim clip is drawn upright and the figure lays it flat (`SWIM_LEAN`); no held-gun arms while swimming. Look at it with `people_sheet.gd --swim`. [people](docs/people.md#the-made-clips)
 - The rig's feet hang off the root, not the shins: a made pose moves the foot to the shin's end, measuring the shin before moving the body. [people](docs/people.md#the-made-clips)
 - `aim()` bends only bones the playing clip keys, from parents read off the local poses (`get_bone_global_pose` is last frame's). [people](docs/people.md#aiming-up-and-down)
 - A skinned body falls by the same parts with bones riding on them, not a `PhysicalBoneSimulator3D`; a packed array read out of a Dictionary is a copy. [ragdolls](docs/ragdolls.md#a-skinned-body)

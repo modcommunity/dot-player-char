@@ -2,8 +2,9 @@ class_name DotHumanoidClips
 extends RefCounted
 
 ## The family's clip set for skinned people: which clips exist, which loop, carrying a clip set
-## from one skeleton to another, and the two clips made from others (a held crouch and a crouch
-## walk). Static and loads nothing itself; [DotHumanoidFigure] hands it libraries.
+## from one skeleton to another, and the clips made from others (a held crouch, a crouch
+## walk, sitting, climbing and a swim stroke). Static and loads nothing itself; [DotHumanoidFigure]
+## hands it libraries.
 ##
 ## [b]One rig.[/b] The people (`people/`) and game-zombie-zone's zombies are one artist's rig with
 ## the same bone names (Root, Body, Hips, Abdomen, Torso, Neck, Head, Shoulder/UpperArm/LowerArm
@@ -35,13 +36,14 @@ const NO := &"no"
 const DUCK := &"duck"
 const SIT := &"sit"
 const CLIMB := &"climb"
+const SWIM := &"swim"
 
 ## Every clip a figure is expected to have, for a suite and a contact sheet.
 const ALL: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK,
-	JUMP, FALL, LAND, SLASH, STAB, PUNCH, HIT, DEATH, CRAWL, WAVE, YES, NO, DUCK, SIT, CLIMB]
+	JUMP, FALL, LAND, SLASH, STAB, PUNCH, HIT, DEATH, CRAWL, WAVE, YES, NO, DUCK, SIT, CLIMB, SWIM]
 
 ## Clips that loop; the rest play once and hold their last frame.
-const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, CLIMB]
+const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, CLIMB, SWIM]
 
 ## The bones a crouch bends: the body's height and the legs. The arms and head keep what the
 ## walk does with them.
@@ -198,8 +200,9 @@ static func mirrored_bone(bone: String) -> String:
 ## their own capsule. The body's height in [constant JUMP], [constant FALL] and [constant LAND] is
 ## held at the idle's, and only allowed to go lower (the landing's squat).
 ##
-## With [param skeleton] (the clip body's), also [constant SIT] and [constant CLIMB], which need
-## the bone hierarchy to pose: see [method _sat] and [method _climbing].
+## With [param skeleton] (the clip body's), also [constant SIT], [constant CLIMB] and
+## [constant SWIM], which need the bone hierarchy to pose: see [method _sat], [method _climbing]
+## and [method _swimming].
 static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -> AnimationLibrary:
 	if library == null or not library.has_animation(DUCK) or not library.has_animation(IDLE):
 		return library
@@ -228,6 +231,9 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 		if library.has_animation(CLIMB):
 			library.remove_animation(CLIMB)
 		var _c := library.add_animation(CLIMB, _climbing(idle, skeleton))
+		if library.has_animation(SWIM):
+			library.remove_animation(SWIM)
+		var _w := library.add_animation(SWIM, _swimming(idle, skeleton))
 
 	return library
 
@@ -332,6 +338,86 @@ static func _climbing(idle: Animation, skeleton: Skeleton3D) -> Animation:
 				var i := skeleton.find_bone(name)
 				if i >= 0:
 					_move_subtree(g, skeleton, i, up)
+		var locals := _back_to_locals(g, skeleton)
+		for i in locals.size():
+			var local: Transform3D = locals[i]
+			var _r := made.rotation_track_insert_key(tracks[i][0], time, local.basis.get_rotation_quaternion().normalized())
+			var _p := made.position_track_insert_key(tracks[i][1], time, local.origin)
+	return made
+
+
+## One stroke of [constant SWIM], in seconds at rate 1.
+const SWIM_CYCLE := 1.6
+
+
+## A front crawl, made from the idle and drawn UPRIGHT: [DotHumanoidFigure] lays the whole figure
+## forward about the hips ([constant DotHumanoidFigure.SWIM_LEAN]), so this clip's "up" is ahead
+## of the swimmer, its "front" is down into the water and its "back" is up out of it.
+##
+## In that frame a crawl is a windmill: each arm goes round the body's side, up (the reach),
+## front (the catch and pull, under the chest, elbow bent), down to the thigh (the finish) and
+## back (the recovery over the water, elbow high and wide), the two arms half a turn apart. The
+## body rolls about the spine towards the pulling arm and the head turns with it to breathe on
+## one side. The legs flutter from the hip, three kicks per arm, knees a little bent and toes
+## pointed. One stroke cycle is [constant SWIM_CYCLE] seconds; the figure plays it faster with
+## speed. The kit has no swim; the stand-in before was the run, slowed and leaned forward.
+static func _swimming(idle: Animation, skeleton: Skeleton3D) -> Animation:
+	var made := Animation.new()
+	made.length = SWIM_CYCLE
+	made.loop_mode = Animation.LOOP_LINEAR
+	var prefix := _skeleton_prefix(idle)
+	var tracks := {}
+	for i in skeleton.get_bone_count():
+		var path := NodePath("%s:%s" % [prefix, skeleton.get_bone_name(i)])
+		var rt := made.add_track(Animation.TYPE_ROTATION_3D)
+		made.track_set_path(rt, path)
+		var pt := made.add_track(Animation.TYPE_POSITION_3D)
+		made.track_set_path(pt, path)
+		tracks[i] = [rt, pt]
+	var abdomen := skeleton.find_bone("Abdomen")
+	var neck := skeleton.find_bone("Neck")
+	var frames := 32
+	for frame in frames + 1:
+		var time := SWIM_CYCLE * float(frame) / float(frames)
+		var phase := TAU * float(frame) / float(frames)
+		var g := _globals(_locals(idle, 0.0, skeleton), skeleton)
+		# The roll, about the spine (this frame's Y), towards the arm that is pulling: the left
+		# arm pulls while sin(phase) > 0, and that shoulder goes down (+Z, into the water).
+		var roll := -0.45 * sin(phase)
+		if abdomen >= 0:
+			_move_subtree(g, skeleton, abdomen, _about(g[abdomen].origin, Basis(Vector3.UP, roll)))
+		# Breathing to the right, once a cycle: the head turns further with the roll while the
+		# right arm recovers, and is face down again before it reaches.
+		if neck >= 0:
+			var breathe := -0.7 * pow(maxf(0.0, sin(phase)), 2.0)
+			_move_subtree(g, skeleton, neck, _about(g[neck].origin, Basis(Vector3.UP, breathe)))
+		for side: String in [".L", ".R"]:
+			var away := 1.0 if side == ".L" else -1.0
+			var theta := phase if side == ".L" else phase + PI
+			var pulling := maxf(0.0, sin(theta))
+			var recovering := maxf(0.0, -sin(theta))
+			# Close under the body on the pull; on the recovery swung round wide and low over the
+			# water rather than straight up out of it (the first try was a windmill in the plane
+			# of the body, and a recovering arm stood up like a mast).
+			var out := away * (0.1 + 0.9 * recovering)
+			var upper := Vector3(out, cos(theta), sin(theta) * (1.0 - 0.5 * recovering)).normalized()
+			_point_bone(g, skeleton, "UpperArm" + side, "LowerArm" + side, upper)
+			# The forearm runs ahead of the elbow on the pull (a bent-elbow catch); on the recovery
+			# the elbow leads and the hand hangs towards the water (+Z here) as it travels forward.
+			var fore := theta + 0.75 * pulling
+			var catch := Vector3(out * 0.7, cos(fore), sin(fore)).normalized()
+			var hang := Vector3(out * 0.5, cos(theta) * 0.6, 0.7).normalized()
+			_point_bone(g, skeleton, "LowerArm" + side, "Middle1" + side, catch.lerp(hang, recovering).normalized())
+		for side: String in [".L", ".R"]:
+			var kick := 0.24 * sin(3.0 * phase + (0.0 if side == ".L" else PI))
+			# The knee gives a little on the down-kick (towards +Z, the water) and straightens on
+			# the way back up; a shin only ever bends behind its thigh.
+			var knee := 0.12 + 0.22 * maxf(0.0, sin(3.0 * phase + (0.0 if side == ".L" else PI) + 0.8))
+			_place_leg(g, skeleton, side, Vector3(0.0, -cos(kick), sin(kick)), Vector3(0.0, -cos(kick - knee), sin(kick - knee)))
+			# Toes pointed: the foot turned down along the shin.
+			var foot := skeleton.find_bone("Foot" + side)
+			if foot >= 0:
+				_move_subtree(g, skeleton, foot, _about(g[foot].origin, Basis(Vector3.RIGHT, 1.2)))
 		var locals := _back_to_locals(g, skeleton)
 		for i in locals.size():
 			var local: Transform3D = locals[i]

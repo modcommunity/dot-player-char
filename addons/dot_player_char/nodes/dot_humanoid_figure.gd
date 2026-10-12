@@ -44,6 +44,10 @@ const DRAW_RANGE := 140.0
 const BLEND_IN := 0.08
 const BLEND_OUT := 0.14
 
+## How far a swimmer is laid forward about the hips, in radians (about 80 degrees): the swim clip
+## is drawn upright, and a front crawl is nearly flat with the head a little up.
+const SWIM_LEAN := 1.4
+
 ## What the hand holds, which decides the arms: nothing, a gun (the kit's gun clips and the
 ## held-gun overlay), or a melee weapon (ordinary arms, a slash to swing).
 enum Hold { NONE, GUN, MELEE }
@@ -555,7 +559,7 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 		DotPlayerAnimState.DEAD:
 			return [DotHumanoidClips.DEATH, 1.0]
 		DotPlayerAnimState.SWIM:
-			return [DotHumanoidClips.RUN, 0.55]
+			return [DotHumanoidClips.SWIM, clampf(speed / 2.5, 0.45, 1.3)]
 		DotPlayerAnimState.JUMP:
 			return [DotHumanoidClips.JUMP, 1.0]
 		DotPlayerAnimState.FALL:
@@ -598,7 +602,9 @@ func _start_overlay(which: StringName, rate: float) -> void:
 
 
 ## Writes the upper body over the locomotion pose: a playing overlay (swing, flinch, gesture),
-## else, holding a gun in a clip that is not a gun clip (crouch, air, swim), the held-gun arms.
+## else, holding a gun in a clip that is not a gun clip (crouch, air), the held-gun arms. Not while
+## swimming: the stroke is the arms, and a swimmer drawn holding the gun level was the leaned run
+## again from the waist up.
 func _apply_overlays() -> void:
 	if _skeleton == null:
 		return
@@ -613,7 +619,7 @@ func _apply_overlays() -> void:
 		else:
 			t = _overlay_time
 			weight = minf(1.0, _overlay_time / BLEND_IN) * minf(1.0, (source.length - _overlay_time) / BLEND_OUT)
-	if source == null and hold == Hold.GUN and not downed and not String(clip).ends_with("_gun") and clip != DotHumanoidClips.DEATH:
+	if source == null and hold == Hold.GUN and not downed and not String(clip).ends_with("_gun") and clip != DotHumanoidClips.DEATH and clip != DotHumanoidClips.SWIM:
 		source = _anim.get_animation(DotHumanoidClips.IDLE_GUN)
 		t = 0.0
 		weight = 1.0
@@ -677,11 +683,12 @@ func _chain_rotation(bone: int) -> Quaternion:
 	return q
 
 
-## Swimming leans the whole body forward, about the hips, and eases back out of it.
+## Swimming lays the whole body forward, about the hips, and eases back out of it. The swim clip
+## is drawn upright ([method DotHumanoidClips._swimming]); this is what makes it horizontal.
 func _apply_swim(delta: float) -> void:
 	if _model == null:
 		return
-	var wanted := deg_to_rad(70.0) if state == DotPlayerAnimState.SWIM and not downed else 0.0
+	var wanted := SWIM_LEAN if state == DotPlayerAnimState.SWIM and not downed else 0.0
 	var before := _swim_pitch
 	_swim_pitch = move_toward(_swim_pitch, wanted, delta * 3.0)
 	if is_equal_approx(before, _swim_pitch) and _swim_pitch == 0.0:

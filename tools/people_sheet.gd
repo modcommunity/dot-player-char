@@ -4,7 +4,7 @@ extends SceneTree
 ## and one sheet of looks (stock and site avatars). The check no assertion makes.
 ##
 ## [codeblock]
-## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--crowd=N]
+## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--crowd=N]
 ## [/codeblock]
 ##
 ## xvfb-run, not --headless: the headless display renders nothing and saves a blank frame.
@@ -21,6 +21,7 @@ var _ragdoll := false
 var _break := false
 var _hand := false
 var _aim := false
+var _swim := false
 var _crowd := 0
 var _root: Node3D
 var _camera: Camera3D
@@ -43,6 +44,8 @@ func _initialize() -> void:
 			_break = true
 		elif arg == "--hand":
 			_hand = true
+		elif arg == "--swim":
+			_swim = true
 		elif arg == "--aim":
 			_aim = true
 		elif arg.begins_with("--crowd="):
@@ -118,6 +121,8 @@ func _run() -> void:
 		await _sheet_hand()
 	elif _aim:
 		await _sheet_aim()
+	elif _swim:
+		await _sheet_swim()
 	elif _crowd > 0:
 		await _measure_crowd(_crowd)
 	else:
@@ -320,6 +325,46 @@ func _sheet_aim() -> void:
 			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
 	print("AIM seat height %.2f m, %s" % [f.seat_height(), f.describe()])
 	var path := "%s/aim.png" % _out
+	sheet.save_png(ProjectSettings.globalize_path(path))
+	print("SHEET ", path)
+
+
+## A swimmer through one stroke (eight moments across), from the side, from ahead and above, and
+## from behind and above, with a water surface at the hips so a recovery that stays under it shows.
+func _sheet_swim() -> void:
+	var moments := 8
+	var views := [
+		[Vector3(3.2, 1.1, 0.0), Vector3(0, 0.9, 0.3)],
+		[Vector3(0.8, 2.6, 2.8), Vector3(0, 0.9, 0.4)],
+		[Vector3(-0.8, 2.4, -2.6), Vector3(0, 0.9, 0.4)],
+	]
+	var sheet := Image.create(CELL.x * moments, CELL.y * views.size(), false, Image.FORMAT_RGBA8)
+	var f := _figure(DotHumanoidLook.stock(11))
+	var water := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(6, 6)
+	water.mesh = plane
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.2, 0.45, 0.8, 0.45)
+	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	water.material_override = wm
+	water.position = Vector3(0, 1.8 * 0.55, 0)
+	_root.add_child(water)
+	f.set_motion({"swimming": true})
+	var step := DotHumanoidClips.SWIM_CYCLE / float(moments)
+	for row in views.size():
+		# Long enough for the lean to settle, then exactly one cycle per row.
+		for i in 12:
+			f.animate(2.5, 0.1)
+		_camera.position = views[row][0]
+		_camera.look_at(views[row][1])
+		for col in moments:
+			f.animate(2.5, step)
+			var img := await _frame()
+			img.convert(Image.FORMAT_RGBA8)
+			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
+	print("SWIM %s" % f.describe())
+	var path := "%s/swim.png" % _out
 	sheet.save_png(ProjectSettings.globalize_path(path))
 	print("SHEET ", path)
 
