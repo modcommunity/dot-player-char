@@ -108,6 +108,30 @@ The decision is **pure**: `DotPlayerAnimState.advance(motion, delta)` reads no n
 
 Events come out of the **clip's own timeline**, not a `Timer`: a footstep on a wall clock drifts out of step the moment the frame rate changes. One clip serves a rig and a sheet, with event positions as fractions so `0.25` means the same place in both.
 
+## When somebody dies
+
+```gdscript
+var yard := DotPlayerRagdolls.new()     # one per world, on a client
+yard.rules.follow_cvars(link)           # sv_ragdoll, sv_ragdoll_style, _time, _max, _force, _reactions
+yard.sound_fn = audio.play_at           # optional
+world.add_child(yard)
+
+# the server, on a kill:
+var death := DotPlayerDeath.decide(reactions, headshot, damage, direction, seed, weapon_def)
+kill_message.merge(death.to_dict())
+
+# every client, on that message:
+yard.spawn(victim_figure, DotPlayerDeath.from_dict(kill_message), victim_velocity)
+```
+
+The dead figure becomes a **ragdoll**: its parts, found by name, on rigid bodies joined at the hips, shoulders and neck, pushed the way the shot went, settling, freezing, and fading after a while, with the oldest making room when there are too many. A server can make them one stiff piece, a scripted fall with no physics, or nothing.
+
+**Death reactions are data.** The stock five are a plain fall, a headshot that throws the body up and back, a powerful weapon that carries it along the shot (a weapon def's `params.death_reaction` or `params.death_power`), a face plant that goes over stiff and lands with a smack, and a crumple. A server weights them or turns them off with `sv_ragdoll_reactions`; a game adds its own. **The server picks** and sends the pick with the kill, so every screen shows the same fall. See [docs/ragdolls.md](docs/ragdolls.md).
+
+## Credits
+
+The death sounds in `addons/dot_player_char/death/sounds/` are by [Kenney](https://www.kenney.nl) (Impact Sounds and Foley Sounds), CC0 1.0; `death/sounds/CREDITS.md` maps each file to its original.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
