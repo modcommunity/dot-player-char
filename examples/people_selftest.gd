@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 6
-const CHECKS := 46
+const CHECKS := 48
 
 var _passed := 0
 var _failed := 0
@@ -88,6 +88,10 @@ func _test_site() -> void:
 	var junk := _SiteDoc.new()
 	junk.parts = {&"top": &"top.hat-3"}
 	_check(DotHumanoidLook.from_site(junk) == null, "a part this table does not know is no look")
+	var kit := DotHumanoidLook.from_letter("res://assets/kenney/characters/Textures/texture-k.png")
+	_check(kit != null and kit.top == Color(DotHumanoidLook.SITE_SKINS["k"][2]) and DotHumanoidLook.from_letter("k").key() == kit.key(),
+		"a blocky atlas path or its letter is that skin's person")
+	_check(DotHumanoidLook.from_letter("texture-z.png") == null and DotHumanoidLook.from_letter("") == null, "and nothing else is")
 
 
 func _test_clips() -> void:

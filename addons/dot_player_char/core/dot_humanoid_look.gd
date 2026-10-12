@@ -121,6 +121,25 @@ static func from_site(foreign: Object) -> DotHumanoidLook:
 	return look
 
 
+## The person one of Kenney's eighteen skins (`a` to `r`) is, worn head to foot: the games that
+## drew the blocky kit chose people by its atlas letter, and keep their choices this way. Accepts
+## a letter or an atlas path (`.../texture-k.png`). Null for anything else.
+static func from_letter(letter_or_path: String) -> DotHumanoidLook:
+	var letter := letter_or_path
+	if letter.length() != 1:
+		var file := letter_or_path.get_file().get_basename()
+		letter = file.substr(file.length() - 1, 1) if file.begins_with("texture-") else ""
+	if not SITE_SKINS.has(letter):
+		return null
+	var look := DotHumanoidLook.new()
+	look.body = BODIES["abcdefghijklmnopqr".find(letter) % BODIES.size()]
+	look.skin = Color(SITE_SKINS[letter][0])
+	look.hair = Color(SITE_SKINS[letter][1])
+	look.top = Color(SITE_SKINS[letter][2])
+	look.bottom = Color(SITE_SKINS[letter][3])
+	return look
+
+
 ## The letter of the site's skin in [param slot], or "". The site files a part as
 ## `<slot>.<option>` (`top.skin-k`); a bare `skin-k` is read too (the trap every game's
 ## `_site_skin` once fell into, see the avatar-integration notes).
