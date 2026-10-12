@@ -46,7 +46,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `core/dot_humanoid_clips.gd` | the family clip names, `retarget`, the made crouch and grounded air clips |
 | `nodes/dot_humanoid_figure.gd` | a person drawn: palette material per look, clip from motion, overlays, the hand, LOD stepping |
 | `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py` |
-| `tools/` | `build_people.py` (Blender), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets) |
+| `tools/` | `build_people.py` (Blender), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`), `crowd_bench.tscn` (a browser crowd measurement) |
 | `dot_player_char_api.gd` | the API level (`DotAddonApi`): 3 since the people and the skinned ragdoll |
 | `examples/` | six suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
