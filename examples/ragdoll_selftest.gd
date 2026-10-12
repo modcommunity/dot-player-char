@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 8
-const CHECKS := 63
+const CHECKS := 64
 
 var _passed := 0
 var _failed := 0
@@ -150,6 +150,8 @@ func _test_death() -> void:
 		and DotPlayerDeath.seed_of(3, 100) != DotPlayerDeath.seed_of(3, 101), "seed_of is stable and spreads")
 	var twice := DotPlayerDeath.decide(r, false, 150.0, Vector3.RIGHT, 4242, w)
 	_check(twice.reaction == d.reaction, "the server deciding the same kill twice decides the same")
+	_check(DotPlayerDeath.decide(r, false, 10.0, Vector3.RIGHT, 1, null, -1.0, &"face_plant").reaction == &"face_plant",
+		"a game whose killer is no weapon names the reaction itself")
 
 	var wire := _FakeWire.new()
 	d.headshot = true

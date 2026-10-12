@@ -27,8 +27,9 @@ var headshot: bool = false
 
 
 ## The server's decision for one kill. [param weapon_def] is the killing weapon's definition
-## or null; [param power] overrides its [code]death_power[/code] when not negative (a game
-## without weapon defs passes its own 0-to-1 number).
+## or null; [param power] overrides its [code]death_power[/code] when not negative, and
+## [param named] its [code]death_reaction[/code] when not empty: a game whose killer is not a
+## weapon (a bus, a trap) says what it wants directly.
 static func decide(
 	reactions: DotPlayerDeathReactions,
 	p_headshot: bool,
@@ -36,7 +37,8 @@ static func decide(
 	p_direction: Vector3,
 	p_seed: int,
 	weapon_def: Object = null,
-	power: float = -1.0
+	power: float = -1.0,
+	named: StringName = &""
 ) -> DotPlayerDeath:
 	var out := DotPlayerDeath.new()
 	out.roll_seed = p_seed & 0x7fffffff
@@ -45,10 +47,10 @@ static func decide(
 	out.direction = p_direction.normalized() if p_direction.length_squared() > 0.0001 else Vector3.ZERO
 
 	var weapon_power := power if power >= 0.0 else DotPlayerDeathReactions.weapon_power(weapon_def)
-	var named := DotPlayerDeathReactions.weapon_reaction(weapon_def)
+	var asked := named if named != &"" else DotPlayerDeathReactions.weapon_reaction(weapon_def)
 
 	if reactions != null:
-		out.reaction = reactions.pick(p_headshot, weapon_power, out.damage, named, out.roll_seed)
+		out.reaction = reactions.pick(p_headshot, weapon_power, out.damage, asked, out.roll_seed)
 
 	return out
 
