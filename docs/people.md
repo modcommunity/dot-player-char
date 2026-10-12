@@ -68,3 +68,5 @@ A dead person falls by its bones through dot-player-char's own ragdoll, not a se
 ## Looking at them
 
 `tools/people_sheet.gd` (under `xvfb-run`, not `--headless`) renders every clip of every body at six moments (default), a sheet of stock and site looks (`--looks`), a skinned body falling with each reaction (`--ragdoll`) and a critical taking a limb and everything off (`--break`); add `--rendering-method gl_compatibility` to see what a browser sees. Every made clip and every number above came from looking at those.
+
+**A game newly linking this addon re-imports before rendering.** mg-look-at-me's first `--import` after the link registered the classes but left `people/` unimported: the figure fell back to its capsule (with a `player.humanoid` warning) and every suite passed. A second `--import` imported the bodies.

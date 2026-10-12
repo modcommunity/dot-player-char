@@ -74,6 +74,7 @@ The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything
 - People: only `people_matt.glb` carries clips; every other body plays them through `DotHumanoidClips.retarget` (played raw they bend). [people](docs/people.md#one-clip-set-carried-to-every-body)
 - The air clips are grounded and the crouch is made (`synthesise`); a rebuilt kit needs both again. [people](docs/people.md#the-made-clips)
 - A person's material is one per look, shared by everybody wearing it, with no per-instance uniforms (game-zombie-zone's palette shader made the same choice for the compatibility renderer). [people](docs/people.md#variety-is-colour-not-texture)
+- A game newly linking `dot_player_char`: run `--import` again before trusting a render. mg-look-at-me's first import after linking left `people/` unimported, the figure drew its capsule, and every suite still passed. [people](docs/people.md#looking-at-them)
 - The kit's gun hand is the LEFT; `attachment("right_hand")` means it. [people](docs/people.md#legs-from-the-clip-arms-from-an-overlay)
 - A skinned body falls by the same parts with bones riding on them, not a `PhysicalBoneSimulator3D`; a packed array read out of a Dictionary is a copy. [ragdolls](docs/ragdolls.md#a-skinned-body)
 - Entitlement is the game's: `requires_entitlement` is only an id. [design](docs/design.md#what-this-does-not-do)
