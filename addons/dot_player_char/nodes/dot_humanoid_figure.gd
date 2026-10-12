@@ -117,8 +117,15 @@ var downed: bool = false
 ## The overlay playing on the upper body, or empty.
 var overlay: StringName = &""
 
-## Seconds per frame the clip is advanced at here: 1, 2 or 4 frames, by distance.
+## Frames per advance of the clip: 1, 2 or 4, by distance from the camera.
 var anim_step: int = 1
+
+## The head (and the neck under it) shrunk to nothing after the clip: your own body seen in first
+## person, where the camera is inside the head. The rest still draws and casts its shadow.
+var hide_head: bool = false:
+	set(value):
+		hide_head = value
+		_apply_head()
 
 var _model: Node3D = null
 var _skeleton: Skeleton3D = null
@@ -135,6 +142,7 @@ var _frame: int = 0
 var _posed_usec: int = -1
 var _upper: Dictionary = {}
 var _swim_pitch: float = 0.0
+var _head_hidden: bool = false
 var _model_basis: Basis = Basis.IDENTITY
 var _model_origin: Vector3 = Vector3.ZERO
 
@@ -287,7 +295,36 @@ func animate(speed: float, delta: float) -> void:
 	_anim.advance(_owed)
 	_owed = 0.0
 	_apply_overlays()
+	_apply_head()
 	_apply_swim(delta * anim_step)
+
+
+func _apply_head() -> void:
+	if _skeleton == null:
+		return
+	var head := _skeleton.find_bone("Head")
+	if head < 0:
+		return
+	# A pose scale carries to every child (the eyes, the hair), so the one bone is enough. Written
+	# while hidden (a clip may key the scale) and once when shown again, not every frame: a head
+	# a critical took off (DotPlayerBodyBreak) stays off until [method mend].
+	if hide_head:
+		_skeleton.set_bone_pose_scale(head, Vector3.ONE * 0.001)
+		_head_hidden = true
+	elif _head_hidden:
+		_skeleton.set_bone_pose_scale(head, Vector3.ONE)
+		_head_hidden = false
+
+
+## Puts back whatever a death took off: every bone at its own size again. For a respawn.
+func mend() -> void:
+	if _skeleton == null:
+		return
+	for i in _skeleton.get_bone_count():
+		_skeleton.set_bone_pose_scale(i, Vector3.ONE)
+	_head_hidden = false
+	if hide_head:
+		_apply_head()
 
 
 ## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it:

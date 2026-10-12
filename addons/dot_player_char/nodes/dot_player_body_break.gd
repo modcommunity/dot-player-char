@@ -45,12 +45,16 @@ static func break_apart(
 		return null
 
 	var meshes := visible_meshes(body)
+	var skinned := DotPlayerRagdoll.skinned_meshes(body)
 
-	if meshes.is_empty():
+	if meshes.is_empty() and skinned.is_empty():
 		return null
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = p_seed
+
+	if not skinned.is_empty():
+		return _break_skinned(body, world, p_rules, skinned, direction, rng)
 
 	var chosen: Array[MeshInstance3D] = []
 
@@ -94,6 +98,179 @@ static func break_apart(
 	return made
 
 
+## A skinned body comes apart by its bones: a limb (every bone of one role, and what hangs off
+## them) is baked out of the skin where it is posed into a mesh of its own, which tumbles like any
+## piece, and the limb's top bones are shrunk to nothing on the body, so the stump is where it
+## joined. EXPLODE takes every limb and the head; the torso stays, as the ragdoll's.
+##
+## [b]Baked, not copied[/b]: a skinned mesh copied without its skeleton draws its bind pose, the
+## whole standing body, which is what a critical threw across the room before this.
+static func _break_skinned(
+	body: Node3D, world: Node, p_rules: DotPlayerBreakRules, skinned: Array[MeshInstance3D],
+	direction: Vector3, rng: RandomNumberGenerator
+) -> DotPlayerBodyBreak:
+	var skeleton := skinned[0].get_node(skinned[0].skeleton) as Skeleton3D
+	var R := DotPlayerRagdoll.Role
+	var named := {R.HEAD: "head", R.ARM_L: "arm", R.ARM_R: "arm", R.LEG_L: "leg", R.LEG_R: "leg"}
+	var roles: Array[int] = []
+	for role: int in [R.HEAD, R.ARM_L, R.ARM_R, R.LEG_L, R.LEG_R]:
+		if p_rules.limb_names.has(named[role]) and not bones_of_role(skeleton, role).is_empty():
+			roles.append(role)
+	for i in range(roles.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var swap := roles[i]
+		roles[i] = roles[j]
+		roles[j] = swap
+	var count := roles.size() if p_rules.mode == DotPlayerBreakRules.Mode.EXPLODE else mini(p_rules.limbs, roles.size())
+	if count == 0:
+		return null
+
+	var made := DotPlayerBodyBreak.new()
+	made.name = "BodyBreak"
+	made.rules = p_rules
+	world.add_child(made)
+	var centre := body.global_position + Vector3(0.0, 1.0, 0.0)
+	var along := direction.normalized() if direction.length_squared() > 0.0001 else Vector3.ZERO
+
+	for k in range(count):
+		var bones := bones_of_role(skeleton, roles[k])
+		for mesh in skinned:
+			var baked := bake_bones(mesh, skeleton, bones)
+			if baked != null:
+				made._add_piece(baked, centre, along, rng)
+				baked.free()
+		for bone in bones:
+			var parent := skeleton.get_bone_parent(bone)
+			if parent < 0 or not bones.has(parent):
+				skeleton.set_bone_pose_scale(bone, Vector3.ONE * 0.001)
+
+	DotLog.debug(CHANNEL, "skinned body broke", {"pieces": made.piece_count()})
+	return made
+
+
+## Every bone of [param role] on [param skeleton] (by [method DotPlayerRagdoll.role_of_name]) and
+## every bone under them: an arm's fingers, a leg's foot.
+static func bones_of_role(skeleton: Skeleton3D, role: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for i in skeleton.get_bone_count():
+		var mine := DotPlayerRagdoll.role_of_name(skeleton.get_bone_name(i)) == role
+		var p := skeleton.get_bone_parent(i)
+		while not mine and p >= 0:
+			if out.has(p):
+				mine = true
+			p = skeleton.get_bone_parent(p)
+		if mine:
+			out.append(i)
+	# A bone listed before its parent: once more, now that the parents are in.
+	for i in skeleton.get_bone_count():
+		if out.has(i):
+			continue
+		var p := skeleton.get_bone_parent(i)
+		while p >= 0:
+			if out.has(p):
+				out.append(i)
+				break
+			p = skeleton.get_bone_parent(p)
+	return out
+
+
+## The triangles of [param mesh] that [param bones] move (every corner's strongest bone among
+## them), baked where they are posed now into a plain mesh in world space. Null when there are
+## none, or the mesh's arrays cannot be read.
+static func bake_bones(mesh: MeshInstance3D, skeleton: Skeleton3D, bones: PackedInt32Array) -> MeshInstance3D:
+	var skin := mesh.skin
+	if mesh.mesh == null or skin == null:
+		return null
+	var bind_bone := PackedInt32Array()
+	for b in skin.get_bind_count():
+		var bone := skin.get_bind_bone(b)
+		bind_bone.append(bone if bone >= 0 else skeleton.find_bone(skin.get_bind_name(b)))
+	var to_world := skeleton.global_transform
+	var out_v := PackedVector3Array()
+	var out_n := PackedVector3Array()
+	var out_uv := PackedVector2Array()
+	for surface in mesh.mesh.get_surface_count():
+		var arrays := mesh.mesh.surface_get_arrays(surface)
+		if arrays.size() <= Mesh.ARRAY_WEIGHTS or arrays[Mesh.ARRAY_VERTEX] == null or arrays[Mesh.ARRAY_BONES] == null:
+			continue
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL] if arrays[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
+		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV] if arrays[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
+		var vb: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+		var vw: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+		var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(verts.size()))
+		if verts.is_empty() or vb.is_empty():
+			continue
+		var per := vb.size() / verts.size()
+		var poses := {}
+		for t in range(0, index.size() - 2, 3):
+			var corners := [index[t], index[t + 1], index[t + 2]]
+			var keep := true
+			for v: int in corners:
+				var best := 0
+				for k in per:
+					if vw[v * per + k] > vw[v * per + best]:
+						best = k
+				var bind := vb[v * per + best]
+				if bind < 0 or bind >= bind_bone.size() or not bones.has(bind_bone[bind]):
+					keep = false
+					break
+			if not keep:
+				continue
+			for v: int in corners:
+				var skinned_at := _skinning(v, per, vb, vw, bind_bone, skin, skeleton, poses)
+				out_v.append(to_world * (skinned_at * verts[v]))
+				out_n.append(((to_world.basis * skinned_at.basis) * (normals[v] if v < normals.size() else Vector3.UP)).normalized())
+				out_uv.append(uvs[v] if v < uvs.size() else Vector2.ZERO)
+	if out_v.is_empty():
+		return null
+	var arrays_out := []
+	arrays_out.resize(Mesh.ARRAY_MAX)
+	arrays_out[Mesh.ARRAY_VERTEX] = out_v
+	arrays_out[Mesh.ARRAY_NORMAL] = out_n
+	arrays_out[Mesh.ARRAY_TEX_UV] = out_uv
+	# Centred on its own middle, placed there: a piece spins about where it is, not the origin.
+	var middle := Vector3.ZERO
+	for p in out_v:
+		middle += p
+	middle /= float(out_v.size())
+	for i in out_v.size():
+		out_v[i] -= middle
+	arrays_out[Mesh.ARRAY_VERTEX] = out_v
+	var baked := ArrayMesh.new()
+	baked.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_out)
+	var piece := MeshInstance3D.new()
+	piece.mesh = baked
+	piece.position = middle
+	piece.material_override = mesh.material_override if mesh.material_override != null else mesh.get_active_material(0)
+	# Not in the tree: [method _add_piece] takes its transform as the world one.
+	return piece
+
+
+## A vertex's skinning transform (weighted bone poses times bind poses), in skeleton space.
+static func _skinning(v: int, per: int, vb: PackedInt32Array, vw: PackedFloat32Array, bind_bone: PackedInt32Array,
+		skin: Skin, skeleton: Skeleton3D, poses: Dictionary) -> Transform3D:
+	var sum_basis := Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+	var sum_origin := Vector3.ZERO
+	var total := 0.0
+	for k in per:
+		var w := vw[v * per + k]
+		if w <= 0.0:
+			continue
+		var bind := vb[v * per + k]
+		if bind < 0 or bind >= bind_bone.size() or bind_bone[bind] < 0:
+			continue
+		if not poses.has(bind):
+			poses[bind] = skeleton.get_bone_global_pose(bind_bone[bind]) * skin.get_bind_pose(bind)
+		var t: Transform3D = poses[bind]
+		sum_basis = Basis(sum_basis.x + t.basis.x * w, sum_basis.y + t.basis.y * w, sum_basis.z + t.basis.z * w)
+		sum_origin += t.origin * w
+		total += w
+	if total <= 0.0:
+		return Transform3D.IDENTITY
+	return Transform3D(Basis(sum_basis.x / total, sum_basis.y / total, sum_basis.z / total), sum_origin / total)
+
+
 ## Every visible mesh under [param body], in tree order.
 static func visible_meshes(body: Node) -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []
@@ -131,7 +308,10 @@ static func limbs_of(
 static func _collect(node: Node, out: Array[MeshInstance3D]) -> void:
 	if node is MeshInstance3D:
 		var mesh := node as MeshInstance3D
-		if mesh.visible and mesh.mesh != null:
+		# Not a skinned mesh: copied without its skeleton it draws its bind pose, so a critical
+		# on a skinned person threw a whole standing body across the room as one "limb". A
+		# skinned body has no separate limbs to take off; its death is the ragdoll's.
+		if mesh.visible and mesh.mesh != null and mesh.skin == null:
 			out.append(mesh)
 
 	for child in node.get_children():
@@ -145,7 +325,8 @@ func piece_count() -> int:
 
 
 func _add_piece(source: MeshInstance3D, centre: Vector3, along: Vector3, rng: RandomNumberGenerator) -> void:
-	var at := source.global_transform
+	# A baked limb is not in the tree, and its own transform is the world one.
+	var at := source.global_transform if source.is_inside_tree() else source.transform
 
 	var piece := RigidBody3D.new()
 	piece.collision_layer = 0

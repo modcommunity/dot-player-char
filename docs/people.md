@@ -58,10 +58,10 @@ A swing, a flinch and a gesture are one-shots that would stop the legs if played
 - The clip advanced every frame within 22 m of the camera, every second frame to 45 m, every fourth beyond, with the skipped time carried.
 - Animation is client side only; a server never builds a figure.
 
-## The ragdoll
+## The ragdoll, and a critical
 
-A dead person falls by its bones through dot-player-char's own ragdoll, not a second one: see [ragdolls.md](ragdolls.md#a-skinned-body).
+A dead person falls by its bones through dot-player-char's own ragdoll, not a second one: see [ragdolls.md](ragdolls.md#a-skinned-body). A critical that takes a limb off bakes the limb out of the skin and shrinks its bones to the stump ([design.md](design.md#a-body-coming-apart-is-presentation-seeded-from-the-death)); `mend()` on respawn. `hide_head` shrinks the head bone for your own body in first person, where the camera is inside it.
 
 ## Looking at them
 
-`tools/people_sheet.gd` (under `xvfb-run`, not `--headless`) renders every clip of every body at six moments, a sheet of stock and site looks, and a skinned body falling with each reaction; add `--rendering-method gl_compatibility` to see what a browser sees. Every made clip and every number above came from looking at those.
+`tools/people_sheet.gd` (under `xvfb-run`, not `--headless`) renders every clip of every body at six moments (default), a sheet of stock and site looks (`--looks`), a skinned body falling with each reaction (`--ragdoll`) and a critical taking a limb and everything off (`--break`); add `--rendering-method gl_compatibility` to see what a browser sees. Every made clip and every number above came from looking at those.

@@ -10,8 +10,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 5
-const CHECKS := 40
+const SECTIONS := 6
+const CHECKS := 46
 
 var _passed := 0
 var _failed := 0
@@ -30,6 +30,7 @@ func _run() -> void:
 	_test_clips()
 	await _test_figure()
 	_test_materials()
+	await _test_break()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -191,6 +192,50 @@ func _test_materials() -> void:
 	_check(int(m1.get_shader_parameter(&"swaps")) == 4, "skin, hair, top and bottom are swapped (%d)" % int(m1.get_shader_parameter(&"swaps")))
 	var paths := DotHumanoidFigure.content_paths()
 	_check(paths.size() == 5 and Array(paths).all(func(p: String) -> bool: return ResourceLoader.exists(p)), "every file a figure loads is listed, and exists")
+
+
+## A critical on a skinned person: a limb is baked out of the skin as a piece of its own, and its
+## bones shrink to the stump; a respawn mends it.
+func _test_break() -> void:
+	_section("a skinned body comes apart")
+	var world := Node3D.new()
+	add_child(world)
+	var f := DotHumanoidFigure.new()
+	world.add_child(f)
+	f.build(DotHumanoidLook.stock(77), 1.8)
+	f.animate(0.0, 0.1)
+	var rules := DotPlayerBreakRules.new()
+	rules.mode = DotPlayerBreakRules.Mode.LIMBS
+	rules.limbs = 1
+	var skel := f.skeleton()
+	var whole := _small_bones(skel)
+	var broke := DotPlayerBodyBreak.break_apart(f, world, rules, f.global_position, Vector3.FORWARD, 42, true, true)
+	_check(broke != null and broke.piece_count() == 1, "a limb comes off as one piece (%d)" % (broke.piece_count() if broke != null else -1))
+	var piece_mesh: Mesh = null
+	if broke != null and broke.piece_count() > 0:
+		for child in broke.get_child(0).get_children():
+			if child is MeshInstance3D:
+				piece_mesh = (child as MeshInstance3D).mesh
+	_check(piece_mesh != null and piece_mesh.get_faces().size() > 30 and piece_mesh.get_aabb().size.length() < 1.5,
+		"baked from the skin: a mesh of its own, limb-sized, not the whole body")
+	_check(_small_bones(skel) > whole, "and the limb's bones shrank to the stump")
+	var again := DotPlayerBodyBreak.break_apart(f, world, rules, f.global_position, Vector3.FORWARD, 42, true, true)
+	_check(again != null, "the same seed takes a limb again")
+	f.mend()
+	_check(_small_bones(skel) == whole, "a respawn puts every bone back")
+	rules.mode = DotPlayerBreakRules.Mode.EXPLODE
+	var all := DotPlayerBodyBreak.break_apart(f, world, rules, f.global_position, Vector3.FORWARD, 7, true, true)
+	_check(all != null and all.piece_count() == 5, "explode: both arms, both legs and the head (%d)" % (all.piece_count() if all != null else -1))
+	world.queue_free()
+	await get_tree().process_frame
+
+
+static func _small_bones(skel: Skeleton3D) -> int:
+	var n := 0
+	for i in skel.get_bone_count():
+		if skel.get_bone_pose_scale(i).x < 0.01:
+			n += 1
+	return n
 
 
 func _library_of(id: StringName) -> AnimationLibrary:

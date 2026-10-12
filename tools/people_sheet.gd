@@ -18,6 +18,7 @@ var _bodies: Array = DotHumanoidLook.BODIES.duplicate()
 var _clips: Array = DotHumanoidClips.ALL.duplicate()
 var _looks := false
 var _ragdoll := false
+var _break := false
 var _root: Node3D
 var _camera: Camera3D
 var _sub: SubViewport
@@ -35,6 +36,8 @@ func _initialize() -> void:
 			_looks = true
 		elif arg == "--ragdoll":
 			_ragdoll = true
+		elif arg == "--break":
+			_break = true
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
 	_run.call_deferred()
 
@@ -100,6 +103,8 @@ func _run() -> void:
 		await _sheet_looks()
 	elif _ragdoll:
 		await _sheet_ragdoll()
+	elif _break:
+		await _sheet_break()
 	else:
 		for body in _bodies:
 			await _sheet_body(StringName(body))
@@ -212,6 +217,46 @@ func _sheet_ragdoll() -> void:
 		f.queue_free()
 		await process_frame
 	var path := "%s/ragdoll.png" % _out
+	sheet.save_png(ProjectSettings.globalize_path(path))
+	print("SHEET ", path)
+
+
+## A critical: one limb off (then the ragdoll), and everything off, at five moments.
+func _sheet_break() -> void:
+	var moments := [0.0, 0.15, 0.4, 0.8, 1.6]
+	var sheet := Image.create(CELL.x * moments.size(), CELL.y * 2, false, Image.FORMAT_RGBA8)
+	for row in 2:
+		var f := _figure(DotHumanoidLook.stock(11 + row))
+		f.animate(0.0, 0.3)
+		var rules := DotPlayerBreakRules.new()
+		rules.mode = DotPlayerBreakRules.Mode.LIMBS if row == 0 else DotPlayerBreakRules.Mode.EXPLODE
+		rules.limbs = 1
+		rules.collision_mask = 1
+		var broke := DotPlayerBodyBreak.break_apart(f, _root, rules, f.global_position, Vector3(1, 0, 0), 5 + row, true, true)
+		var death := DotPlayerDeath.new()
+		death.direction = Vector3(1, 0, 0)
+		death.damage = 100.0
+		var drules := DotPlayerRagdollRules.new()
+		drules.collision_mask = 1
+		var doll := DotPlayerRagdoll.build(f, _root, drules, DotPlayerDeathReactions.stock().find(&"limp"), death)
+		_camera.position = Vector3(3.6, 2.2, -3.6)
+		_camera.look_at(Vector3(0.5, 0.6, 0))
+		var t := 0.0
+		for col in moments.size():
+			while t < float(moments[col]) - 0.0001:
+				await physics_frame
+				t += 1.0 / 60.0
+			var img := await _frame()
+			img.convert(Image.FORMAT_RGBA8)
+			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
+		print("BREAK ", rules.mode, " pieces ", broke.piece_count() if broke != null else 0)
+		if broke != null:
+			broke.queue_free()
+		if doll != null:
+			doll.queue_free()
+		f.queue_free()
+		await process_frame
+	var path := "%s/break.png" % _out
 	sheet.save_png(ProjectSettings.globalize_path(path))
 	print("SHEET ", path)
 
