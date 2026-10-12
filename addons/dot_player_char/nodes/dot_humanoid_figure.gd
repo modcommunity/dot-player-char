@@ -123,6 +123,15 @@ var downed: bool = false
 ## The overlay playing on the upper body, or empty.
 var overlay: StringName = &""
 
+## Moves itself: every frame the figure measures how far it moved and animates from that, for a
+## body something else carries (an NPC on a physics body, a prop with a person on it) where no
+## code knows its speed. Off for a player, whose game says how it moves ([method pose]).
+var auto_animate: bool = false:
+	set(value):
+		auto_animate = value
+		set_process(value)
+		_auto_last = Vector3.INF
+
 ## Frames per advance of the clip: 1, 2 or 4, by distance from the camera.
 var anim_step: int = 1
 
@@ -149,6 +158,7 @@ var _posed_usec: int = -1
 var _upper: Dictionary = {}
 var _swim_pitch: float = 0.0
 var _head_hidden: bool = false
+var _auto_last: Vector3 = Vector3.INF
 var _model_basis: Basis = Basis.IDENTITY
 var _model_origin: Vector3 = Vector3.ZERO
 
@@ -250,6 +260,23 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 
 	_play(DotHumanoidClips.IDLE, 1.0)
 	_anim.advance(0.0)
+
+
+func _ready() -> void:
+	set_process(auto_animate)
+
+
+func _process(delta: float) -> void:
+	if not auto_animate or delta <= 0.0:
+		return
+	var at := global_position
+	var moved := Vector3.ZERO if _auto_last == Vector3.INF else (at - _auto_last) / delta
+	_auto_last = at
+	var motion := _motion.duplicate()
+	motion["vertical"] = moved.y
+	motion["on_floor"] = absf(moved.y) < 1.5
+	_motion = motion
+	animate(Vector2(moved.x, moved.z).length(), delta)
 
 
 ## The look changed colours only: a new material, no rebuild.

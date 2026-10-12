@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 6
-const CHECKS := 48
+const CHECKS := 49
 
 var _passed := 0
 var _failed := 0
@@ -181,6 +181,16 @@ func _test_figure() -> void:
 		"a weapon hangs from a bone attachment in the hand, made once")
 	_check(f.attachment(&"crest") == null, "no other mount")
 	_check(f.anim_step == 1, "with no camera, the clip advances every frame")
+	var walker := DotHumanoidFigure.new()
+	add_child(walker)
+	walker.build(DotHumanoidLook.stock(4), 1.8)
+	walker.auto_animate = true
+	for i in 12:
+		walker.position.x += 0.05
+		await get_tree().process_frame
+	_check(walker.clip == DotHumanoidClips.WALK or walker.clip == DotHumanoidClips.RUN,
+		"a figure carried by something else animates from how far it moved (%s)" % walker.clip)
+	walker.free()
 	f.free()
 	await get_tree().process_frame
 

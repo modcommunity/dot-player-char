@@ -42,6 +42,7 @@ Only `people_matt.glb` carries clips; the others are a quarter of the size witho
 
 ### Not in the kit
 
+- **A figure something else carries** (an NPC on a physics body) sets `auto_animate`: it measures how far it moved each frame and animates from that.
 - **Swimming** is a slow run with the whole body leaned forward 70 degrees about the hips (`_apply_swim`). There is no CC0 swim clip on this rig; this is a stand-in, and a real stroke is a queue item.
 - **Climbing** plays the crawl.
 - **Aiming up and down** is not drawn: the gun clips hold a gun level.
