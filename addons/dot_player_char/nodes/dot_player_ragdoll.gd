@@ -470,9 +470,14 @@ static func _set_looseness_of(joint: ConeTwistJoint3D, role: int, looseness: flo
 
 func _drive(forward: Vector3, velocity: Vector3) -> void:
 	var k := rules.force_scale
+	# Along the ground, mostly: a trap that kills "downward" or a shot from a roof pushes a body
+	# into the floor, which reads as nothing. With no sideways part at all there is no push.
 	var dir := death.direction
-	dir.y = clampf(dir.y, -0.3, 0.3)
-	dir = dir.normalized() if dir.length_squared() > 0.0001 else Vector3.ZERO
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	if flat.length() < 0.1:
+		dir = Vector3.ZERO
+	else:
+		dir = (flat.normalized() + Vector3.UP * clampf(dir.y, -0.3, 0.3)).normalized()
 	var strength := clampf(death.damage, 0.0, 300.0) / 100.0
 
 	var base := velocity
