@@ -35,7 +35,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `nodes/dot_player_anim_driver.gd` | the component that ties animation together |
 | `nodes/dot_player_body_break.gd` | a body's meshes, copied into tumbling pieces that fade |
 | `core/dot_player_death_reaction.gd`, `dot_player_death_reactions.gd` | one way a body goes down (pose, pushes, sounds, when it qualifies), and the set with the pure `pick()` |
-| `core/dot_player_death.gd` | the server's decision for one kill (reaction, seed, direction, damage), `to_dict` / `from_dict` for a kill message |
+| `core/dot_player_death.gd` | the server's decision for one kill (reaction, seed, direction, damage); `write_to` / `read_from` (a dot-net writer, duck-typed) or `to_dict` / `from_dict` for a kill message |
 | `core/dot_player_ragdoll_rules.gd` | style, lifetime, cap, force, weights; `bind_cvars` / `follow_cvars` for the `sv_ragdoll*` set |
 | `core/dot_player_death_sounds.gd`, `death/sounds/` | the stock sound ids' files (Kenney CC0, credited in `death/sounds/CREDITS.md`) as data a game makes audio defs from |
 | `nodes/dot_player_ragdoll.gd` | one dead body: parts by name, joints, the push, settle and freeze, the fade |

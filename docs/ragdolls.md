@@ -17,7 +17,7 @@ Before this, every game here drew a death one of two ways, and both looked wrong
 
 ## The server picks, every client falls
 
-`DotPlayerDeath.decide(reactions, headshot, damage, direction, seed, weapon_def)` runs on the server and gives the reaction id and a seed; the game sends `to_dict()`'s keys with its kill message and every client calls `DotPlayerRagdolls.spawn(figure, DotPlayerDeath.from_dict(info))`. A client never picks.
+`DotPlayerDeath.decide(reactions, headshot, damage, direction, seed, weapon_def)` runs on the server and gives the reaction id and a seed; the game sends it with its kill message (`write_to(writer)` / `read_from(reader)` over a dot-net writer and reader, duck-typed, about seven bytes, last and optional so an older client reads the rest; or `to_dict()` / `from_dict()`) and every client calls `DotPlayerRagdolls.spawn(figure, death)`. A client never picks.
 
 - **Picking on each client would show different deaths on different screens**: one viewer sees a launch and the next a face plant. The pick is cheap and pure, so the server makes it once.
 - **Nothing in a body calls `randf()`.** Its tumble and which way a crumple tips come from the death's seed, so two clients build the same fall. Physics is not bit-exact across machines, and does not need to be: the reaction, the direction and the strength agree, and where a hand ends up differs by centimetres nobody can see.

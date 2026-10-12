@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 8
-const CHECKS := 62
+const CHECKS := 63
 
 var _passed := 0
 var _failed := 0
@@ -150,6 +150,28 @@ func _test_death() -> void:
 		and DotPlayerDeath.seed_of(3, 100) != DotPlayerDeath.seed_of(3, 101), "seed_of is stable and spreads")
 	var twice := DotPlayerDeath.decide(r, false, 150.0, Vector3.RIGHT, 4242, w)
 	_check(twice.reaction == d.reaction, "the server deciding the same kill twice decides the same")
+
+	var wire := _FakeWire.new()
+	d.headshot = true
+	d.write_to(wire)
+	var read := DotPlayerDeath.read_from(wire)
+	_check(read.reaction == d.reaction and read.roll_seed == d.roll_seed and read.damage == 150.0
+		and read.direction == d.direction and read.headshot, "write_to and read_from carry it over a writer and a reader")
+
+
+## Stands in for dot-net's writer and reader, which this addon does not depend on: what is
+## written comes back in order.
+class _FakeWire:
+	extends RefCounted
+	var _q: Array = []
+	func write_string(v: String, _n: int) -> void: _q.append(v)
+	func write_varint(v: int) -> void: _q.append(v)
+	func write_bool(v: bool) -> void: _q.append(v)
+	func write_direction(v: Vector3, _bits: int) -> void: _q.append(v)
+	func read_string(_n: int) -> String: return _q.pop_front()
+	func read_varint() -> int: return _q.pop_front()
+	func read_bool() -> bool: return _q.pop_front()
+	func read_direction(_bits: int) -> Vector3: return _q.pop_front()
 
 
 # --- Rules and cvars -------------------------------------------------------------

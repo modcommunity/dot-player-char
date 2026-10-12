@@ -85,6 +85,37 @@ static func from_dict(data: Dictionary) -> DotPlayerDeath:
 	return out
 
 
+## Longest reaction id [method write_to] carries.
+const REACTION_BYTES := 24
+
+
+## Writes this death onto a dot-net [code]DotNetWriter[/code] (duck-typed: this addon does not
+## depend on dot-net): the reaction as a short string, because a game or a server may add its
+## own; the seed, the damage and, when there is one, the direction. About seven bytes. Put it
+## LAST in a message and read it only when bytes remain, so an older client reads the rest.
+func write_to(writer: Object) -> void:
+	writer.call(&"write_string", String(reaction), REACTION_BYTES)
+	writer.call(&"write_varint", roll_seed)
+	writer.call(&"write_varint", clampi(roundi(damage), 0, 10000))
+	var has_dir := direction.length_squared() > 0.0001
+	writer.call(&"write_bool", has_dir)
+	if has_dir:
+		writer.call(&"write_direction", direction, 10)
+	writer.call(&"write_bool", headshot)
+
+
+## Reads [method write_to]'s fields off a dot-net [code]DotNetReader[/code].
+static func read_from(reader: Object) -> DotPlayerDeath:
+	var out := DotPlayerDeath.new()
+	var r := String(reader.call(&"read_string", REACTION_BYTES))
+	out.reaction = StringName(r) if r != "" else DotPlayerDeathReactions.LIMP
+	out.roll_seed = int(reader.call(&"read_varint"))
+	out.damage = float(int(reader.call(&"read_varint")))
+	out.direction = reader.call(&"read_direction", 10) if bool(reader.call(&"read_bool")) else Vector3.ZERO
+	out.headshot = bool(reader.call(&"read_bool"))
+	return out
+
+
 func describe() -> Dictionary:
 	return {
 		"reaction": String(reaction),
