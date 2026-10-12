@@ -41,6 +41,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `nodes/dot_player_ragdoll.gd` | one dead body: parts by name, joints, the push, settle and freeze, the fade |
 | `nodes/dot_player_ragdolls.gd` | where bodies lie: `spawn`, the cap, sounds out |
 | `nodes/dot_player_first_person_body.gd` | your own body in first person: head shadow-only, body back |
+| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 2 since the ragdolls |
 | `examples/` | five suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest` |
 
 Paths under `core/` and `nodes/` are in `addons/dot_player_char/`.
