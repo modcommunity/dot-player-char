@@ -142,7 +142,7 @@ person.set_hold(DotHumanoidFigure.Hold.GUN)
 person.pose(drawn_position, yaw, ground_speed)
 ```
 
-The family's players, bots and NPCs are four animated people on one rig (the same rig game-zombie-zone's zombies use), coloured by a look: a body and its skin, hair, top and bottom. A member's site avatar becomes a look, a team's colour goes on the top, and everybody dressed alike shares one material. The figure picks the clip from how the player moves (idle, walk, run, crouch, crouch walk, jump, fall, land, crawl when down, swim, death), holds a gun with the gun clips, and plays swings, flinches and gestures on the upper body over whatever the legs are doing. When it dies, `DotPlayerRagdolls.spawn(person, death)` drops it as a ragdoll by its bones, through the same reactions as every other body. See [docs/people.md](docs/people.md).
+The family's players, bots and NPCs are four animated people on one rig (the same rig game-zombie-zone's zombies use), coloured by a look: a body and its skin, hair, top and bottom. A member's site avatar becomes a look, a team's colour goes on the top, and everybody dressed alike shares one material. The figure picks the clip from how the player moves (idle, walk, run, crouch, crouch walk, jump, fall, land, crawl when down, swim, climb, sit, death), holds a gun in the right hand with the gun clips, bends the upper body to aim up and down (`aim`), and plays swings, flinches and gestures on the upper body over whatever the legs are doing. When it dies, `DotPlayerRagdolls.spawn(person, death)` drops it as a ragdoll by its bones, through the same reactions as every other body. See [docs/people.md](docs/people.md).
 
 ## Credits
 

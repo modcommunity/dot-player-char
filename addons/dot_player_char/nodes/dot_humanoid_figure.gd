@@ -60,10 +60,20 @@ const WEARS := {
 ## The body whose file carries the clip set; the others play it through [method DotHumanoidClips.retarget].
 const CLIP_BODY := &"matt"
 
-## The bone the kit's gun clips hold a weapon in. [b]The left hand[/b]: the kit's people are
-## left-handed with a gun, and their clips are made that way. "right_hand" is the family's
-## mount name for "the hand a weapon goes in", so it means this one.
-const HAND_BONE := "Middle1.L"
+## The bone a weapon is held in: the right hand. The kit's people are left-handed (every weapon
+## in it hangs off `Middle1.L`), so the clip set is mirrored once when it is loaded
+## ([method DotHumanoidClips.mirror]) and a player seen by anybody else holds the gun in the
+## hand their own first-person view holds it in.
+const HAND_BONE := "Middle1.R"
+
+## Where a hat or a crest sits: on the crown, from the head bone, so it nods and bobs with the
+## head. "head_top", "crest" and "hat" are all this mount.
+const HEAD_BONE := "Head"
+const HEAD_MOUNTS: Array[StringName] = [&"head_top", &"crest", &"hat"]
+
+## How far up and down the upper body follows the view, in radians: past this a person would
+## fold in half at the waist.
+const AIM_LIMIT := 1.15
 
 ## Where a weapon's grip sits from that bone at the held-gun pose, in metres in the figure's frame.
 const HAND_OFFSET := Vector3(0.0, 0.03, -0.02)
@@ -123,6 +133,13 @@ var downed: bool = false
 ## The overlay playing on the upper body, or empty.
 var overlay: StringName = &""
 
+## Where the player looks, up (+) or down (-), in radians: the upper body, the arms and the gun
+## in the hand follow it. See [method aim].
+var aim_pitch: float = 0.0
+
+## Sitting ([constant DotHumanoidClips.SIT]): set by `seated` in [method set_motion].
+var seated: bool = false
+
 ## Moves itself: every frame the figure measures how far it moved and animates from that, for a
 ## body something else carries (an NPC on a physics body, a prop with a person on it) where no
 ## code knows its speed. Off for a player, whose game says how it moves ([method pose]).
@@ -147,6 +164,7 @@ var _skeleton: Skeleton3D = null
 var _mesh: MeshInstance3D = null
 var _anim: AnimationPlayer = null
 var _hand: Node3D = null
+var _crown: Node3D = null
 var _machine := DotPlayerAnimState.new()
 var _motion: Dictionary = {}
 var _speed: float = 0.0
@@ -197,6 +215,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	clip = &""
 	overlay = &""
 	_hand = null
+	_crown = null
 	_upper.clear()
 	_machine.forget_state()
 
@@ -328,6 +347,7 @@ func animate(speed: float, delta: float) -> void:
 	_anim.advance(_owed)
 	_owed = 0.0
 	_apply_overlays()
+	_apply_aim()
 	_apply_head()
 	_apply_swim(delta * anim_step)
 
@@ -362,9 +382,28 @@ func mend() -> void:
 
 ## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it:
 ## `on_floor`, `vertical`, `crouched`, `swimming`, `climbing`, `alive`; plus `downed` here.
+## `seated` draws the person sitting ([method seat_height] says where their hips are).
 func set_motion(motion: Dictionary) -> void:
 	_motion = motion
 	downed = bool(motion.get("downed", false))
+	seated = bool(motion.get("seated", false))
+
+
+## Where the player looks, up or down, in radians (up is positive; a first-person controller's
+## `state.pitch` is in degrees, so `deg_to_rad` it). Drawn on the next [method animate]: the waist
+## and chest bend by it, so the arms, the gun and the head point where the player aims, which is
+## how anybody else reads where somebody is looking. Held to [constant AIM_LIMIT].
+func aim(pitch_radians: float) -> void:
+	aim_pitch = clampf(pitch_radians, -AIM_LIMIT, AIM_LIMIT) if is_finite(pitch_radians) else 0.0
+
+
+## How high above the feet the hips are when sitting, in metres at this figure's height: a game
+## puts the figure's origin this far under the seat.
+func seat_height() -> float:
+	var base: float = _libraries.get(&"sit_height", 0.0)
+	if _skeleton == null or base <= 0.0:
+		return height * 0.25
+	return base * height / maxf(_measure(), 0.01)
 
 
 ## What the hand holds: [enum Hold].
@@ -393,7 +432,13 @@ func emote(which: StringName) -> void:
 ## The node a held weapon hangs from, by the name [code]ZeeWorldModel[/code] asks for:
 ## "right_hand" or "hand" (see [constant HAND_BONE] for which hand that is). Turned so its -Z is
 ## the way the figure faces when holding a gun, its +Y up, and at metre scale whatever the body's.
+##
+## "head_top" (or "crest", "hat") is the crown of the head, upright, at metre scale, and it
+## follows the head bone, so a hat nods with the head and goes with it in first person
+## ([member hide_head]).
 func attachment(point: StringName) -> Node3D:
+	if HEAD_MOUNTS.has(point):
+		return _crown_mount()
 	if point != &"right_hand" and point != &"hand":
 		return null
 	if _hand != null and is_instance_valid(_hand):
@@ -412,6 +457,36 @@ func attachment(point: StringName) -> Node3D:
 	bone.add_child(_hand)
 	_hand.transform = _hand_frame()
 	return _hand
+
+
+func _crown_mount() -> Node3D:
+	if _crown != null and is_instance_valid(_crown):
+		return _crown
+	_crown = Node3D.new()
+	_crown.name = "Crown"
+	if _skeleton == null or _skeleton.find_bone(HEAD_BONE) < 0:
+		_crown.position = Vector3(0.0, height, 0.0)
+		add_child(_crown)
+		return _crown
+	var bone := BoneAttachment3D.new()
+	bone.name = "HeadBone"
+	bone.bone_name = HEAD_BONE
+	_skeleton.add_child(bone)
+	bone.add_child(_crown)
+	# The crown is the mesh's top, straight over the head bone at rest; upright and metre scale
+	# in the figure's frame, as the hand is.
+	var head := _skeleton.find_bone(HEAD_BONE)
+	var head_in_figure := _to_figure() * _skeleton.get_bone_global_rest(head)
+	var top := Vector3(head_in_figure.origin.x, height, head_in_figure.origin.z)
+	_crown.transform = head_in_figure.affine_inverse() * Transform3D(Basis.IDENTITY, top)
+	return _crown
+
+
+## Skeleton space to the figure's frame: the skeleton's own transform under the model, then the
+## model's turn and scale.
+func _to_figure() -> Transform3D:
+	var skel_to_model := _model.global_transform.affine_inverse() * _skeleton.global_transform if _model.is_inside_tree() else Transform3D.IDENTITY
+	return Transform3D(_model_basis, _model_origin) * skel_to_model
 
 
 ## The hand's frame in its bone's, from the held-gun pose: forward is the figure's forward and up
@@ -440,10 +515,7 @@ func _hand_frame() -> Transform3D:
 		global = global * local
 		poses[b] = global
 	var bone_global: Transform3D = poses[bone]
-	# Skeleton space to the figure: the skeleton's own transform under the model, then the model.
-	var skel_to_model := _model.global_transform.affine_inverse() * _skeleton.global_transform if _model.is_inside_tree() else Transform3D.IDENTITY
-	var to_figure := Transform3D(_model_basis, _model_origin) * skel_to_model
-	var bone_in_figure := to_figure * bone_global
+	var bone_in_figure := _to_figure() * bone_global
 	# Wanted: in the figure's frame, -Z forward, +Y up, metres; at the bone plus the grip offset.
 	var wanted := Transform3D(Basis.IDENTITY, bone_in_figure.origin + HAND_OFFSET)
 	return bone_in_figure.affine_inverse() * wanted
@@ -473,6 +545,9 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 	var gun := hold == Hold.GUN
 	if downed:
 		return [DotHumanoidClips.CRAWL, clampf(speed / 1.2, 0.0, 1.6)]
+	# A rider is carried: whatever speed the seat moves at, the legs stay sat.
+	if seated and p_state != DotPlayerAnimState.DEAD:
+		return [DotHumanoidClips.SIT, 1.0]
 	match p_state:
 		DotPlayerAnimState.DEAD:
 			return [DotHumanoidClips.DEATH, 1.0]
@@ -493,7 +568,7 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 		DotPlayerAnimState.RUN:
 			return [DotHumanoidClips.RUN_GUN if gun else DotHumanoidClips.RUN, clampf(speed / 5.0, 0.7, 1.5)]
 		DotPlayerAnimState.CLIMB:
-			return [DotHumanoidClips.CRAWL, 1.0]
+			return [DotHumanoidClips.CLIMB, clampf(absf(float(_motion.get("vertical", 0.0))) / 2.5, 0.0, 1.2)]
 	return [DotHumanoidClips.IDLE_GUN if gun else DotHumanoidClips.IDLE, 1.0]
 
 
@@ -552,6 +627,53 @@ func _apply_overlays() -> void:
 		_skeleton.set_bone_pose_rotation(index, now.slerp(q, clampf(weight, 0.0, 1.0)))
 
 
+## Bends the waist and chest by [member aim_pitch] about the figure's own left-to-right axis,
+## after the clip and the overlays, so whatever the arms are doing points up or down with the
+## view. Not while down, dead, swimming or climbing (the body is not upright to bend), and only
+## on a bone the playing clip keys: a bone no track writes keeps last frame's pose, and the bend
+## would add up frame after frame.
+func _apply_aim() -> void:
+	if _skeleton == null or is_zero_approx(aim_pitch) or downed:
+		return
+	if state == DotPlayerAnimState.DEAD or state == DotPlayerAnimState.SWIM or state == DotPlayerAnimState.CLIMB:
+		return
+	var animation := _anim.get_animation(clip)
+	if animation == null:
+		return
+	# Figure right, in skeleton space: the axis a nod turns about.
+	var axis := (_to_figure().basis.inverse() * Vector3.RIGHT).normalized()
+	var prefix := String(_model.get_path_to(_skeleton))
+	# Every parent's pose is read before any bone is turned. Turns about one axis commute, so each
+	# bone's share goes on through its parent's unturned frame: local' = P^-1 * turn * P * local.
+	# Read from the local poses up the chain, not get_bone_global_pose: the skeleton updates its
+	# global poses later in the frame, so that is last frame's (with last frame's bend in it).
+	var shares: Dictionary = DotHumanoidClips.AIM_BONES
+	if hold != Hold.NONE:
+		shares = shares.merged(DotHumanoidClips.AIM_ARM)
+	var parents := {}
+	for bone: String in shares:
+		var i := _skeleton.find_bone(bone)
+		if i >= 0:
+			parents[i] = _chain_rotation(_skeleton.get_bone_parent(i))
+	for bone: String in shares:
+		var i := _skeleton.find_bone(bone)
+		if i < 0 or animation.find_track(NodePath("%s:%s" % [prefix, bone]), Animation.TYPE_ROTATION_3D) < 0:
+			continue
+		var share: float = shares[bone]
+		var p: Quaternion = parents[i]
+		var turn := Quaternion(axis, aim_pitch * share)
+		_skeleton.set_bone_pose_rotation(i, (p.inverse() * turn * p * _skeleton.get_bone_pose_rotation(i)).normalized())
+
+
+## Bone [param bone]'s rotation in skeleton space from the local poses as they are now.
+func _chain_rotation(bone: int) -> Quaternion:
+	var q := Quaternion.IDENTITY
+	while bone >= 0:
+		q = _skeleton.get_bone_pose_rotation(bone) * q
+		bone = _skeleton.get_bone_parent(bone)
+	return q
+
+
 ## Swimming leans the whole body forward, about the hips, and eases back out of it.
 func _apply_swim(delta: float) -> void:
 	if _model == null:
@@ -605,14 +727,19 @@ static func _scene(path: String) -> PackedScene:
 
 ## The clip set for [param id]'s body: the clip body's own (with the made clips), carried onto
 ## this body's rest by [method DotHumanoidClips.retarget], once per body and shared.
+##
+## Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made clips added.
 static func _library_for(id: StringName, skeleton: Skeleton3D) -> AnimationLibrary:
 	var base_key := StringName("base")
 	if not _libraries.has(base_key):
 		var scene := _scene(body_path(CLIP_BODY))
-		_libraries[base_key] = DotHumanoidClips.synthesise(DotHumanoidClips.library_of(scene))
 		var probe := scene.instantiate() if scene != null else null
 		var bones: Array = probe.find_children("*", "Skeleton3D", true, false) if probe != null else []
-		_libraries[&"rests"] = DotHumanoidClips.rests_of(bones.front() as Skeleton3D) if not bones.is_empty() else {}
+		var clip_skeleton: Skeleton3D = bones.front() as Skeleton3D if not bones.is_empty() else null
+		var library := DotHumanoidClips.mirror(DotHumanoidClips.library_of(scene))
+		_libraries[base_key] = DotHumanoidClips.synthesise(library, clip_skeleton)
+		_libraries[&"rests"] = DotHumanoidClips.rests_of(clip_skeleton)
+		_libraries[&"sit_height"] = DotHumanoidClips.sit_height(library, clip_skeleton)
 		if probe != null:
 			probe.free()
 	if id == CLIP_BODY or skeleton == null:
@@ -703,6 +830,8 @@ func describe() -> Dictionary:
 		"state": String(state),
 		"clip": String(clip),
 		"overlay": String(overlay),
+		"aim": snappedf(rad_to_deg(aim_pitch), 0.1),
+		"seated": seated,
 		"hold": hold,
 		"downed": downed,
 		"anim_step": anim_step,

@@ -11,7 +11,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | Read | Before |
 | --- | --- |
 | [docs/design.md](docs/design.md) | anything: the one height, ids-only validation, the seams, the rebuild signature, seating a visual, breaking a body, the smaller traps, what is not here |
-| [docs/people.md](docs/people.md) | drawing a player, bot or NPC as a person: why this kit, colour looks, the site avatar, retargeting and the made clips, overlays, the left gun hand, cost |
+| [docs/people.md](docs/people.md) | drawing a player, bot or NPC as a person: why this kit, colour looks, the site avatar, retargeting and the made clips, overlays, the mirrored (right) gun hand, aiming, sitting and climbing, the crown mount, cost |
 | [docs/ragdolls.md](docs/ragdolls.md) | dead bodies: the styles, the reaction rule, what travels with a kill, the cvars, the joint and fade traps, the skinned path |
 | [docs/history.md](docs/history.md) | the four-addon merge, and the bodies that all stood at the origin |
 
@@ -75,8 +75,10 @@ The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything
 - The air clips are grounded and the crouch is made (`synthesise`); a rebuilt kit needs both again. [people](docs/people.md#the-made-clips)
 - A person's material is one per look, shared by everybody wearing it, with no per-instance uniforms (game-zombie-zone's palette shader made the same choice for the compatibility renderer). [people](docs/people.md#variety-is-colour-not-texture)
 - A game newly linking `dot_player_char`: run `--import` again before trusting a render. mg-look-at-me's first import after linking left `people/` unimported, the figure drew its capsule, and every suite still passed. [people](docs/people.md#looking-at-them)
-- The kit's gun hand is the LEFT; `attachment("right_hand")` means it. [people](docs/people.md#legs-from-the-clip-arms-from-an-overlay)
+- The kit is left-handed; `DotHumanoidClips.mirror` makes every clip right-handed at load, before the made clips and the retarget. A rebuilt kit is mirrored the same way, never in the glb. [people](docs/people.md#legs-from-the-clip-arms-from-an-overlay)
+- The rig's feet hang off the root, not the shins: a made pose moves the foot to the shin's end, measuring the shin before moving the body. [people](docs/people.md#the-made-clips)
+- `aim()` bends only bones the playing clip keys, from parents read off the local poses (`get_bone_global_pose` is last frame's). [people](docs/people.md#aiming-up-and-down)
 - A skinned body falls by the same parts with bones riding on them, not a `PhysicalBoneSimulator3D`; a packed array read out of a Dictionary is a copy. [ragdolls](docs/ragdolls.md#a-skinned-body)
 - Entitlement is the game's: `requires_entitlement` is only an id. [design](docs/design.md#what-this-does-not-do)
 
-Deliberately not here: network content loading (`content_paths()` lists it), blending, IK, aiming, entitlement decisions. [design](docs/design.md#what-this-does-not-do)
+Deliberately not here: network content loading (`content_paths()` lists it), blending, IK, entitlement decisions. Aiming is only the people's upper-body pitch (`DotHumanoidFigure.aim`). [design](docs/design.md#what-this-does-not-do)

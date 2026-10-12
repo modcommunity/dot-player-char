@@ -10,8 +10,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 6
-const CHECKS := 49
+const SECTIONS := 7
+const CHECKS := 60
 
 var _passed := 0
 var _failed := 0
@@ -29,6 +29,7 @@ func _run() -> void:
 	_test_site()
 	_test_clips()
 	await _test_figure()
+	await _test_hand_and_aim()
 	_test_materials()
 	await _test_break()
 
@@ -179,7 +180,7 @@ func _test_figure() -> void:
 	var hand := f.attachment(&"right_hand")
 	_check(hand != null and hand.get_parent() is BoneAttachment3D and f.attachment(&"right_hand") == hand,
 		"a weapon hangs from a bone attachment in the hand, made once")
-	_check(f.attachment(&"crest") == null, "no other mount")
+	_check(f.attachment(&"left_foot") == null, "no other mount")
 	_check(f.anim_step == 1, "with no camera, the clip advances every frame")
 	var walker := DotHumanoidFigure.new()
 	add_child(walker)
@@ -192,6 +193,73 @@ func _test_figure() -> void:
 		"a figure carried by something else animates from how far it moved (%s)" % walker.clip)
 	walker.free()
 	f.free()
+	await get_tree().process_frame
+
+
+## The right hand holds the gun (the kit's clips are mirrored), the upper body follows the view's
+## pitch without the bend adding up, a rider sits, a climber climbs, and a crest rides the crown.
+func _test_hand_and_aim() -> void:
+	_section("the right hand, aiming, sitting, climbing, the crown")
+	var raw := DotHumanoidClips.library_of(load(DotHumanoidFigure.body_path(DotHumanoidFigure.CLIP_BODY)) as PackedScene)
+	var mirrored := _library_of(DotHumanoidFigure.CLIP_BODY)
+	var gun_raw := raw.get_animation(DotHumanoidClips.IDLE_GUN)
+	var gun := mirrored.get_animation(DotHumanoidClips.IDLE_GUN)
+	var left := gun_raw.find_track(NodePath("CharacterArmature/Skeleton3D:UpperArm.L"), Animation.TYPE_ROTATION_3D)
+	var right := gun.find_track(NodePath("CharacterArmature/Skeleton3D:UpperArm.R"), Animation.TYPE_ROTATION_3D)
+	var a: Quaternion = gun_raw.rotation_track_interpolate(left, 0.0) if left >= 0 else Quaternion()
+	var b: Quaternion = gun.rotation_track_interpolate(right, 0.0) if right >= 0 else Quaternion.IDENTITY
+	_check(left >= 0 and right >= 0 and Quaternion(a.x, -a.y, -a.z, a.w).is_equal_approx(b),
+		"the kit's left gun arm is the figure's right, reflected across the middle")
+
+	var world := Node3D.new()
+	add_child(world)
+	var f := DotHumanoidFigure.new()
+	world.add_child(f)
+	f.build(DotHumanoidLook.stock(21), 1.8)
+	f.set_hold(DotHumanoidFigure.Hold.GUN)
+	var hand := f.attachment(&"right_hand")
+	_check((hand.get_parent() as BoneAttachment3D).bone_name.ends_with(".R"), "the weapon hangs from the right hand's bone")
+	var heights := {}
+	var abdomen := f.skeleton().find_bone("Abdomen")
+	var steady := true
+	for pitch: float in [0.0, 0.6, -0.6]:
+		f.aim(pitch)
+		var last := Quaternion.IDENTITY
+		for i in 3:
+			f.animate(0.0, 0.1)
+			await get_tree().process_frame
+			var now := f.skeleton().get_bone_pose_rotation(abdomen)
+			if i == 2 and not now.is_equal_approx(last):
+				steady = false
+			last = now
+		heights[pitch] = f.to_local(hand.global_position)
+	var level: Vector3 = heights[0.0]
+	_check(level.x > 0.05, "standing with a gun, the hand is right of centre (x %.2f)" % level.x)
+	_check(heights[0.6].y > level.y + 0.1 and heights[-0.6].y < level.y - 0.1,
+		"aiming up raises the gun hand, aiming down lowers it (%.2f / %.2f / %.2f)" % [heights[-0.6].y, level.y, heights[0.6].y])
+	_check(steady, "the bend is put on the clip's pose each frame, not added to last frame's")
+	f.aim(INF)
+	_check(f.aim_pitch == 0.0, "a pitch that is not a number is level")
+
+	f.aim(0.0)
+	f.set_motion({"seated": true})
+	f.animate(3.0, 0.1)
+	_check(f.clip == DotHumanoidClips.SIT, "seated, even carried at speed: sitting")
+	var seat := f.seat_height()
+	_check(seat > 0.2 and seat < 0.5, "the hips sit at knee height (%.2f m of 1.8: short cartoon legs)" % seat)
+	f.set_motion({"climbing": true, "vertical": 2.0})
+	f.animate(0.0, 0.1)
+	_check(f.clip == DotHumanoidClips.CLIMB, "on a ladder: climbing, not the crawl")
+
+	var crest := f.attachment(&"crest")
+	_check(crest != null and f.attachment(&"hat") == crest and crest.get_parent() is BoneAttachment3D,
+		"a crest and a hat share one mount, on the head bone")
+	f.set_motion({})
+	f.animate(0.0, 0.1)
+	await get_tree().process_frame
+	var top := f.to_local(crest.global_position).y
+	_check(top > 1.5 and top < 2.0, "on the crown (%.2f m of 1.8)" % top)
+	world.queue_free()
 	await get_tree().process_frame
 
 

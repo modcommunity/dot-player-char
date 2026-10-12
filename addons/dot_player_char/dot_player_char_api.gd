@@ -10,6 +10,8 @@ extends RefCounted
 #    DotPlayerDeathReaction(s), DotPlayerDeathSounds and death/sounds/. A pack that draws a
 #    ragdoll needs a shell with this level, and says so in its requires.json.
 # 3: people and skinned bodies: DotHumanoidLook, DotHumanoidClips, DotHumanoidFigure, people/,
-#    and DotPlayerRagdoll falling a skinned figure by its bones (skinned_meshes, skeleton_copy).
+#    and DotPlayerRagdoll falling a skinned figure by its bones (skinned_meshes, skeleton_copy);
+#    the right-handed (mirrored) clips, DotHumanoidFigure.aim, seat_height, `seated`, the made
+#    sit and climb clips and the crown mount (head_top / crest / hat). All before any tag.
 const LEVEL := 3
 const OLDEST := 1

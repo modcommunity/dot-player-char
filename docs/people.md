@@ -38,20 +38,33 @@ Only `people_matt.glb` carries clips; the others are a quarter of the size witho
 ### The made clips
 
 - **The crouch and the crouch walk are made, not drawn.** The kit has no crouch. Its duck is a dodge with both arms over the head; held at its lowest it reads as cowering. `synthesise` adds the duck's bend at its lowest frame (as a change from the idle pose, on the body and legs) to the idle and to the walk, so the idle's breathing and the walk's stride stay. A crouched player who stands up to walk reads as not crouching, which is the one thing a crouch has to say.
+- **Sitting is made from the idle's first frame** (`_sat`): the thighs laid forward level, the shins hanging straight down, the feet flat under the knees, and the body dropped until they are on the floor. A figure with `seated` in its motion plays it whatever speed it is carried at, and `seat_height()` (about 0.28 m at 1.8 m: these are short cartoon legs) is how far under the seat a game puts the figure's origin. A rider drawn crouching, the stand-in before, was somebody squatting over the cushion.
+- **Climbing is made from the idle too** (`_climbing`): one knee lifted to the next rung while the other leg straightens, the hands over the head with the one on the straight leg's side higher, one second a cycle and played as fast as the player climbs. The body is pushed up until the lower foot is where the feet stood (the idle stands on bent knees, and a straight leg would put its foot through the origin), which is also the pull-up. The crawl it played before was somebody lying on their front, drawn upright on a ladder.
+- **The feet hang off the root on this rig** (for the kit's own leg IK, which nothing here runs), not off the shins. A made pose that moves a leg moves its foot to where the shin now ends, and measures the shin before it moves the body: the first sit took it after the drop, so the shin was a quarter shorter and the feet floated.
 - **The jump, the fall and the landing are grounded.** The kit's are in-place jumps that lift the body (and the feet, which hang off the root in this rig) in the clip. A player in the air is already lifted by the game, so drawn as it is a falling player hung half a metre above their own capsule. The rise is taken out at every key; the landing's squat is kept.
 
 ### Not in the kit
 
 - **A figure something else carries** (an NPC on a physics body) sets `auto_animate`: it measures how far it moved each frame and animates from that.
 - **Swimming** is a slow run with the whole body leaned forward 70 degrees about the hips (`_apply_swim`). There is no CC0 swim clip on this rig; this is a stand-in, and a real stroke is a queue item.
-- **Climbing** plays the crawl.
-- **Aiming up and down** is not drawn: the gun clips hold a gun level.
+- **A real swim stroke, a real ladder climb and a seat with arms on the armrests** would be better than the made ones above; no CC0 clip on this rig has them.
+
+## Aiming up and down
+
+`aim(pitch_radians)` (up positive; a first-person controller's `state.pitch` is degrees) bends the upper body after the clip and the overlays: the waist and chest a little under a quarter of the pitch, the neck a quarter more so the head reads as looking there, and the weapon arm the rest at the shoulder when the hand holds something, so the gun points the whole way (`AIM_BONES`, `AIM_ARM`). The other arm hangs as the clip has it. Held to about 66 degrees; nothing while down, dead, swimming or climbing. Looked at in `people_sheet.gd --aim` (standing, front, crouched and seated, from straight down to straight up).
+
+- **Most of the pitch goes to the arm, not the spine.** The first try put it all in the waist and chest: on a cartoon-proportioned body a player looking down was bowing and one looking up was falling over backwards.
+- **The parents' poses come from the local poses up the chain**, not `get_bone_global_pose`, which is last frame's until the skeleton updates (with last frame's bend in it). Each bone's share goes on as `P^-1 * turn * P * local` with every `P` read before anything turns: turns about one axis commute.
+- **Only on a bone the playing clip keys.** A bone no track writes keeps last frame's pose, and a bend put on it would add up frame after frame.
+- A remote player is drawn aiming only if the game sends the pitch; every game's snapshot already carries it for the view.
 
 ## Legs from the clip, arms from an overlay
 
 A swing, a flinch and a gesture are one-shots that would stop the legs if played as the clip. The figure advances its `AnimationPlayer` by hand (`ANIMATION_CALLBACK_MODE_PROCESS_MANUAL`) and then writes the upper body (`UPPER_BONES`) from the overlay, blended in and out, so a player swinging while running keeps running. Holding a gun in a clip that has no gun version (a crouch, the air) writes the held-gun arms the same way. Left to the engine, the clip and the overlay run in an order nothing controls, and an arm written before the clip is an arm the clip puts back.
 
-**The gun hand is the left.** The kit's people hold a gun in the left hand and its gun clips are made that way. `attachment("right_hand")` (the family's mount name for "where a weapon goes", which `ZeeWorldModel` asks for) means that hand. The attachment's frame is worked out from the held-gun pose: forward is the figure's forward and up is up there, at metre scale whatever the body's, so a weapon model made pointing down -Z points where the clips aim.
+**The gun hand is the right, because the clips are mirrored.** The kit's people are left-handed: every weapon in it hangs off `Middle1.L`, and its gun and melee clips hold them there. The family's first-person view models are right-handed, so everybody else saw a player hold the gun in the other hand from the one they saw it in. `DotHumanoidClips.mirror` turns the whole set left for right once, when it is loaded (before the made clips and the retarget): each `.L` track becomes the `.R` bone's and every key is reflected across the middle (a rotation's y and z negated, a position's x). That is exact because the rig is symmetric (each `.R` rest is the `.L` rest reflected, measured to the thousandth). The whole set rather than the gun clips alone, so a swing, a punch and a wave are the same hand as the gun. `attachment("right_hand")` (the family's mount name for "where a weapon goes", which `ZeeWorldModel` asks for) is `Middle1.R`. The attachment's frame is worked out from the held-gun pose: forward is the figure's forward and up is up there, at metre scale whatever the body's, so a weapon model made pointing down -Z points where the clips aim.
+
+**A hat or a crest goes on the crown.** `attachment("head_top")`, `"crest"` or `"hat"` is one mount on the head bone at the top of the mesh, upright and at metre scale, so it nods with the head and shrinks with it in first person (`hide_head`).
 
 ## What a crowd costs
 

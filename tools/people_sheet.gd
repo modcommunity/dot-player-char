@@ -4,7 +4,7 @@ extends SceneTree
 ## and one sheet of looks (stock and site avatars). The check no assertion makes.
 ##
 ## [codeblock]
-## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll]
+## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--crowd=N]
 ## [/codeblock]
 ##
 ## xvfb-run, not --headless: the headless display renders nothing and saves a blank frame.
@@ -20,6 +20,7 @@ var _looks := false
 var _ragdoll := false
 var _break := false
 var _hand := false
+var _aim := false
 var _crowd := 0
 var _root: Node3D
 var _camera: Camera3D
@@ -42,6 +43,8 @@ func _initialize() -> void:
 			_break = true
 		elif arg == "--hand":
 			_hand = true
+		elif arg == "--aim":
+			_aim = true
 		elif arg.begins_with("--crowd="):
 			_crowd = int(arg.trim_prefix("--crowd="))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
@@ -113,6 +116,8 @@ func _run() -> void:
 		await _sheet_break()
 	elif _hand:
 		await _sheet_hand()
+	elif _aim:
+		await _sheet_aim()
 	elif _crowd > 0:
 		await _measure_crowd(_crowd)
 	else:
@@ -269,6 +274,73 @@ func _sheet_break() -> void:
 	var path := "%s/break.png" % _out
 	sheet.save_png(ProjectSettings.globalize_path(path))
 	print("SHEET ", path)
+
+
+## Aiming from straight down to straight up, holding a gun: standing from the side, standing
+## from the front, crouched from the side, and seated from the side. A crest (a blue box on the
+## crown mount) rides on every one.
+func _sheet_aim() -> void:
+	var pitches := [-65.0, -35.0, 0.0, 35.0, 65.0]
+	var rows := 4
+	var sheet := Image.create(CELL.x * pitches.size(), CELL.y * rows, false, Image.FORMAT_RGBA8)
+	var f := _figure(DotHumanoidLook.stock(5))
+	f.set_hold(DotHumanoidFigure.Hold.GUN)
+	_stand_in_gun(f.attachment(&"right_hand"))
+	var crest := MeshInstance3D.new()
+	var cb := BoxMesh.new()
+	cb.size = Vector3(0.04, 0.12, 0.22)
+	crest.mesh = cb
+	crest.position = Vector3(0, 0.06, 0)
+	var blue := StandardMaterial3D.new()
+	blue.albedo_color = Color.BLUE
+	crest.material_override = blue
+	f.attachment(&"crest").add_child(crest)
+	var seat := MeshInstance3D.new()
+	var sb := BoxMesh.new()
+	sb.size = Vector3(0.6, 0.08, 0.6)
+	seat.mesh = sb
+	_root.add_child(seat)
+	for row in rows:
+		var motion := {}
+		if row == 2:
+			motion = {"crouched": true}
+		elif row == 3:
+			motion = {"seated": true}
+		f.set_motion(motion)
+		seat.visible = row == 3
+		seat.position = Vector3(0, f.seat_height() - 0.04, 0.05)
+		for col in pitches.size():
+			f.aim(deg_to_rad(pitches[col]))
+			for i in 4:
+				f.animate(0.0, 0.1)
+			_camera.position = Vector3(0.6, 1.2, -3.0) if row == 1 else Vector3(3.0, 1.2, 0)
+			_camera.look_at(Vector3(0, 0.8, 0))
+			var img := await _frame()
+			img.convert(Image.FORMAT_RGBA8)
+			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
+	print("AIM seat height %.2f m, %s" % [f.seat_height(), f.describe()])
+	var path := "%s/aim.png" % _out
+	sheet.save_png(ProjectSettings.globalize_path(path))
+	print("SHEET ", path)
+
+
+## A long box down -Z with a red tip at the muzzle, on [param hand].
+func _stand_in_gun(hand: Node3D) -> void:
+	var gun := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.05, 0.1, 0.5)
+	gun.mesh = box
+	gun.position = Vector3(0, 0, -0.2)
+	var tip := MeshInstance3D.new()
+	var tb := BoxMesh.new()
+	tb.size = Vector3(0.07, 0.07, 0.07)
+	tip.mesh = tb
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Color.RED
+	tip.material_override = red
+	tip.position = Vector3(0, 0, -0.47)
+	hand.add_child(gun)
+	hand.add_child(tip)
 
 
 ## A stand-in gun (a long box down -Z, a red tip at the muzzle) in the hand through the gun

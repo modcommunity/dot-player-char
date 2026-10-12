@@ -74,4 +74,4 @@ With no anchor at all (a character screen with no spatial parent) the drawn node
 
 ## What this does not do
 
-It does not load content over the network: `content_paths()` lists what a preloader or a dot-cloud manifest needs, and something else fetches it. It does not blend, do inverse kinematics or aim. It does not decide who may use which character: `allows()` answers about teams and classes, and `requires_entitlement` is an id the *game* checks, because an addon that decided entitlement is one a client could patch.
+It does not load content over the network: `content_paths()` lists what a preloader or a dot-cloud manifest needs, and something else fetches it. It does not blend or do inverse kinematics, and the only aiming is the people's upper body following the view's pitch (`DotHumanoidFigure.aim`, [people.md](people.md#aiming-up-and-down)); nothing turns a rigid rig toward a target. It does not decide who may use which character: `allows()` answers about teams and classes, and `requires_entitlement` is an id the *game* checks, because an addon that decided entitlement is one a client could patch.
