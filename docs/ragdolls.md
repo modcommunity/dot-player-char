@@ -67,6 +67,8 @@ The face plant has to go over straight, stiff, and only go limp when the face hi
 
 **The plank is a column and spins undamped until it lands.** A skinned person's one piece is boxed round its head, body and legs only (`_carry_bones(..., column)`), never the arms, what the hands hold or the skinned mesh's rest-pose bounds, and its angular damping is 0 until it lands. With either missing, a person holding a gun out was a box as deep as it was wide and the plank stood back up; `ragdoll_selftest` face-plants an armed person. [history](history.md)
 
+**What a hand holds is drawn, not collided.** Once a skinned part has its posed points, its box is those points alone: a gun, a hat or a shield copied onto the part rides it and never widens the box. Boxed round a pistol, a hunter's arm propped the body up on its knees for good; `ragdoll_selftest` drops an armed person limp and fails on the old code.
+
 A one-piece body has "landed" only when it is lying down (its up axis well off vertical): it starts standing on its own feet, and a contact report from its toes is not the face hitting the ground. Nor can it wait for a new contact: its toes never leave the floor it falls onto, so on one big floor body no contact is ever reported again; `_watch_motion` lands it when it is lying (up axis within about 17 degrees of flat), touching something and was moving at `land_speed`.
 
 ## Sounds

@@ -754,8 +754,8 @@ func _top_of(bones: Array, torso_at: Vector3) -> Vector3:
 ## copies: a spike of hair or a shoulder pad is not what the body lands on.
 ##
 ## [param column] (the one-piece body): the box is the head, torso and legs alone. Arms held out
-## and a gun in the hand made a person's plank a block as deep as it was wide, which a face
-## plant's spin could not tip past its toes, so it stood back up (zz's survivors, 2026-10-12).
+## made a person's plank a block as deep as it was wide, which a face plant's spin could not tip
+## past its toes, so it stood back up (zz's survivors, 2026-10-12).
 func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, column: bool = false) -> void:
 	var frame := part.body.global_transform
 	var inverse := frame.affine_inverse()
@@ -785,9 +785,11 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, co
 		var hi := Vector3(_quantile(xs, 0.95), _quantile(ys, 0.97), _quantile(zs, 0.95))
 		bounds = AABB(lo, hi - lo)
 	for copy in part.copies:
-		# A skinned copy's mesh bounds are its rest pose (arms out), not how it stands: the
-		# points above already are the posed skin. A column leaves out what the hands hold too.
-		if (copy.skin != null or column) and not xs.is_empty():
+		# With the posed skin's points in hand, the box is the body's alone. A skinned copy's own
+		# bounds are its rest pose (arms out), and a held gun or a hat is drawn on its part, not
+		# collided: an arm boxed round a pistol propped a dead person up on their knees for good
+		# (prop-hunt's hunters), and a gun held out kept a face plant standing (zz's survivors).
+		if not xs.is_empty():
 			continue
 		var b := copy.transform * copy.mesh.get_aabb()
 		bounds = b if xs.is_empty() else bounds.merge(b)

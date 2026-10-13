@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 9
-const CHECKS := 78
+const CHECKS := 79
 
 var _passed := 0
 var _failed := 0
@@ -488,9 +488,22 @@ func _test_skinned() -> void:
 	var armed_plant := yard.spawn(armed, _death(&"face_plant"))
 	for i in range(150):
 		await get_tree().physics_frame
+	# And limp: boxed round the pistol in its hand, an arm propped a dead person up on their
+	# knees for good. What a hand holds is drawn on its part, never collided.
+	var armed_limp := _person(Vector3(20, 0, 40))
+	armed_limp.set_hold(DotHumanoidFigure.Hold.GUN)
+	armed_limp.animate(0.0, 0.3)
+	var pistol := MeshInstance3D.new()
+	var pistol_mesh := BoxMesh.new()
+	pistol_mesh.size = Vector3(0.1, 0.25, 0.7)
+	pistol.mesh = pistol_mesh
+	armed_limp.attachment(&"right_hand").add_child(pistol)
+	var limp_body := yard.spawn(armed_limp, _death(&"limp", Vector3(-0.75, 0, -0.67)))
 	_check(armed_plant.landed and armed_plant.centre().y < 0.6,
 		"a person holding a long gun out goes over too, inside two and a half seconds (%s, torso %.2f)" % [
 			str(armed_plant.describe()), armed_plant.centre().y])
+	await _settle(limp_body, 8.0)
+	_check(limp_body.centre().y < 0.35, "and one holding a gun falls limp onto the floor, not propped on it (torso %.2f; 0.42 when the gun was collided)" % limp_body.centre().y)
 
 	yard.rules.enabled = false
 	var topple := yard.spawn(_person(Vector3(8, 0, 40)), _death(&"limp", Vector3(1, 0, 0)))
