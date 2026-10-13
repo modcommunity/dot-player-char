@@ -267,6 +267,20 @@ func _test_hand_and_aim() -> void:
 	_check(f.clip == DotHumanoidClips.SIT, "seated, even carried at speed: sitting")
 	var seat := f.seat_height()
 	_check(seat > 0.2 and seat < 0.5, "the hips sit at knee height (%.2f m of 1.8: short cartoon legs)" % seat)
+	var real := load(DotHumanoidFigure.real_clips_path()) as AnimationLibrary
+	var player := f.body_node().find_child("AnimationPlayer", true, false) as AnimationPlayer
+	_check(real != null and real.has_animation(DotHumanoidClips.SIT) and player.has_animation(DotHumanoidClips.SIT) \
+		and is_equal_approx(player.get_animation(DotHumanoidClips.SIT).length, real.get_animation(DotHumanoidClips.SIT).length),
+		"the sit is the library's seated idle, not the made pose")
+	# Past the 0.15 s blend in from the last clip.
+	f.animate(3.0, 0.5)
+	var sk := f.skeleton()
+	sk.force_update_all_bone_transforms()
+	var hips := sk.get_bone_global_pose(sk.find_bone("UpperLeg.L")).origin.y
+	var feet := minf(sk.get_bone_global_pose(sk.find_bone("Foot.L")).origin.y, sk.get_bone_global_pose(sk.find_bone("Foot.R")).origin.y)
+	var stood := minf(sk.get_bone_global_rest(sk.find_bone("Foot.L")).origin.y, sk.get_bone_global_rest(sk.find_bone("Foot.R")).origin.y)
+	_check(absf(feet - stood) < 0.01 and hips - feet < 0.6 * (sk.get_bone_global_rest(sk.find_bone("UpperLeg.L")).origin.y - stood),
+		"and its feet are on the floor (%.3f from where they stand), the hips down at the knees" % (feet - stood))
 	f.set_motion({"climbing": true, "vertical": 2.0})
 	f.animate(0.0, 0.1)
 	_check(f.clip == DotHumanoidClips.CLIMB, "on a ladder: climbing, not the crawl")
@@ -293,7 +307,7 @@ func _test_materials() -> void:
 	_check(DotHumanoidFigure.material_count() == before + 1, "and it was made once")
 	_check(int(m1.get_shader_parameter(&"swaps")) == 4, "skin, hair, top and bottom are swapped (%d)" % int(m1.get_shader_parameter(&"swaps")))
 	var paths := DotHumanoidFigure.content_paths()
-	_check(paths.size() == 5 and Array(paths).all(func(p: String) -> bool: return ResourceLoader.exists(p)), "every file a figure loads is listed, and exists")
+	_check(paths.size() == 6 and Array(paths).all(func(p: String) -> bool: return ResourceLoader.exists(p)), "every file a figure loads is listed, and exists")
 
 
 ## A critical on a skinned person: a limb is baked out of the skin as a piece of its own, and its

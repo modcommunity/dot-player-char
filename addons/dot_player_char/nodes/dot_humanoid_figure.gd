@@ -204,7 +204,14 @@ static func content_paths() -> PackedStringArray:
 	for id in DotHumanoidLook.BODIES:
 		out.append(body_path(id))
 	out.append(directory().path_join("atlas_people.png"))
+	out.append(real_clips_path())
 	return out
+
+
+## The clips baked from the Universal Animation Library ([method DotHumanoidClips.adopt]); a
+## figure without the file plays the made ones.
+static func real_clips_path() -> String:
+	return directory().path_join("people_ual.res")
 
 
 static func body_path(id: StringName) -> String:
@@ -738,7 +745,8 @@ static func _scene(path: String) -> PackedScene:
 ## The clip set for [param id]'s body: the clip body's own (with the made clips), carried onto
 ## this body's rest by [method DotHumanoidClips.retarget], once per body and shared.
 ##
-## Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made clips added.
+## Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made clips added, then
+## the real ones from [method real_clips_path] put over the made ones they replace.
 static func _library_for(id: StringName, skeleton: Skeleton3D) -> AnimationLibrary:
 	var base_key := StringName("base")
 	if not _libraries.has(base_key):
@@ -748,6 +756,9 @@ static func _library_for(id: StringName, skeleton: Skeleton3D) -> AnimationLibra
 		var clip_skeleton: Skeleton3D = bones.front() as Skeleton3D if not bones.is_empty() else null
 		var library := DotHumanoidClips.mirror(DotHumanoidClips.library_of(scene))
 		_libraries[base_key] = DotHumanoidClips.synthesise(library, clip_skeleton)
+		var real_path := real_clips_path()
+		var real: AnimationLibrary = load(real_path) as AnimationLibrary if ResourceLoader.exists(real_path) else null
+		var _adopted := DotHumanoidClips.adopt(library, real)
 		_libraries[&"rests"] = DotHumanoidClips.rests_of(clip_skeleton)
 		_libraries[&"sit_height"] = DotHumanoidClips.sit_height(library, clip_skeleton)
 		if probe != null:

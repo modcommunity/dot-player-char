@@ -238,6 +238,25 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 	return library
 
 
+## [param library] (in place) with each clip of [param real] put in place of the one of the same
+## name, loop mode set from [constant LOOPING]. Returns it.
+##
+## [param real] is `people/people_ual.res`: clips from Quaternius' Universal Animation Library,
+## baked onto the clip body's skeleton by `tools/ual_retarget.gd` and already right-handed, so
+## this runs after [method mirror] and [method synthesise]. Only a clip that reads better than
+## the made one is in the file (docs/people.md, "Real clips").
+static func adopt(library: AnimationLibrary, real: AnimationLibrary) -> AnimationLibrary:
+	if library == null or real == null:
+		return library
+	for clip in real.get_animation_list():
+		var animation := real.get_animation(clip).duplicate(true) as Animation
+		animation.loop_mode = Animation.LOOP_LINEAR if LOOPING.has(StringName(clip)) else Animation.LOOP_NONE
+		if library.has_animation(clip):
+			library.remove_animation(clip)
+		var _a := library.add_animation(clip, animation)
+	return library
+
+
 ## How high the hips are above the feet in [constant SIT], in the clip body's units (the kit is
 ## about 1.1 tall): [method DotHumanoidFigure.seat_height] scales it.
 static func sit_height(library: AnimationLibrary, skeleton: Skeleton3D) -> float:

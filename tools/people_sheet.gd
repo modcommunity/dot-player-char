@@ -4,7 +4,7 @@ extends SceneTree
 ## and one sheet of looks (stock and site avatars). The check no assertion makes.
 ##
 ## [codeblock]
-## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--crowd=N]
+## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--crowd=N] [--compare[=FILE.res]]
 ## [/codeblock]
 ##
 ## xvfb-run, not --headless: the headless display renders nothing and saves a blank frame.
@@ -23,6 +23,7 @@ var _hand := false
 var _aim := false
 var _swim := false
 var _crowd := 0
+var _compare := ""
 var _root: Node3D
 var _camera: Camera3D
 var _sub: SubViewport
@@ -48,6 +49,10 @@ func _initialize() -> void:
 			_swim = true
 		elif arg == "--aim":
 			_aim = true
+		elif arg == "--compare":
+			_compare = DotHumanoidFigure.real_clips_path()
+		elif arg.begins_with("--compare="):
+			_compare = arg.trim_prefix("--compare=")
 		elif arg.begins_with("--crowd="):
 			_crowd = int(arg.trim_prefix("--crowd="))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
@@ -123,6 +128,8 @@ func _run() -> void:
 		await _sheet_aim()
 	elif _swim:
 		await _sheet_swim()
+	elif _compare != "":
+		await _sheet_compare(_compare)
 	elif _crowd > 0:
 		await _measure_crowd(_crowd)
 	else:
@@ -165,6 +172,78 @@ func _sheet_body(body: StringName) -> void:
 	sheet.save_png(ProjectSettings.globalize_path(path))
 	print("SHEET ", path, " rows ", " ".join(_clips))
 	f.queue_free()
+	await process_frame
+
+
+## The made clip and the real one (a library baked by tools/ual_retarget.gd) side by side: for
+## each clip in [param path], four rows (made and real from three-quarter front, made and real
+## from the side) of MOMENTS columns, on the clip body. `sit` is drawn on a stand-in bench at
+## the figure's [method DotHumanoidFigure.seat_height].
+func _sheet_compare(path: String) -> void:
+	var real := load(path) as AnimationLibrary
+	if real == null:
+		print("NO library ", path)
+		return
+	var scene := load(DotHumanoidFigure.body_path(DotHumanoidFigure.CLIP_BODY)) as PackedScene
+	var probe := scene.instantiate()
+	var clip_skeleton := probe.find_children("*", "Skeleton3D", true, false).front() as Skeleton3D
+	var made := DotHumanoidClips.synthesise(DotHumanoidClips.mirror(DotHumanoidClips.library_of(scene)), clip_skeleton)
+	var made_sit := DotHumanoidClips.sit_height(made, clip_skeleton)
+	var both := DotHumanoidClips.adopt(DotHumanoidClips.synthesise(DotHumanoidClips.mirror(DotHumanoidClips.library_of(scene)), clip_skeleton), real)
+	var real_sit := DotHumanoidClips.sit_height(both, clip_skeleton)
+	probe.free()
+	var clips := real.get_animation_list()
+	var views := [[Vector3(2.0, 1.2, -2.0), Vector3(0, 0.62, 0)], [Vector3(2.8, 0.8, 0.0), Vector3(0, 0.62, 0)]]
+	var sheet := Image.create(CELL.x * MOMENTS, CELL.y * clips.size() * 4, false, Image.FORMAT_RGBA8)
+	var look := DotHumanoidLook.stock(7)
+	look.body = DotHumanoidFigure.CLIP_BODY
+	var f := _figure(look)
+	var anim := f.body_node().find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var bench := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.5, 0.06, 0.32)
+	bench.mesh = box
+	_root.add_child(bench)
+	var row := 0
+	for clip in clips:
+		for view in views:
+			_camera.position = view[0]
+			_camera.look_at(view[1])
+			for which in ["made", "real"]:
+				# A real clip with no made one (a seated variant) is shown beside the made sit.
+				var shown: StringName = clip if which == "real" or made.has_animation(clip) else DotHumanoidClips.SIT
+				var seated := shown == DotHumanoidClips.SIT or not made.has_animation(clip)
+				var library := AnimationLibrary.new()
+				var source: AnimationLibrary = made if which == "made" else both
+				for name in source.get_animation_list():
+					var _a := library.add_animation(name, source.get_animation(name))
+				for name in anim.get_animation_library_list():
+					anim.remove_animation_library(name)
+				var _e := anim.add_animation_library(&"", library)
+				# The figure's seat height, scaled from the clip body as the figure does it.
+				var seat: float = (made_sit if which == "made" else real_sit) * f.height / maxf(f._measure(), 0.01) if seated else 0.0
+				f.position = Vector3.ZERO
+				bench.visible = seated
+				var length := maxf(anim.get_animation(shown).length, 0.05)
+				anim.play(shown)
+				anim.speed_scale = 1.0
+				for col in MOMENTS:
+					var t := length * float(col) / float(MOMENTS - 1)
+					anim.seek(minf(t, length - 0.001), true)
+					# The bench under the hips, wherever this clip puts them.
+					var sk := f.skeleton()
+					var hips := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Body"))).origin
+					bench.position = Vector3(hips.x, seat - 0.03, hips.z)
+					var img := await _frame()
+					img.convert(Image.FORMAT_RGBA8)
+					sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
+				print("ROW %d %s %s seat %.3f" % [row, clip, which, seat])
+				row += 1
+	var out := "%s/compare.png" % _out
+	sheet.save_png(ProjectSettings.globalize_path(out))
+	print("SHEET ", out, " clips ", " ".join(clips))
+	f.queue_free()
+	bench.queue_free()
 	await process_frame
 
 

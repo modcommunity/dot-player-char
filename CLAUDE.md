@@ -43,10 +43,10 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `nodes/dot_player_ragdolls.gd` | where bodies lie: `spawn`, the cap, sounds out |
 | `nodes/dot_player_first_person_body.gd` | your own body in first person: head shadow-only, body back |
 | `core/dot_humanoid_look.gd` | a person as data: body and four colours; `stock(seed)`, `from_site(avatar)`, `with_side` |
-| `core/dot_humanoid_clips.gd` | the family clip names, `retarget`, the made crouch and grounded air clips |
+| `core/dot_humanoid_clips.gd` | the family clip names, `retarget`, the made crouch and grounded air clips, `adopt` (real clips over made ones) |
 | `nodes/dot_humanoid_figure.gd` | a person drawn: palette material per look, clip from motion, overlays, the hand, LOD stepping |
-| `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py` |
-| `tools/` | `build_people.py` (Blender), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`), `crowd_bench.tscn` (a browser crowd measurement) |
+| `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py`; `people_ual.res`, the real sit (Universal Animation Library, CC0) |
+| `tools/` | `build_people.py` (Blender), `ual_retarget.gd` (library clips onto the rig: `people_ual.res`), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`, `--compare`), `crowd_bench.tscn` (a browser crowd measurement) |
 | `dot_player_char_api.gd` | the API level (`DotAddonApi`): 3 since the people and the skinned ragdoll |
 | `examples/` | six suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
@@ -73,6 +73,7 @@ The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything
 - Run thresholds have a gap (`run_exit_speed`), events fire through `events_between`, and the reset is `forget_state`. [design](docs/design.md#smaller-traps)
 - People: only `people_matt.glb` carries clips; every other body plays them through `DotHumanoidClips.retarget` (played raw they bend). [people](docs/people.md#one-clip-set-carried-to-every-body)
 - The air clips are grounded and the crouch is made (`synthesise`); a rebuilt kit needs both again. [people](docs/people.md#the-made-clips)
+- The sit is the Universal Animation Library's, baked onto matt's skeleton by `tools/ual_retarget.gd` and adopted after the mirror (it is right-handed already); a rebuilt kit re-bakes it. Compare a candidate with `people_sheet.gd --compare=FILE` before adding it. [people](docs/people.md#real-clips-from-the-universal-animation-library)
 - A person's material is one per look, shared by everybody wearing it, with no per-instance uniforms (game-zombie-zone's palette shader made the same choice for the compatibility renderer). [people](docs/people.md#variety-is-colour-not-texture)
 - A game newly linking `dot_player_char`: run `--import` again before trusting a render. mg-look-at-me's first import after linking left `people/` unimported, the figure drew its capsule, and every suite still passed. [people](docs/people.md#looking-at-them)
 - The kit is left-handed; `DotHumanoidClips.mirror` makes every clip right-handed at load, before the made clips and the retarget. A rebuilt kit is mirrored the same way, never in the glb. [people](docs/people.md#legs-from-the-clip-arms-from-an-overlay)

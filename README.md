@@ -148,6 +148,8 @@ The family's players, bots and NPCs are four animated people on one rig (the sam
 
 The people in `addons/dot_player_char/people/` are from the [Zombie Apocalypse Kit](https://quaternius.com/packs/zombieapocalypsekit.html) by [Quaternius](https://quaternius.com), CC0 1.0: the four survivors (Matt, Lis, Sam, Shaun) and their clips, with the zombie's crawl, rebuilt by `tools/build_people.py` (weapons removed, decimated, clips renamed); `people/CREDITS.md` has the details.
 
+The seated idle in `addons/dot_player_char/people/people_ual.res` is `Sitting_Idle_Loop` from the [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html) (free Standard version, [itch.io](https://quaternius.itch.io/universal-animation-library)) by [Quaternius](https://quaternius.com), CC0 1.0, carried onto the people's rig by `tools/ual_retarget.gd`.
+
 The death sounds in `addons/dot_player_char/death/sounds/` are by [Kenney](https://www.kenney.nl) (Impact Sounds and Foley Sounds), CC0 1.0; `death/sounds/CREDITS.md` maps each file to its original.
 
 ## Licence
