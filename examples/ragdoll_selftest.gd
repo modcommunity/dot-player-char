@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 9
-const CHECKS := 77
+const CHECKS := 78
 
 var _passed := 0
 var _failed := 0
@@ -474,6 +474,23 @@ func _test_skinned() -> void:
 	_check(plant.landed and plant.part_count() == 6 and plant.joint_count() == 5,
 		"and goes jointed when it lands (%s)" % str(plant.describe()))
 	_check((plant.centre() - Vector3(4, 0, 40)).dot(Vector3(0, 0, -1)) > 0.3, "forward, onto its face")
+
+	# Held out in front, a gun and the arms made the one piece as deep as it was wide, and the
+	# plank stood back up: the column is the head, the body and the legs.
+	var armed := _person(Vector3(16, 0, 40))
+	armed.set_hold(DotHumanoidFigure.Hold.GUN)
+	armed.animate(0.0, 0.3)
+	var long_gun := MeshInstance3D.new()
+	var long_mesh := BoxMesh.new()
+	long_mesh.size = Vector3(0.08, 0.14, 0.9)
+	long_gun.mesh = long_mesh
+	armed.attachment(&"right_hand").add_child(long_gun)
+	var armed_plant := yard.spawn(armed, _death(&"face_plant"))
+	for i in range(150):
+		await get_tree().physics_frame
+	_check(armed_plant.landed and armed_plant.centre().y < 0.6,
+		"a person holding a long gun out goes over too, inside two and a half seconds (%s, torso %.2f)" % [
+			str(armed_plant.describe()), armed_plant.centre().y])
 
 	yard.rules.enabled = false
 	var topple := yard.spawn(_person(Vector3(8, 0, 40)), _death(&"limp", Vector3(1, 0, 0)))

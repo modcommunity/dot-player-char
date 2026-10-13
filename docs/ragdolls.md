@@ -65,6 +65,8 @@ A settled body is frozen (`freeze_mode = STATIC`), which is what makes eight bod
 
 The face plant has to go over straight, stiff, and only go limp when the face hits the floor. The obvious way is to build the jointed body with joints a few degrees wide and widen them on landing. **On a hard landing five cone limits that tight threw the test figure a hundred metres**, with or without the widening. So the face plant is built as one rigid piece, rotated about the point under its toes, and `_become_jointed()` swaps in the jointed body where it lies, moving as it moved, when it lands. The same reason keeps `looseness` near 1 for every stock reaction.
 
+**The plank is a column and spins undamped until it lands.** A skinned person's one piece is boxed round its head, body and legs only (`_carry_bones(..., column)`), never the arms, what the hands hold or the skinned mesh's rest-pose bounds, and its angular damping is 0 until it lands. With either missing, a person holding a gun out was a box as deep as it was wide and the plank stood back up; `ragdoll_selftest` face-plants an armed person. [history](history.md)
+
 A one-piece body has "landed" only when it is lying down (its up axis well off vertical): it starts standing on its own feet, and a contact report from its toes is not the face hitting the ground.
 
 ## Sounds

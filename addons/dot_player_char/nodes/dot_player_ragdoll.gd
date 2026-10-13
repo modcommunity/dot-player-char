@@ -349,7 +349,7 @@ func _build_one(meshes: Array[MeshInstance3D], figure: Node3D, physical: bool) -
 	if physical:
 		var made := _make_body(Role.TORSO, meshes, frame, rules.mass)
 		if _skel != null:
-			_carry_bones(made, range(_skel.get_bone_count()), _skeletal_points(), true)
+			_carry_bones(made, range(_skel.get_bone_count()), _skeletal_points(), true, true)
 		return
 	var part := Part.new()
 	part.role = Role.TORSO
@@ -752,7 +752,11 @@ func _top_of(bones: Array, torso_at: Vector3) -> Vector3:
 ## Gives [param part] [param bones] (their offsets from where the part is now) and, when
 ## [param reshape], a box round the middle nine tenths of their points along each axis and its
 ## copies: a spike of hair or a shoulder pad is not what the body lands on.
-func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool) -> void:
+##
+## [param column] (the one-piece body): the box is the head, torso and legs alone. Arms held out
+## and a gun in the hand made a person's plank a block as deep as it was wide, which a face
+## plant's spin could not tip past its toes, so it stood back up (zz's survivors, 2026-10-12).
+func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, column: bool = false) -> void:
 	var frame := part.body.global_transform
 	var inverse := frame.affine_inverse()
 	for bone: int in bones:
@@ -766,6 +770,9 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool) ->
 	var xs: Array[float] = []
 	var ys: Array[float] = []
 	var zs: Array[float] = []
+	if column:
+		for arm: int in [Role.ARM_L, Role.ARM_R]:
+			var _gone := roles.erase(arm)
 	for role: int in roles:
 		for p: Vector3 in (points.get(role, []) as Array):
 			var local := inverse * p
@@ -778,6 +785,10 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool) ->
 		var hi := Vector3(_quantile(xs, 0.95), _quantile(ys, 0.97), _quantile(zs, 0.95))
 		bounds = AABB(lo, hi - lo)
 	for copy in part.copies:
+		# A skinned copy's mesh bounds are its rest pose (arms out), not how it stands: the
+		# points above already are the posed skin. A column leaves out what the hands hold too.
+		if (copy.skin != null or column) and not xs.is_empty():
+			continue
 		var b := copy.transform * copy.mesh.get_aabb()
 		bounds = b if xs.is_empty() else bounds.merge(b)
 
@@ -844,6 +855,10 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 			var omega := axis * 1.6
 			for part in _parts:
 				var body := part.body as RigidBody3D
+				# Undamped until it lands: the damping is for a body flapping on the floor, and
+				# on a plank going over it ate the spin before the top passed the toes. A person
+				# holding a gun out is a deep box, and stood back up (zz's survivors, 2026-10-12).
+				body.angular_damp = 0.0
 				body.angular_velocity = omega
 				body.linear_velocity = velocity + omega.cross(_part_centre(part) - feet)
 			return
@@ -1053,6 +1068,9 @@ func _land(at: Vector3, strength: float) -> void:
 	if landed:
 		return
 	landed = true
+	for part in _parts:
+		if part.body is RigidBody3D:
+			(part.body as RigidBody3D).angular_damp = rules.angular_damp
 	if _jointed_on_land:
 		# The plank lets go when the face meets the floor: limp from here. Deferred, because
 		# this runs inside the physics server's contact report, and bodies added there are
