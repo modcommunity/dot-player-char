@@ -1015,6 +1015,14 @@ func _watch_motion(delta: float) -> void:
 		if body == null:
 			continue
 		var speed := body.linear_velocity.length()
+		# One piece that stood on the floor it falls onto never reports touching it again (its
+		# toes never left), so a plank lying down on it has landed: on zz's streets the face plant
+		# never went limp and never smacked.
+		if not landed and _parts.size() == 1 and age >= 0.25 and body.get_contact_count() > 0 \
+				and absf(body.global_basis.y.dot(Vector3.UP)) <= 0.3:
+			var was := float(_last_speed.get(part, speed))
+			if was >= reaction.land_speed:
+				_land(body.global_position, clampf(was / 4.0, 0.3, 1.0))
 		_last_speed[part] = speed
 		fastest = maxf(fastest, maxf(speed, body.angular_velocity.length() * 0.2))
 
