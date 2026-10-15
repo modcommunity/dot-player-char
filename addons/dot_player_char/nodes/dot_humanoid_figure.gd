@@ -738,8 +738,58 @@ func _measure() -> float:
 
 static func _scene(path: String) -> PackedScene:
 	if not _scenes.has(path):
-		_scenes[path] = load(path) if ResourceLoader.exists(path) else null
+		_scenes[path] = load_model(path)
 	return _scenes[path]
+
+
+## A model by path, imported or not: [code]load()[/code] when the project has imported it, and
+## otherwise the source file read at run time through [GLTFDocument], packed as a scene.
+##
+## The fallback is not a nicety. A project only imports a file when the editor (or
+## [code]--import[/code]) scans it, and a game started straight from a clone or a fresh addon
+## copy, with an import cache from before the file arrived, has the [code].glb[/code] and
+## its [code].import[/code] and no imported scene: [code]load()[/code] fails, and every person
+## was a capsule in three games on a machine that pulled the people and played without opening
+## the editor. The run-time read builds the same skeleton, skin, mesh and clips as the importer
+## does with this addon's import settings (compared bone for bone), so nothing downstream can
+## tell. An exported build has no source file, and there the import is always present.
+static func load_model(path: String) -> PackedScene:
+	if ResourceLoader.exists(path):
+		var imported := load(path) as PackedScene
+		if imported != null:
+			return imported
+	if not FileAccess.file_exists(path):
+		return null
+	var doc := GLTFDocument.new()
+	var state := GLTFState.new()
+	var err := doc.append_from_file(path, state)
+	var root := doc.generate_scene(state, 30.0, false, true) if err == OK else null
+	if root == null:
+		DotLog.warn(CHANNEL, "model is neither imported nor readable", {"path": path, "error": error_string(err)})
+		return null
+	var packed := PackedScene.new()
+	var packed_err := packed.pack(root)
+	root.free()
+	if packed_err != OK:
+		return null
+	DotLog.warn(CHANNEL, "model was never imported; read from the source file instead (run the project's import once)", {"path": path})
+	return packed
+
+
+## A texture by path, imported or not; the image fallback is [method load_model]'s reasoning.
+static func load_texture(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		var imported := load(path) as Texture2D
+		if imported != null:
+			return imported
+	if not FileAccess.file_exists(path):
+		return null
+	# From the bytes rather than Image.load_from_file, which prints an export warning for any
+	# res:// path even where, as here, there is nothing to export.
+	var image := Image.new()
+	if image.load_png_from_buffer(FileAccess.get_file_as_bytes(path)) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 ## The clip set for [param id]'s body: the clip body's own (with the made clips), carried onto
@@ -780,7 +830,7 @@ static func material_for(p_look: DotHumanoidLook) -> ShaderMaterial:
 		_shader.code = SHADER
 	if _atlas == null:
 		var path := directory().path_join("atlas_people.png")
-		_atlas = load(path) as Texture2D if ResourceLoader.exists(path) else null
+		_atlas = load_texture(path)
 
 	var wears: Dictionary = WEARS.get(p_look.body, {})
 	var colours := {"skin": p_look.skin, "hair": p_look.hair, "top": p_look.top, "bottom": p_look.bottom}

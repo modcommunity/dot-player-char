@@ -10,8 +10,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 7
-const CHECKS := 64
+const SECTIONS := 8
+const CHECKS := 67
 
 var _passed := 0
 var _failed := 0
@@ -32,6 +32,7 @@ func _run() -> void:
 	await _test_hand_and_aim()
 	_test_materials()
 	await _test_break()
+	_test_unimported()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -44,6 +45,32 @@ func _run() -> void:
 		get_tree().quit(1)
 		return
 	get_tree().quit(1 if _failed > 0 else 0)
+
+
+## A body the project never imported still loads. user:// is never imported, so a copy of a body
+## there is a .glb with no imported scene: the state of a project run straight after a pull.
+func _test_unimported() -> void:
+	_section("a body that was never imported")
+	var source := DotHumanoidFigure.body_path(&"lis")
+	var copy := "user://people_selftest_unimported.glb"
+	var file := FileAccess.open(copy, FileAccess.WRITE)
+	file.store_buffer(FileAccess.get_file_as_bytes(source))
+	file.close()
+	_check(not ResourceLoader.exists(copy), "the copy has no import")
+	var imported := (load(source) as PackedScene).instantiate()
+	var loaded := DotHumanoidFigure.load_model(copy)
+	var read := loaded.instantiate() if loaded != null else null
+	var bones := func(root: Node) -> int:
+		var found := root.find_children("*", "Skeleton3D", true, false) if root != null else []
+		return (found.front() as Skeleton3D).get_bone_count() if not found.is_empty() else -1
+	_check(read != null and bones.call(read) == bones.call(imported) and bones.call(read) > 0,
+		"read from the file: the importer's skeleton (%d bones)" % bones.call(read))
+	var atlas := DotHumanoidFigure.load_texture("user://nothing_here.png")
+	_check(atlas == null and DotHumanoidFigure.load_model("user://nothing_here.glb") == null, "and a file that is not there is nothing")
+	imported.free()
+	if read != null:
+		read.free()
+	DirAccess.remove_absolute(copy)
 
 
 func _test_look() -> void:
