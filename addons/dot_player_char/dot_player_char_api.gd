@@ -14,5 +14,6 @@ extends RefCounted
 #    the right-handed (mirrored) clips, DotHumanoidFigure.aim, seat_height, `seated`, the made
 #    sit and climb clips, the made swim stroke (DotHumanoidClips.SWIM, SWIM_CYCLE,
 #    DotHumanoidFigure.SWIM_LEAN) and the crown mount (head_top / crest / hat). All before any tag.
-const LEVEL := 3
+# 4: the `driving` motion key and DotHumanoidClips.DRIVE (a retargeted Driving_Loop in people_ual.res).
+const LEVEL := 4
 const OLDEST := 1

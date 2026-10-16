@@ -144,6 +144,9 @@ var aim_pitch: float = 0.0
 ## Sitting ([constant DotHumanoidClips.SIT]): set by `seated` in [method set_motion].
 var seated: bool = false
 
+## Seated with the hands on a wheel ([constant DotHumanoidClips.DRIVE]): set by `driving` in [method set_motion]. Needs `seated` too; a figure without the clip just sits.
+var driving: bool = false
+
 ## Moves itself: every frame the figure measures how far it moved and animates from that, for a
 ## body something else carries (an NPC on a physics body, a prop with a person on it) where no
 ## code knows its speed. Off for a player, whose game says how it moves ([method pose]).
@@ -393,12 +396,14 @@ func mend() -> void:
 
 ## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it:
 ## `on_floor`, `vertical`, `crouched`, `swimming`, `climbing`, `alive`; plus `downed` here.
-## `seated` draws the person sitting ([method seat_height] says where their hips are), and `aim`
+## `seated` draws the person sitting ([method seat_height] says where their hips are), `driving`
+## (with `seated`) puts the hands on a wheel, and `aim`
 ## (radians, up positive) is [method aim]; left out, the aim stays where it was.
 func set_motion(motion: Dictionary) -> void:
 	_motion = motion
 	downed = bool(motion.get("downed", false))
 	seated = bool(motion.get("seated", false))
+	driving = bool(motion.get("driving", false))
 	if motion.has("aim"):
 		aim(float(motion["aim"]))
 
@@ -561,6 +566,8 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 		return [DotHumanoidClips.CRAWL, clampf(speed / 1.2, 0.0, 1.6)]
 	# A rider is carried: whatever speed the seat moves at, the legs stay sat.
 	if seated and p_state != DotPlayerAnimState.DEAD:
+		if driving and _anim != null and _anim.has_animation(DotHumanoidClips.DRIVE):
+			return [DotHumanoidClips.DRIVE, 1.0]
 		return [DotHumanoidClips.SIT, 1.0]
 	match p_state:
 		DotPlayerAnimState.DEAD:
@@ -903,6 +910,7 @@ func describe() -> Dictionary:
 		"overlay": String(overlay),
 		"aim": snappedf(rad_to_deg(aim_pitch), 0.1),
 		"seated": seated,
+		"driving": driving,
 		"hold": hold,
 		"downed": downed,
 		"anim_step": anim_step,

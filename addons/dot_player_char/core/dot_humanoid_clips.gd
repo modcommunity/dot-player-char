@@ -35,15 +35,17 @@ const YES := &"yes"
 const NO := &"no"
 const DUCK := &"duck"
 const SIT := &"sit"
+## Seated with the hands on a wheel: only from `people/people_ual.res` (the library's `Driving_Loop`), no made one; a figure without it sits.
+const DRIVE := &"drive"
 const CLIMB := &"climb"
 const SWIM := &"swim"
 
 ## Every clip a figure is expected to have, for a suite and a contact sheet.
 const ALL: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK,
-	JUMP, FALL, LAND, SLASH, STAB, PUNCH, HIT, DEATH, CRAWL, WAVE, YES, NO, DUCK, SIT, CLIMB, SWIM]
+	JUMP, FALL, LAND, SLASH, STAB, PUNCH, HIT, DEATH, CRAWL, WAVE, YES, NO, DUCK, SIT, DRIVE, CLIMB, SWIM]
 
 ## Clips that loop; the rest play once and hold their last frame.
-const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, CLIMB, SWIM]
+const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, DRIVE, CLIMB, SWIM]
 
 ## The bones a crouch bends: the body's height and the legs. The arms and head keep what the
 ## walk does with them.
