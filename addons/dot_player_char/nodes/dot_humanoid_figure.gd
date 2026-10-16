@@ -156,6 +156,15 @@ var auto_animate: bool = false:
 		set_process(value)
 		_auto_last = Vector3.INF
 
+## Seconds over which [member auto_animate]'s measured speed is averaged. A body carried in physics ticks or on network snapshots moves in steps, so its per-frame speed alternates between zero and double and the clip flips between idle, walk and run. 0 keeps the raw measure.
+var auto_smooth_time: float = 0.0
+
+## Ground speed above which the figure runs, and below which a runner walks again ([member DotPlayerAnimState.run_speed], [member DotPlayerAnimState.run_exit_speed]). A game whose walking pace is near the default 4.0 raises them so a walk does not play the hunched run clip.
+func set_run_speeds(run_speed: float, run_exit_speed: float) -> void:
+	_machine.run_speed = run_speed
+	_machine.run_exit_speed = run_exit_speed
+
+
 ## Frames per advance of the clip: 1, 2 or 4, by distance from the camera.
 var anim_step: int = 1
 
@@ -309,7 +318,10 @@ func _process(delta: float) -> void:
 	motion["vertical"] = moved.y
 	motion["on_floor"] = absf(moved.y) < 1.5
 	_motion = motion
-	animate(Vector2(moved.x, moved.z).length(), delta)
+	var ground := Vector2(moved.x, moved.z).length()
+	if auto_smooth_time > 0.0:
+		ground = lerpf(_speed, ground, 1.0 - exp(-delta / auto_smooth_time))
+	animate(ground, delta)
 
 
 ## The look changed colours only: a new material, no rebuild.
