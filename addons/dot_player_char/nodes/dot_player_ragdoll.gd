@@ -22,6 +22,8 @@ extends Node3D
 ## [code]randf()[/code], so every client builds the same fall.
 
 const CHANNEL := "player.ragdoll"
+const PLANK_MIN_SPIN := 1.6
+const PLANK_PUSH_SECONDS := 1.0
 
 ## A body's sound: the reaction's start or land sound, where, and how hard (0 to 1).
 signal sound(id: StringName, position: Vector3, strength: float)
@@ -94,6 +96,11 @@ var _fastest: float = 0.0
 var _fade_pivot: Vector3 = Vector3.ZERO
 var _last_speed: Dictionary = {}
 var _jointed_on_land: bool = false
+## A face plant's push, kept up until the plank is past tipping: the axis it turns about (ZERO when
+## not pushing), the toe edge it turns round, and how long it has been pushed.
+var _plank_axis: Vector3 = Vector3.ZERO
+var _plank_pivot: Vector3 = Vector3.ZERO
+var _plank_time: float = 0.0
 var _source_roles: Dictionary = {}
 var _topple_axis: Vector3 = Vector3.ZERO
 var _topple_pivot: Vector3 = Vector3.ZERO
@@ -863,6 +870,10 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 				body.angular_damp = 0.0
 				body.angular_velocity = omega
 				body.linear_velocity = velocity + omega.cross(_part_centre(part) - feet)
+			if _parts.size() == 1:
+				_plank_axis = axis
+				_plank_pivot = feet
+				_plank_time = 0.0
 			return
 		DotPlayerDeathReaction.Pose.CRUMPLE:
 			# The legs fold forward under the body, which drops and tips back or forward by
@@ -893,6 +904,34 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 		var tumble := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * reaction.spin * 0.35
 		var flip := Vector3.UP.cross(fall_dir).normalized() * reaction.spin * k
 		body.angular_velocity += tip + tumble + flip
+
+
+## Keeps a face plant turning until its weight is past the toes. One shove of 1.6 rad/s is enough
+## on a light world, but a box lying flush on the floor loses it to contact within a few frames,
+## and with the games' 20 m/s2 gravity the centre of mass needs more than the shove carries to
+## get over the toe edge: about one fall in three stood back up (nightly
+## ragdoll-faceplant-upright-1). Below the tipping angle the spin is topped up to a floor; past it,
+## gravity finishes the fall alone. A wall ahead still stops it, and the push gives up after a
+## second so it never leans on one.
+func _keep_tipping(delta: float) -> void:
+	if _plank_axis == Vector3.ZERO:
+		return
+	_plank_time += delta
+	var part := _parts[0] if _parts.size() == 1 else null
+	if part == null or landed or _plank_time > PLANK_PUSH_SECONDS:
+		_plank_axis = Vector3.ZERO
+		return
+	var body := part.body as RigidBody3D
+	var tilt := acos(clampf(body.global_basis.y.dot(Vector3.UP), -1.0, 1.0))
+	# The tipping angle of a box standing on its toe edge: the diagonal through its centre.
+	var tipping := atan2(part.size.z, part.size.y)
+	if tilt > tipping + 0.2:
+		_plank_axis = Vector3.ZERO
+		return
+	if body.angular_velocity.dot(_plank_axis) < PLANK_MIN_SPIN:
+		var omega := _plank_axis * PLANK_MIN_SPIN
+		body.angular_velocity = omega
+		body.linear_velocity = omega.cross(_part_centre(part) - _plank_pivot)
 
 
 ## The ground point under the toes, for a fall forward.
@@ -977,6 +1016,7 @@ func advance(delta: float) -> void:
 	if style == DotPlayerRagdollRules.Style.TOPPLE:
 		_advance_topple(delta)
 	elif not settled:
+		_keep_tipping(delta)
 		_watch_motion(delta)
 	if not was_settled:
 		_pose_bones()

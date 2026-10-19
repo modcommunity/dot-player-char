@@ -96,3 +96,4 @@ No assertion says whether a fall looks right. A frame sequence does (`tools/peop
 ## What it does not do
 
 No knees or elbows: a part is one body, so a block figure with one mesh per limb bends at the hip and shoulder only, and a skinned limb keeps the bend it died with. A rig with separate upper and lower segments has them welded together. No get-up, no blending from the ragdoll back into animation; a body is dead until it fades.
+A face plant's spin is topped up (to 1.6 rad/s, for at most a second) until the plank is past its tipping angle: at 20 m/s2 gravity a box flush on the floor loses the single shove to contact and stood back up; `_keep_tipping` in `dot_player_ragdoll.gd`, covered by the ragdoll selftest's gravity-20 sweep.

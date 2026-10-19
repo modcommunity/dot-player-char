@@ -13,8 +13,8 @@ extends Node
 ## godot --headless --path . res://examples/ragdoll_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 9
-const CHECKS := 79
+const SECTIONS := 10
+const CHECKS := 81
 
 var _passed := 0
 var _failed := 0
@@ -41,6 +41,7 @@ func _run() -> void:
 	await _test_styles()
 	await _test_cap_and_life()
 	await _test_skinned()
+	await _test_faceplant_sweep()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -530,6 +531,45 @@ func _test_skinned() -> void:
 	_check(smallest < 0.5, "the fade shrinks the skeleton, so the skin shrinks with it (to %.2f)" % smallest)
 	_check(not is_instance_valid(fading), "and the body is gone after its lifetime")
 	yard.clear()
+
+
+## A face plant onto open floor always ends lying down. The skinned figure's one piece is a flush
+## box (about 0.42 x 1.59 x 0.8 m) on the floor, and at the games' 20 m/s2 gravity (the default 9.8
+## never showed it) floor contact ate the 1.6 rad/s spin before the top passed the toes, so a third
+## of the falls (12 of 36 here) stood back up, by pose and not by seed (nightly
+## ragdoll-faceplant-upright-1). Without the fix this check fails listing those falls.
+func _test_faceplant_sweep() -> void:
+	_section("a skinned face plant onto open floor always lies down")
+	var yard := DotPlayerRagdolls.new()
+	yard.rules.lifetime = 60.0
+	_world.add_child(yard)
+	# The games tune movement against about 20 m/s2, not 9.8; a heavier fall asks more of the spin.
+	var space := get_viewport().find_world_3d().space
+	var gravity_before: float = PhysicsServer3D.area_get_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY)
+	PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY, 20.0)
+	var upright: Array[String] = []
+	var falls := 0
+	for s in range(36):
+		var person := _person(Vector3(0, [0.0, -0.05, -0.1, 0.03][s % 4], 80))
+		person.rotation.y = deg_to_rad(float(s % 4) * 45.0 + 7.0 * float(s / 4))
+		person.set_hold(s % 3)
+		person.aim([0.0, 0.6, -0.6, 0.3][(s / 3) % 4])
+		for k in range(1 + (s * 5) % 13):
+			person.animate([0.0, 2.0, 3.5, 5.0][s % 4], 0.11)
+		await get_tree().physics_frame
+		var forward := -person.global_basis.z
+		var body := yard.spawn(person, _death(&"face_plant"))
+		await _settle(body, 6.0)
+		falls += 1
+		var c := body.centre()
+		if not (c.y < 0.6 and body.lowest_point() > -0.25):
+			upright.append("%d: centre.y=%.2f lowest=%.2f" % [s, c.y, body.lowest_point()])
+		elif (c - Vector3(0, 0, 80)).dot(forward) < 0.3:
+			upright.append("%d: not forward (%.2f)" % [s, (c - Vector3(0, 0, 80)).dot(forward)])
+		yard.clear()
+	PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY, gravity_before)
+	_check(falls == 36, "36 falls ran")
+	_check(upright.is_empty(), "none stayed up or fell backward: %s" % str(upright))
 
 
 # --- Plumbing --------------------------------------------------------------------
