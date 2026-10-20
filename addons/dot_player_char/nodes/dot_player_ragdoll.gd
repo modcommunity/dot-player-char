@@ -24,6 +24,8 @@ extends Node3D
 const CHANNEL := "player.ragdoll"
 const PLANK_MIN_SPIN := 1.6
 const PLANK_PUSH_SECONDS := 1.0
+## How long a face plant's plank may stand still on its feet before it goes limp where it is.
+const PLANK_STALL_SECONDS := 0.15
 
 ## A body's sound: the reaction's start or land sound, where, and how hard (0 to 1).
 signal sound(id: StringName, position: Vector3, strength: float)
@@ -1070,6 +1072,21 @@ func _watch_motion(delta: float) -> void:
 
 	_fastest = fastest
 	_still_for = _still_for + delta if fastest < rules.settle_speed else 0.0
+
+	# A plank that has stopped before lying down is leaning on something: a table edge at hip
+	# height, a counter, a wall. Pushing harder is wrong (it is past tipping, its weight is on the
+	# edge), and freezing it leaves a dead body standing at 30 degrees against furniture (nightly
+	# ragdoll-faceplant-upright-1, game-murder-mystery CI). It lets go instead, as it would on
+	# landing, and the jointed body slumps off the edge or down the wall.
+	if _jointed_on_land and not landed and _parts.size() == 1 and _still_for >= PLANK_STALL_SECONDS \
+			and absf(_parts[0].body.global_basis.y.dot(Vector3.UP)) > 0.55:
+		_jointed_on_land = false
+		_plank_axis = Vector3.ZERO
+		_still_for = 0.0
+		for part in _parts:
+			(part.body as RigidBody3D).angular_damp = rules.angular_damp
+		_become_jointed()
+		return
 
 	if _still_for >= rules.settle_time or age >= rules.max_sim_time:
 		freeze_all()

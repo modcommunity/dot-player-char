@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 10
-const CHECKS := 81
+const CHECKS := 82
 
 var _passed := 0
 var _failed := 0
@@ -567,9 +567,42 @@ func _test_faceplant_sweep() -> void:
 		elif (c - Vector3(0, 0, 80)).dot(forward) < 0.3:
 			upright.append("%d: not forward (%.2f)" % [s, (c - Vector3(0, 0, 80)).dot(forward)])
 		yard.clear()
+	# A table edge just ahead, at the height of a person's hips: the plank tips onto it and stops
+	# at about 30 degrees with its weight on the edge, still on its feet. Seen against a house
+	# map's furniture on game-murder-mystery's CI (nightly ragdoll-faceplant-upright-1, second half): the
+	# spin is not the problem there, so no amount of pushing fixes it, and a frozen plank leaning
+	# on furniture is a dead body standing. It has to let go and slump.
+	var table := StaticBody3D.new()
+	var slab := CollisionShape3D.new()
+	var slab_box := BoxShape3D.new()
+	slab_box.size = Vector3(1.6, 0.05, 0.8)
+	slab.shape = slab_box
+	table.add_child(slab)
+	_world.add_child(table)
+	var leaning: Array[String] = []
+	var tried := 0
+	for s in range(8):
+		var gap: float = [0.3, 0.38, 0.45, 0.55][s % 4]
+		var top: float = [0.8, 0.72][s / 4]
+		table.global_position = Vector3(40, top - 0.025, 80 - gap - 0.4)
+		var person := _person(Vector3(40, 0, 80))
+		person.set_hold(s % 3)
+		await get_tree().physics_frame
+		var body := yard.spawn(person, _death(&"face_plant"))
+		await _settle(body, 6.0)
+		tried += 1
+		var pieces := body.part_count()
+		var standing := false
+		for node in body.part_nodes():
+			standing = standing or (pieces == 1 and node.global_basis.y.dot(Vector3.UP) > 0.55)
+		if pieces == 1 or standing:
+			leaning.append("%d (gap %.2f, top %.2f): %d piece(s), centre.y=%.2f" % [s, gap, top, pieces, body.centre().y])
+		yard.clear()
+	table.queue_free()
 	PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY, gravity_before)
-	_check(falls == 36, "36 falls ran")
+	_check(falls == 36 and tried == 8, "36 falls onto open floor and 8 onto a table edge ran")
 	_check(upright.is_empty(), "none stayed up or fell backward: %s" % str(upright))
+	_check(leaning.is_empty(), "a plank stopped by a table edge lets go and slumps, never left leaning on its feet: %s" % str(leaning))
 
 
 # --- Plumbing --------------------------------------------------------------------
