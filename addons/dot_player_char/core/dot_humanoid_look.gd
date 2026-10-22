@@ -20,8 +20,8 @@ const BODIES: Array[StringName] = [&"matt", &"lis", &"sam", &"shaun"]
 ## Skin tones a stock look draws from: real ones, light to dark.
 const SKIN_TONES: Array[String] = ["f1d2b6", "e8b994", "d9a07a", "c58a62", "a8714b", "8a5a3a", "6e4630", "523426"]
 
-## Hair a stock look draws from.
-const HAIR: Array[String] = ["1f1a17", "3b2a20", "5a3b24", "7a5230", "a5784a", "c9a26b", "8c8c8c", "2a2a33", "6b2a1a"]
+## Hair a stock look draws from; none near black, which reads as a flat blob under a dim map light.
+const HAIR: Array[String] = ["4a3a30", "3b2a20", "5a3b24", "7a5230", "a5784a", "c9a26b", "8c8c8c", "444852", "6b2a1a"]
 
 ## Tops and bottoms a stock look draws from: ordinary clothes, nothing that reads as a team.
 const TOPS: Array[String] = ["3f5f8a", "8a3f3f", "4f7a4a", "c9a24a", "5a5a62", "e0ddd5", "6a4a7a", "2f3a48", "b8653a", "3a7a78"]
