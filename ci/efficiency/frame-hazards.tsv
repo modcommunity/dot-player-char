@@ -1,0 +1,19 @@
+# frame-hazards
+# Baselines only shrink: scripts/<gate> --update lowers or drops entries and refuses to add.
+addons/dot_player_char/nodes/dot_humanoid_figure.gd::_apply_aim::alloc_dict	1
+addons/dot_player_char/nodes/dot_humanoid_figure.gd::_apply_aim::string_build	1
+addons/dot_player_char/nodes/dot_humanoid_figure.gd::_apply_overlays::string_build	1
+addons/dot_player_char/nodes/dot_humanoid_figure.gd::_process::duplicate	1
+addons/dot_player_char/nodes/dot_humanoid_figure.gd::animate::duplicate	1
+addons/dot_player_char/nodes/dot_player_anim_driver.gd::_motion_from_body::alloc_dict	1
+addons/dot_player_char/nodes/dot_player_anim_driver.gd::sinks::alloc_array	1
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_build_jointed_skeletal::alloc_array	1
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_carry_bones::alloc_array	3
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_carry_bones::alloc_dict	1
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_group::alloc_array	1
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_group::alloc_dict	1
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_make_joint::string_build	1
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_new_body::connect_unguarded	1
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_pivot_of::alloc_array	2
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_pose_bones::alloc_dict	1
+addons/dot_player_char/nodes/dot_player_ragdoll.gd::_skeletal_points::alloc_dict	4
