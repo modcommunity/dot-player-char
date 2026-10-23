@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 8
-const CHECKS := 67
+const CHECKS := 69
 
 var _passed := 0
 var _failed := 0
@@ -335,6 +335,10 @@ func _test_materials() -> void:
 	_check(int(m1.get_shader_parameter(&"swaps")) == 4, "skin, hair, top and bottom are swapped (%d)" % int(m1.get_shader_parameter(&"swaps")))
 	var paths := DotHumanoidFigure.content_paths()
 	_check(paths.size() == 6 and Array(paths).all(func(p: String) -> bool: return ResourceLoader.exists(p)), "every file a figure loads is listed, and exists")
+	DotHumanoidFigure.clear_cache()
+	_check(DotHumanoidFigure.material_count() == 0, "clear_cache() empties the shared materials")
+	DotHumanoidFigure.material_for(look)
+	_check(DotHumanoidFigure.material_count() == 1, "and a material refills it")
 
 
 ## A critical on a skinned person: a limb is baked out of the skin as a piece of its own, and its

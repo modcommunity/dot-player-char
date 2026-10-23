@@ -895,6 +895,15 @@ static func material_count() -> int:
 	return _materials.size()
 
 
+## Drops every shared scene, library, material, shader and atlas so a process can exit without leaking them.
+static func clear_cache() -> void:
+	_scenes.clear()
+	_libraries.clear()
+	_materials.clear()
+	_shader = null
+	_atlas = null
+
+
 static func _capsule(p_height: float, colour: Color) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Capsule"
