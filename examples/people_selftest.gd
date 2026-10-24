@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 9
-const CHECKS := 80
+const CHECKS := 85
 
 var _passed := 0
 var _failed := 0
@@ -467,6 +467,56 @@ func _test_actions() -> void:
 	var out: Animation = renamed["animation"]
 	_check(out.get_track_count() == 1 and String(out.track_get_path(0)).ends_with(":Abdomen") and renamed["rests"].has("Abdomen"),
 		"an uploaded humanoid clip is renamed onto the kit's bones, unmapped bones dropped")
+	_test_upload()
+
+
+## An uploaded clip's scene, as the content cache builds it: Mixamo bone names, its own skeleton path.
+func _test_upload() -> void:
+	_check(DotHumanoidActions.profile_bone_of("mixamorig_LeftForeArm") == "LeftLowerArm"
+		and DotHumanoidActions.profile_bone_of("thigh_R") == "RightUpperLeg"
+		and DotHumanoidActions.profile_bone_of("upper_arm.L") == "LeftUpperArm"
+		and DotHumanoidActions.profile_bone_of("mixamorig:Hips") == "Hips"
+		and DotHumanoidActions.profile_bone_of("LeftHandIndex1") == "",
+		"source bone names are guessed onto the humanoid profile, unknown ones left out")
+	var scene := Node3D.new()
+	var skel := Skeleton3D.new()
+	skel.name = "Skel"
+	var arm := Node3D.new()
+	arm.name = "Armature"
+	scene.add_child(arm)
+	arm.add_child(skel)
+	var bones := ["mixamorig_Hips", "mixamorig_Spine", "mixamorig_Neck", "mixamorig_Head", "mixamorig_RightArm", "mixamorig_RightForeArm"]
+	for b in bones:
+		var _i := skel.add_bone(b)
+	var player := AnimationPlayer.new()
+	scene.add_child(player)
+	var anim := Animation.new()
+	anim.length = 1.0
+	var raise := Quaternion(Vector3.FORWARD, 2.0)
+	for b in bones:
+		var t := anim.add_track(Animation.TYPE_ROTATION_3D)
+		anim.track_set_path(t, NodePath("Armature/Skel:%s" % b))
+		var _a := anim.rotation_track_insert_key(t, 0.0, raise if b == "mixamorig_RightArm" else Quaternion.IDENTITY)
+		var _b := anim.rotation_track_insert_key(t, 1.0, raise if b == "mixamorig_RightArm" else Quaternion.IDENTITY)
+	var lib := AnimationLibrary.new()
+	var _l := lib.add_animation(&"Take", anim)
+	var _p := player.add_animation_library(&"", lib)
+	var f := DotHumanoidFigure.new()
+	add_child(f)
+	f.build(DotHumanoidLook.stock(2), 1.8)
+	var id := &"action/12/3"
+	_check(not DotHumanoidActions.clip_name(id).contains("/"), "a content id makes a clip name without a slash")
+	_check(not f.add_action_scene(id, scene, "Missing").ok, "an upload without the named clip is refused")
+	var added := f.add_action_scene(id, scene, "Take", true)
+	_check(added.ok and added.value == true, "an uploaded clip is added to the body (%s)" % (added.error.message if not added.ok else "ok"))
+	var rest := f.skeleton().get_bone_pose_rotation(f.skeleton().find_bone("UpperArm.R"))
+	var plays := f.play_action(id, true)
+	for i in 6:
+		f.animate(0.0, 0.1)
+	var moved := f.skeleton().get_bone_pose_rotation(f.skeleton().find_bone("UpperArm.R"))
+	_check(plays and rest.angle_to(moved) > 0.3, "and plays on the kit's arm (%.2f rad)" % rest.angle_to(moved))
+	f.free()
+	scene.free()
 
 
 func _section(title: String) -> void:

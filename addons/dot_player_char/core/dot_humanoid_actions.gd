@@ -45,7 +45,8 @@ static func clip_name(id: StringName) -> StringName:
 			return DotHumanoidClips.YES
 		&"sit":
 			return DotHumanoidClips.SIT
-	return StringName("act_" + String(id))
+	# An uploaded id is a content id (action/12/3); a slash would name an animation library.
+	return StringName("act_" + String(id).replace("/", "_"))
 
 
 ## Whether [param id] replaces the legs' clip while it plays.
@@ -99,6 +100,90 @@ static func rename_humanoid(animation: Animation, bone_map: BoneMap, source_rest
 		if source_rests.has(source):
 			rests[kit] = source_rests[source]
 	return {"animation": out, "rests": rests}
+
+
+## The site's cap on an uploaded clip's length, in seconds.
+const MAX_UPLOAD_LENGTH := 30.0
+## Fewer named bones than this is not a humanoid clip, or a skeleton nobody could map.
+const MIN_UPLOAD_BONES := 4
+
+const _CORE_BONES := {"hips": "Hips", "pelvis": "Hips", "spine": "Spine", "spine1": "Chest", "chest": "Chest",
+	"neck": "Neck", "head": "Head"}
+const _SIDE_BONES := {"shoulder": "Shoulder", "clavicle": "Shoulder", "arm": "UpperArm", "upperarm": "UpperArm",
+	"forearm": "LowerArm", "lowerarm": "LowerArm", "upleg": "UpperLeg", "upperleg": "UpperLeg", "thigh": "UpperLeg",
+	"leg": "LowerLeg", "lowerleg": "LowerLeg", "shin": "LowerLeg", "calf": "LowerLeg"}
+
+
+## The humanoid profile bone [param bone] names, or "": Mixamo (`mixamorig:LeftForeArm`), the
+## profile's own names, and `.L`/`_R`-marked names (`upper_arm.L`, `thigh_R`). Only the bones
+## [constant KIT_BONES] maps are named; nothing else of an upload is trusted.
+static func profile_bone_of(bone: String) -> String:
+	var n := bone.get_slice(":", bone.get_slice_count(":") - 1)
+	var lower := n.to_lower()
+	var re := RegEx.create_from_string("^mixamorig[0-9]*_")
+	lower = re.sub(lower, "")
+	var side := ""
+	for pre in ["left", "right"]:
+		if lower.begins_with(pre):
+			side = pre.capitalize()
+			lower = lower.substr(pre.length())
+	if side == "" and lower.length() > 2:
+		var mark := lower.substr(lower.length() - 2)
+		if mark in [".l", "_l", "-l"]:
+			side = "Left"
+		elif mark in [".r", "_r", "-r"]:
+			side = "Right"
+		if side != "":
+			lower = lower.substr(0, lower.length() - 2)
+	lower = lower.replace("_", "").replace(".", "").replace(" ", "").replace("-", "")
+	if side == "":
+		return _CORE_BONES.get(lower, "")
+	return side + String(_SIDE_BONES[lower]) if _SIDE_BONES.has(lower) else ""
+
+
+## A [BoneMap] over [SkeletonProfileHumanoid] for [param skeleton]'s bones, by [method profile_bone_of].
+static func humanoid_bone_map(skeleton: Skeleton3D) -> BoneMap:
+	var map := BoneMap.new()
+	map.profile = SkeletonProfileHumanoid.new()
+	for i in skeleton.get_bone_count():
+		var source := skeleton.get_bone_name(i)
+		var profile := profile_bone_of(source)
+		if profile != "" and map.get_skeleton_bone_name(StringName(profile)) == &"":
+			map.set_skeleton_bone_name(StringName(profile), StringName(source))
+	return map
+
+
+## The clip [param clip] of an uploaded action's scene (dot-user-avatar's content cache builds it)
+## moved onto [param skeleton], its tracks under [param prefix] (the kit clips' skeleton path).
+## Fails when the scene has no skeleton, no such clip, a clip over [constant MAX_UPLOAD_LENGTH],
+## or fewer than [constant MIN_UPLOAD_BONES] of [constant KIT_BONES]' bones.
+static func from_upload(scene: Node, clip: String, skeleton: Skeleton3D, prefix: String, loop: bool) -> DotResult:
+	if scene == null or skeleton == null:
+		return DotResult.fail(DotError.CODE_STATE, "no scene or no skeleton")
+	var players := scene.find_children("*", "AnimationPlayer", true, false)
+	var bones := scene.find_children("*", "Skeleton3D", true, false)
+	if players.is_empty() or bones.is_empty():
+		return DotResult.fail(DotError.CODE_INVALID, "the upload has no skeleton or no animation")
+	var player := players.front() as AnimationPlayer
+	if not player.has_animation(clip):
+		return DotResult.fail(DotError.CODE_INVALID, "the upload has no clip of that name", clip)
+	var source := player.get_animation(clip)
+	if source.length <= 0.0 or source.length > MAX_UPLOAD_LENGTH:
+		return DotResult.fail(DotError.CODE_INVALID, "the clip's length is out of range", str(source.length))
+	var from := bones.front() as Skeleton3D
+	var renamed := rename_humanoid(source, humanoid_bone_map(from), DotHumanoidClips.rests_of(from))
+	var anim: Animation = renamed["animation"]
+	var named := {}
+	for t in anim.get_track_count():
+		var bone := String(anim.track_get_path(t).get_concatenated_subnames())
+		named[bone] = true
+		anim.track_set_path(t, NodePath("%s:%s" % [prefix, bone]))
+	if named.size() < MIN_UPLOAD_BONES:
+		return DotResult.fail(DotError.CODE_INVALID, "the clip moves too few humanoid bones", str(named.size()))
+	anim.loop_mode = Animation.LOOP_LINEAR if loop else Animation.LOOP_NONE
+	var library := AnimationLibrary.new()
+	var _a := library.add_animation(&"clip", anim)
+	return DotResult.success(DotHumanoidClips.retarget(library, renamed["rests"], skeleton).get_animation(&"clip"))
 
 
 static func _build(id: StringName, idle: Animation, skeleton: Skeleton3D) -> Animation:

@@ -500,6 +500,26 @@ func play_action(id: StringName, loop: bool = false, elapsed: float = 0.0) -> bo
 	return true
 
 
+## Adds the uploaded action [param id] (a content id) from [param scene], an uploaded clip's
+## built GLB, so [method play_action] can play it. Its clip [param clip] is moved onto this body
+## ([method DotHumanoidActions.from_upload]); the body's library is shared, so every figure of the
+## same body gets it. Success is false when it was already there.
+func add_action_scene(id: StringName, scene: Node, clip: String, loop: bool = false) -> DotResult:
+	if _anim == null or _skeleton == null or not _anim.has_animation(DotHumanoidClips.IDLE):
+		return DotResult.fail(DotError.CODE_STATE, "this figure has no skinned body to play a clip on")
+	var wanted := DotHumanoidActions.clip_name(id)
+	if _anim.has_animation(wanted):
+		return DotResult.success(false)
+	var prefix := DotHumanoidClips._skeleton_prefix(_anim.get_animation(DotHumanoidClips.IDLE))
+	var made := DotHumanoidActions.from_upload(scene, clip, _skeleton, prefix, loop)
+	if not made.ok:
+		return made
+	var err := _anim.get_animation_library(&"").add_animation(wanted, made.value)
+	if err != OK:
+		return DotResult.failure(DotError.from_engine(err, "adding an uploaded action"))
+	return DotResult.success(true)
+
+
 ## Ends the playing action, easing out.
 func stop_action() -> void:
 	_action_full = &""
