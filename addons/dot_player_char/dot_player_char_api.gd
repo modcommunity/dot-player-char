@@ -15,5 +15,6 @@ extends RefCounted
 #    sit and climb clips, the made swim stroke (DotHumanoidClips.SWIM, SWIM_CYCLE,
 #    DotHumanoidFigure.SWIM_LEAN) and the crown mount (head_top / crest / hat). All before any tag.
 # 4: the `driving` motion key and DotHumanoidClips.DRIVE (a retargeted Driving_Loop in people_ual.res).
-const LEVEL := 4
+# 5: DotHumanoidActions and DotHumanoidFigure.play_action/stop_action: the 13 starter emotes, poses and gestures.
+const LEVEL := 5
 const OLDEST := 1

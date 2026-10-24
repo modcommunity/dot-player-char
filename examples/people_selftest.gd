@@ -10,8 +10,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 8
-const CHECKS := 69
+const SECTIONS := 9
+const CHECKS := 80
 
 var _passed := 0
 var _failed := 0
@@ -30,6 +30,7 @@ func _run() -> void:
 	_test_clips()
 	await _test_figure()
 	await _test_hand_and_aim()
+	_test_actions()
 	_test_materials()
 	await _test_break()
 	_test_unimported()
@@ -409,6 +410,63 @@ class _SiteDoc:
 
 	func part_in(slot: StringName) -> StringName:
 		return StringName(str(parts.get(slot, "")))
+
+
+func _test_actions() -> void:
+	_section("avatar actions")
+	var ids := ["wave", "point", "thumbs_up", "nod", "shrug", "cheer", "dance", "clap", "bow", "sit", "salute", "arms_crossed", "hands_on_hips"]
+	for body in [&"matt", &"lis"]:
+		var f := DotHumanoidFigure.new()
+		add_child(f)
+		f.build(DotHumanoidLook.make(body, Color.WHITE, Color.BLACK, Color.RED, Color.BLUE), 1.8)
+		var all := true
+		for id in ids:
+			all = all and f.play_action(StringName(id), true)
+			f.animate(0.0, 0.1)
+		_check(all, "%s plays all %d starter actions" % [body, ids.size()])
+		f.free()
+	var f := DotHumanoidFigure.new()
+	add_child(f)
+	f.build(DotHumanoidLook.stock(3), 1.8)
+	_check(not f.play_action(&"no_such_thing"), "an id with no clip plays nothing")
+	var rest := f.skeleton().get_bone_pose_rotation(f.skeleton().find_bone("UpperArm.R"))
+	f.play_action(&"cheer", true)
+	for i in 8:
+		f.animate(0.0, 0.1)
+	var raised := f.skeleton().get_bone_pose_rotation(f.skeleton().find_bone("UpperArm.R"))
+	_check(f.action == &"cheer" and rest.angle_to(raised) > 0.5, "a looping gesture holds and moves the arm (%.2f rad)" % rest.angle_to(raised))
+	f.animate(2.0, 0.1)
+	f.animate(2.0, 0.1)
+	_check(f.action == &"cheer", "walking does not end a gesture")
+	f.set_motion({"swimming": true})
+	f.animate(2.0, 0.1)
+	_check(f.action == &"", "swimming ends it")
+	f.set_motion({})
+	f.play_action(&"dance", true)
+	f.animate(0.0, 0.1)
+	_check(f.clip == DotHumanoidActions.clip_name(&"dance"), "dance takes the legs while standing")
+	f.animate(4.0, 0.1)
+	_check(f.action == &"" and f.clip != DotHumanoidActions.clip_name(&"dance"), "and gives them back on the move")
+	f.play_action(&"bow", false, 99.0)
+	_check(f.action == &"", "a one-shot that began long ago is already over")
+	f.swing()
+	f.play_action(&"wave", false)
+	_check(f.overlay == DotHumanoidClips.WAVE, "a later action replaces a swing")
+	f.free()
+	var anim := Animation.new()
+	var t := anim.add_track(Animation.TYPE_ROTATION_3D)
+	anim.track_set_path(t, NodePath("Rig/Skeleton3D:mixamorig_Spine"))
+	var _k := anim.rotation_track_insert_key(t, 0.0, Quaternion.IDENTITY)
+	var t2 := anim.add_track(Animation.TYPE_ROTATION_3D)
+	anim.track_set_path(t2, NodePath("Rig/Skeleton3D:Unmapped"))
+	var _k2 := anim.rotation_track_insert_key(t2, 0.0, Quaternion.IDENTITY)
+	var map := BoneMap.new()
+	map.profile = SkeletonProfileHumanoid.new()
+	map.set_skeleton_bone_name(&"Spine", &"mixamorig_Spine")
+	var renamed := DotHumanoidActions.rename_humanoid(anim, map, {"mixamorig_Spine": Transform3D.IDENTITY})
+	var out: Animation = renamed["animation"]
+	_check(out.get_track_count() == 1 and String(out.track_get_path(0)).ends_with(":Abdomen") and renamed["rests"].has("Abdomen"),
+		"an uploaded humanoid clip is renamed onto the kit's bones, unmapped bones dropped")
 
 
 func _section(title: String) -> void:

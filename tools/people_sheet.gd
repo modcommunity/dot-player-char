@@ -4,7 +4,7 @@ extends SceneTree
 ## and one sheet of looks (stock and site avatars). The check no assertion makes.
 ##
 ## [codeblock]
-## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--crowd=N] [--compare[=FILE.res]]
+## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--actions] [--crowd=N] [--compare[=FILE.res]]
 ## [/codeblock]
 ##
 ## xvfb-run, not --headless: the headless display renders nothing and saves a blank frame.
@@ -22,6 +22,7 @@ var _break := false
 var _hand := false
 var _aim := false
 var _swim := false
+var _actions := false
 var _crowd := 0
 var _compare := ""
 var _root: Node3D
@@ -47,6 +48,8 @@ func _initialize() -> void:
 			_hand = true
 		elif arg == "--swim":
 			_swim = true
+		elif arg == "--actions":
+			_actions = true
 		elif arg == "--aim":
 			_aim = true
 		elif arg == "--compare":
@@ -128,6 +131,8 @@ func _run() -> void:
 		await _sheet_aim()
 	elif _swim:
 		await _sheet_swim()
+	elif _actions:
+		await _sheet_actions()
 	elif _compare != "":
 		await _sheet_compare(_compare)
 	elif _crowd > 0:
@@ -558,3 +563,30 @@ class _SiteDoc:
 
 	func part_in(slot: StringName) -> StringName:
 		return StringName(str(parts.get(slot, "")))
+
+
+## The 13 starter actions, each caught mid-way, from the front (row one) and the side (row two).
+func _sheet_actions() -> void:
+	var ids: Array = ["wave", "point", "thumbs_up", "nod", "shrug", "cheer", "dance", "clap", "bow", "sit", "salute", "arms_crossed", "hands_on_hips"]
+	var sheet := Image.create(CELL.x * ids.size(), CELL.y * 2, false, Image.FORMAT_RGBA8)
+	var f := _figure(DotHumanoidLook.stock(5))
+	for col in ids.size():
+		for row in 2:
+			f.stop_action()
+			for i in 6:
+				f.animate(0.0, 0.1)
+			var ok := f.play_action(StringName(ids[col]), true)
+			if not ok:
+				print("MISSING ", ids[col])
+			var length := f._anim.get_animation(DotHumanoidActions.clip_name(StringName(ids[col]))).length
+			var steps := int(length * 0.45 / 0.05) + 6
+			for i in steps:
+				f.animate(0.0, 0.05)
+			_camera.position = Vector3(0.4, 1.3, -3.0) if row == 0 else Vector3(3.0, 1.3, 0.0)
+			_camera.look_at(Vector3(0, 0.85, 0))
+			var img := await _frame()
+			img.convert(Image.FORMAT_RGBA8)
+			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
+	var path := "%s/actions.png" % _out
+	sheet.save_png(ProjectSettings.globalize_path(path))
+	print("SHEET ", path)

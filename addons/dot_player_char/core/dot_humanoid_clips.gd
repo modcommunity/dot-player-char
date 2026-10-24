@@ -236,6 +236,7 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 		if library.has_animation(SWIM):
 			library.remove_animation(SWIM)
 		var _w := library.add_animation(SWIM, _swimming(idle, skeleton))
+		var _actions := DotHumanoidActions.add_to(library, idle, skeleton)
 
 	return library
 

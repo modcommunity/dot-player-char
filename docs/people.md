@@ -72,6 +72,13 @@ Quaternius' [Universal Animation Library](https://quaternius.com/packs/universal
 - **Only on a bone the playing clip keys.** A bone no track writes keeps last frame's pose, and a bend put on it would add up frame after frame.
 - A game passes it as `"aim"` in `set_motion` (left out, it stays). A remote player is drawn aiming only if the game sends the pitch; the games' snapshots already carry it for the view.
 
+## Emotes, poses and gestures
+
+`DotHumanoidFigure.play_action(id, loop, elapsed)` plays one of dot-user-avatar's 13 starter ids (`DotHumanoidActions`): `wave` and `nod` are the kit's own clips, `sit` the real sit, the other ten are made from bone directions like the climb (no art vendored). `sit` and `dance` are the whole body and play only while standing still; every other id is the upper body over the legs, through the overlay machinery, eased in and out. A pose is a looping clip the figure holds (`action` stays set) until `stop_action()`, a jump, or the figure moving off; a gesture or emote plays once. `elapsed` joins a clip already running, for a player seen late.
+
+- **`action` is set after `_start_overlay`**, which clears it.
+- **Uploaded clips** take `DotHumanoidActions.rename_humanoid(animation, bone_map, source_rests)` and then `DotHumanoidClips.retarget`; the content cache that feeds it is not wired, and a T-pose source onto this A-pose rig is still rough. Contact sheet: `people_sheet.gd --actions`.
+
 ## Legs from the clip, arms from an overlay
 
 A swing, a flinch and a gesture are one-shots that would stop the legs if played as the clip. The figure advances its `AnimationPlayer` by hand (`ANIMATION_CALLBACK_MODE_PROCESS_MANUAL`) and then writes the upper body (`UPPER_BONES`) from the overlay, blended in and out, so a player swinging while running keeps running. Holding a gun in a clip that has no gun version (a crouch, the air) writes the held-gun arms the same way. Left to the engine, the clip and the overlay run in an order nothing controls, and an arm written before the clip is an arm the clip puts back.

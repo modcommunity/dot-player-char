@@ -44,6 +44,10 @@ const DRAW_RANGE := 140.0
 const BLEND_IN := 0.08
 const BLEND_OUT := 0.14
 
+## A held pose or an emote eases in slower than a swing.
+const ACTION_BLEND_IN := 0.25
+const ACTION_BLEND_OUT := 0.3
+
 ## How far a swimmer is laid forward about the hips, in radians (about 80 degrees): the swim clip
 ## is drawn upright, and a front crawl is nearly flat with the head a little up.
 const SWIM_LEAN := 1.4
@@ -137,6 +141,9 @@ var downed: bool = false
 ## The overlay playing on the upper body, or empty.
 var overlay: StringName = &""
 
+## The avatar action (emote, pose or gesture id) playing, or empty. See [method play_action].
+var action: StringName = &""
+
 ## Where the player looks, up (+) or down (-), in radians: the upper body, the arms and the gun
 ## in the hand follow it. See [method aim].
 var aim_pitch: float = 0.0
@@ -186,6 +193,11 @@ var _motion: Dictionary = {}
 var _speed: float = 0.0
 var _overlay_time: float = 0.0
 var _overlay_rate: float = 1.0
+var _overlay_loop: bool = false
+var _overlay_stopping: bool = false
+var _stop_time: float = 0.0
+var _overlay_blend: float = BLEND_IN
+var _action_full: StringName = &""
 var _owed: float = 0.0
 var _frame: int = 0
 var _posed_usec: int = -1
@@ -354,6 +366,7 @@ func animate(speed: float, delta: float) -> void:
 	var motion := _motion.duplicate()
 	motion["speed"] = speed
 	state = _machine.advance(motion, delta)
+	_end_action_if_moved()
 
 	if _anim == null:
 		return
@@ -363,6 +376,8 @@ func animate(speed: float, delta: float) -> void:
 
 	if overlay != &"":
 		_overlay_time += delta * _overlay_rate
+		if _overlay_stopping:
+			_stop_time += delta
 
 	# The clip is advanced less often far from the camera, with the skipped time carried.
 	_owed += delta
@@ -458,6 +473,40 @@ func flinch() -> void:
 ## A gesture over the upper body: wave, yes, no.
 func emote(which: StringName) -> void:
 	_start_overlay(which, 1.0)
+
+
+## Plays the avatar action [param id] (a [DotHumanoidActions] id) that began [param elapsed]
+## seconds ago, so a late joiner or a replicated start lands in step. Upper body over the legs,
+## except [constant DotHumanoidActions.FULL_BODY] ids, which take the legs while standing still.
+## A looping action holds until [method stop_action] or the player moves off. False when this
+## body has no clip for it.
+func play_action(id: StringName, loop: bool = false, elapsed: float = 0.0) -> bool:
+	var wanted := DotHumanoidActions.clip_name(id)
+	if _anim == null or not _anim.has_animation(wanted):
+		return false
+	stop_action()
+	if DotHumanoidActions.is_full_body(id):
+		action = id
+		_action_full = wanted
+		return true
+	var length := _anim.get_animation(wanted).length
+	if not loop and elapsed >= length:
+		return true
+	_start_overlay(wanted, 1.0)
+	action = id
+	_overlay_loop = loop
+	_overlay_blend = ACTION_BLEND_IN
+	_overlay_time = maxf(elapsed, 0.0)
+	return true
+
+
+## Ends the playing action, easing out.
+func stop_action() -> void:
+	_action_full = &""
+	if overlay != &"" and _overlay_loop and not _overlay_stopping:
+		_overlay_stopping = true
+		_stop_time = 0.0
+	action = &""
 
 
 ## The node a held weapon hangs from, by the name [code]ZeeWorldModel[/code] asks for:
@@ -576,6 +625,8 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 	var gun := hold == Hold.GUN
 	if downed:
 		return [DotHumanoidClips.CRAWL, clampf(speed / 1.2, 0.0, 1.6)]
+	if _action_full != &"":
+		return [_action_full, 1.0]
 	# A rider is carried: whatever speed the seat moves at, the legs stay sat.
 	if seated and p_state != DotPlayerAnimState.DEAD:
 		if driving and _anim != null and _anim.has_animation(DotHumanoidClips.DRIVE):
@@ -619,9 +670,26 @@ func _play(wanted: StringName, rate: float) -> void:
 	_anim.play(wanted, 0.15)
 
 
+## Ends a looping or full-body action when the player leaves the spot: a pose is for standing.
+func _end_action_if_moved() -> void:
+	if action == &"" and not _overlay_loop:
+		return
+	var still := state == DotPlayerAnimState.IDLE or state == DotPlayerAnimState.CROUCH_IDLE
+	if _action_full != &"" and not still:
+		stop_action()
+	elif _overlay_loop and (downed or state in [DotPlayerAnimState.DEAD, DotPlayerAnimState.SWIM,
+			DotPlayerAnimState.CLIMB, DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL, DotPlayerAnimState.RUN]):
+		stop_action()
+
+
 func _start_overlay(which: StringName, rate: float) -> void:
 	if _anim == null or not _anim.has_animation(which):
 		return
+	_overlay_loop = false
+	_overlay_stopping = false
+	_stop_time = 0.0
+	_overlay_blend = BLEND_IN
+	action = &""
 	overlay = which
 	_overlay_time = 0.0
 	_overlay_rate = rate
@@ -639,12 +707,25 @@ func _apply_overlays() -> void:
 	var weight := 0.0
 	if overlay != &"":
 		source = _anim.get_animation(overlay)
-		if source == null or _overlay_time >= source.length:
+		if source == null or (not _overlay_loop and _overlay_time >= source.length):
 			overlay = &""
+			action = &""
+			_overlay_loop = false
 			source = null
+		elif _overlay_loop:
+			t = fposmod(_overlay_time, source.length)
+			weight = minf(1.0, _overlay_time / _overlay_blend)
+			if _overlay_stopping:
+				weight *= 1.0 - minf(1.0, _stop_time / ACTION_BLEND_OUT)
+				if _stop_time >= ACTION_BLEND_OUT:
+					overlay = &""
+					_overlay_loop = false
+					_overlay_stopping = false
+					_stop_time = 0.0
+					source = null
 		else:
 			t = _overlay_time
-			weight = minf(1.0, _overlay_time / BLEND_IN) * minf(1.0, (source.length - _overlay_time) / BLEND_OUT)
+			weight = minf(1.0, _overlay_time / _overlay_blend) * minf(1.0, (source.length - _overlay_time) / BLEND_OUT)
 	if source == null and hold == Hold.GUN and not downed and not String(clip).ends_with("_gun") and clip != DotHumanoidClips.DEATH and clip != DotHumanoidClips.SWIM:
 		source = _anim.get_animation(DotHumanoidClips.IDLE_GUN)
 		t = 0.0

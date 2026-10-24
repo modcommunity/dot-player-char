@@ -150,6 +150,8 @@ The people in `addons/dot_player_char/people/` are from the [Zombie Apocalypse K
 
 The seated idle in `addons/dot_player_char/people/people_ual.res` is `Sitting_Idle_Loop` from the [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html) (free Standard version, [itch.io](https://quaternius.itch.io/universal-animation-library)) by [Quaternius](https://quaternius.com), CC0 1.0, carried onto the people's rig by `tools/ual_retarget.gd`.
 
+The emotes, poses and gestures (`DotHumanoidActions`) use the kit's own `wave` and `yes` clips (Quaternius, above) and the seated idle above for `sit`; the other ten are made in code from bone directions, so nothing further is vendored.
+
 The death sounds in `addons/dot_player_char/death/sounds/` are by [Kenney](https://www.kenney.nl) (Impact Sounds and Foley Sounds), CC0 1.0; `death/sounds/CREDITS.md` maps each file to its original.
 
 ## Licence
