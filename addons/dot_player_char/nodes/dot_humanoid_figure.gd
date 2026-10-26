@@ -422,7 +422,8 @@ func mend() -> void:
 
 
 ## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it:
-## `on_floor`, `vertical`, `crouched`, `swimming`, `climbing`, `alive`; plus `downed` here.
+## `on_floor`, `vertical`, `crouched`, `swimming`, `climbing`, `alive`; plus `downed` here, and
+## `wall_running` (the run clip plays in the air).
 ## `seated` draws the person sitting ([method seat_height] says where their hips are), `driving`
 ## (with `seated`) puts the hands on a wheel, and `aim`
 ## (radians, up positive) is [method aim]; left out, the aim stays where it was.
@@ -652,6 +653,10 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 		if driving and _anim != null and _anim.has_animation(DotHumanoidClips.DRIVE):
 			return [DotHumanoidClips.DRIVE, 1.0]
 		return [DotHumanoidClips.SIT, 1.0]
+	# Running along a wall: the legs run in the air (the body is rolled onto the wall by the game).
+	if bool(_motion.get("wall_running", false)) and p_state in [
+			DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL, DotPlayerAnimState.LAND]:
+		return [DotHumanoidClips.RUN_GUN if gun else DotHumanoidClips.RUN, clampf(speed / 5.0, 0.7, 1.5)]
 	match p_state:
 		DotPlayerAnimState.DEAD:
 			return [DotHumanoidClips.DEATH, 1.0]
