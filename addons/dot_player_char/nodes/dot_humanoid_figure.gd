@@ -126,6 +126,10 @@ void fragment() {
 ## The look drawn, the height it was built to, and whether the art loaded (or a capsule stands in).
 var look: DotHumanoidLook = null
 var height: float = 1.8
+
+## How much a held weapon is scaled up: the people have chibi hands and a real pistol is lost in a fist.
+## Set before the first weapon is held.
+var held_scale: float = 1.7
 var from_art: bool = false
 
 ## The locomotion state and the clip playing, for a suite and [method describe].
@@ -556,7 +560,7 @@ func attachment(point: StringName) -> Node3D:
 	bone.bone_name = HAND_BONE
 	_skeleton.add_child(bone)
 	bone.add_child(_hand)
-	_hand.transform = _hand_frame()
+	_hand.transform = _hand_frame() * Transform3D(Basis.from_scale(Vector3.ONE * held_scale), Vector3.ZERO)
 	return _hand
 
 
