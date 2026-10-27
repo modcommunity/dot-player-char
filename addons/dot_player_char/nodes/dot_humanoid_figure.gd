@@ -52,7 +52,7 @@ const ACTION_BLEND_OUT := 0.3
 ## is drawn upright, and a front crawl is nearly flat with the head a little up.
 const SWIM_LEAN := 1.4
 
-## Whether the person is sprinting (from [method set_motion]); the carry eases in and out in [member sprint_blend].
+## Whether the person is sprinting (from [method set_motion]; a game that never sends the key gets the run state instead); the carry eases in and out in [member sprint_blend].
 var sprinting: bool = false
 
 ## What the hand holds, which decides the arms: nothing, a gun (the kit's gun clips and the
@@ -393,7 +393,8 @@ func animate(speed: float, delta: float) -> void:
 	motion["speed"] = speed
 	state = _machine.advance(motion, delta)
 	_end_action_if_moved()
-	sprint_blend = move_toward(sprint_blend, 1.0 if sprinting and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
+	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
+	sprint_blend = move_toward(sprint_blend, 1.0 if carry_sprint and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
 	_support_weight = move_toward(_support_weight, 1.0 if support_point.is_finite() and hold == Hold.GUN and not downed else 0.0, delta / 0.15)
 
 	if _anim == null:

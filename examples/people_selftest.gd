@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 9
-const CHECKS := 85
+const CHECKS := 87
 
 var _passed := 0
 var _failed := 0
@@ -175,6 +175,13 @@ func _test_figure() -> void:
 	f.set_hold(DotHumanoidFigure.Hold.GUN)
 	f.animate(6.0, 0.1)
 	_check(f.clip == DotHumanoidClips.RUN_GUN, "running with a gun: the gun run")
+	for _i in 5:
+		f.animate(6.0, 0.1)
+	_check(f.sprint_blend > 0.99, "a game that never sends `sprinting` still carries the gun sprinting when it runs (%.2f)" % f.sprint_blend)
+	f.set_motion({"sprinting": false})
+	for _i in 5:
+		f.animate(6.0, 0.1)
+	_check(f.sprint_blend < 0.01, "an explicit sprinting=false wins over the run state (%.2f)" % f.sprint_blend)
 	f.set_motion({"crouched": true})
 	f.animate(0.0, 0.1)
 	_check(f.clip == DotHumanoidClips.CROUCH, "crouched: the crouch")
