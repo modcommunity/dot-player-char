@@ -52,6 +52,9 @@ const ACTION_BLEND_OUT := 0.3
 ## is drawn upright, and a front crawl is nearly flat with the head a little up.
 const SWIM_LEAN := 1.4
 
+## Whether the person is sprinting (from [method set_motion]); the carry eases in and out in [member sprint_blend].
+var sprinting: bool = false
+
 ## What the hand holds, which decides the arms: nothing, a gun (the kit's gun clips and the
 ## held-gun overlay), or a melee weapon (ordinary arms, a slash to swing).
 enum Hold { NONE, GUN, MELEE }
@@ -85,6 +88,16 @@ const AIM_LIMIT := 1.15
 
 ## Where a weapon's grip sits from that bone at the held-gun pose, in metres in the figure's frame.
 const HAND_OFFSET := Vector3(0.0, 0.03, -0.02)
+
+## Seconds to ease the sprint carry in or out.
+const SPRINT_SECONDS := 0.2
+
+## How far the gun arm drops at a full sprint carry, in radians, on top of the view's pitch.
+const SPRINT_DROP := 0.6
+
+## The support arm's bones, and where its elbow points (figure space: left, down, a little back).
+const SUPPORT_BONES: Array[String] = ["UpperArm.L", "LowerArm.L", "Middle1.L"]
+const SUPPORT_POLE := Vector3(-0.5, -1.0, 0.4)
 
 const SWAPS := 8
 const SHADER := """
@@ -191,6 +204,15 @@ var _skeleton: Skeleton3D = null
 var _mesh: MeshInstance3D = null
 var _anim: AnimationPlayer = null
 var _hand: Node3D = null
+
+## How far the sprint carry is blended in, 0 to 1: set by `sprinting` in [method set_motion], eased over
+## [constant SPRINT_SECONDS]. A held weapon ([code]ZeeWorldModel[/code]) reads it to swing to the side.
+var sprint_blend: float = 0.0
+
+## Where the support hand goes, in world space, while a long gun is held with two hands; INF for none.
+## Set every frame by the weapon (see [method set_support_grip]).
+var support_point := Vector3.INF
+var _support_weight: float = 0.0
 var _crown: Node3D = null
 var _machine := DotPlayerAnimState.new()
 var _motion: Dictionary = {}
@@ -371,6 +393,8 @@ func animate(speed: float, delta: float) -> void:
 	motion["speed"] = speed
 	state = _machine.advance(motion, delta)
 	_end_action_if_moved()
+	sprint_blend = move_toward(sprint_blend, 1.0 if sprinting and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
+	_support_weight = move_toward(_support_weight, 1.0 if support_point.is_finite() and hold == Hold.GUN and not downed else 0.0, delta / 0.15)
 
 	if _anim == null:
 		return
@@ -393,6 +417,7 @@ func animate(speed: float, delta: float) -> void:
 	_owed = 0.0
 	_apply_overlays()
 	_apply_aim()
+	_apply_support()
 	_apply_head()
 	_apply_swim(delta * anim_step)
 
@@ -433,6 +458,7 @@ func mend() -> void:
 ## (radians, up positive) is [method aim]; left out, the aim stays where it was.
 func set_motion(motion: Dictionary) -> void:
 	_motion = motion
+	sprinting = bool(motion.get("sprinting", false))
 	downed = bool(motion.get("downed", false))
 	seated = bool(motion.get("seated", false))
 	driving = bool(motion.get("driving", false))
@@ -778,7 +804,7 @@ func _apply_overlays() -> void:
 ## on a bone the playing clip keys: a bone no track writes keeps last frame's pose, and the bend
 ## would add up frame after frame.
 func _apply_aim() -> void:
-	if _skeleton == null or is_zero_approx(aim_pitch) or downed:
+	if _skeleton == null or (is_zero_approx(aim_pitch) and sprint_blend <= 0.0) or downed:
 		return
 	if state == DotPlayerAnimState.DEAD or state == DotPlayerAnimState.SWIM or state == DotPlayerAnimState.CLIMB:
 		return
@@ -806,8 +832,76 @@ func _apply_aim() -> void:
 			continue
 		var share: float = shares[bone]
 		var p: Quaternion = parents[i]
-		var turn := Quaternion(axis, aim_pitch * share)
+		var drop := -SPRINT_DROP * sprint_blend if DotHumanoidClips.AIM_ARM.has(bone) else 0.0
+		var turn := Quaternion(axis, aim_pitch * share + drop)
 		_skeleton.set_bone_pose_rotation(i, (p.inverse() * turn * p * _skeleton.get_bone_pose_rotation(i)).normalized())
+
+
+## Where the support hand goes: the weapon's foregrip, [constant Vector3.INF] when the gun is held with one
+## hand or none. In world space; called every frame by the held weapon, since it moves with the gun.
+func set_support_grip(point: Vector3) -> void:
+	support_point = point
+
+
+## Two-bone IK on the left arm toward [member support_point], blended by the support weight, after the clip,
+## the overlays and the aim so it lands on the gun wherever they put it. Only on bones the clip keys (a bone no
+## track writes keeps last frame's pose, and the turn would add up).
+func _apply_support() -> void:
+	if _skeleton == null or _support_weight <= 0.0 or not support_point.is_finite() or downed:
+		return
+	var animation := _anim.get_animation(clip)
+	if animation == null:
+		return
+	var prefix := String(_model.get_path_to(_skeleton))
+	var bones: Array[int] = []
+	for name in SUPPORT_BONES:
+		var i := _skeleton.find_bone(name)
+		if i < 0 or (name != SUPPORT_BONES[2] and animation.find_track(NodePath("%s:%s" % [prefix, name]), Animation.TYPE_ROTATION_3D) < 0):
+			return
+		bones.append(i)
+	var upper := _global_pose(bones[0])
+	var lower := _global_pose(bones[1])
+	var wrist := _global_pose(bones[2])
+	var target := _skeleton.global_transform.affine_inverse() * support_point
+	var a := lower.origin - upper.origin
+	var b := wrist.origin - lower.origin
+	var la := a.length()
+	var lb := b.length()
+	var to_target := target - upper.origin
+	if la < 0.0001 or lb < 0.0001 or to_target.length() < 0.0001:
+		return
+	var reach := clampf(to_target.length(), absf(la - lb) + 0.001, la + lb - 0.001)
+	var dir := to_target.normalized()
+	var along := (la * la - lb * lb + reach * reach) / (2.0 * reach)
+	var height := sqrt(maxf(la * la - along * along, 0.0))
+	var pole := _to_figure().basis.inverse() * SUPPORT_POLE
+	var side := pole - dir * pole.dot(dir)
+	side = side.normalized() if side.length_squared() > 0.000001 else Vector3.UP
+	var elbow := upper.origin + dir * along + side * height
+	var hand_goal := upper.origin + dir * reach
+	var q1 := Quaternion(a.normalized(), (elbow - upper.origin).normalized())
+	var q2 := Quaternion((q1 * b).normalized(), (hand_goal - elbow).normalized())
+	var upper_rot := (q1 * upper.basis.get_rotation_quaternion()).normalized()
+	var lower_rot := (q2 * q1 * lower.basis.get_rotation_quaternion()).normalized()
+	var upper_parent := _global_pose(_skeleton.get_bone_parent(bones[0])).basis.get_rotation_quaternion()
+	var upper_local := (upper_parent.inverse() * upper_rot).normalized()
+	var lower_local := (upper_rot.inverse() * lower_rot).normalized()
+	var w := clampf(_support_weight, 0.0, 1.0)
+	_skeleton.set_bone_pose_rotation(bones[0], _skeleton.get_bone_pose_rotation(bones[0]).slerp(upper_local, w))
+	_skeleton.set_bone_pose_rotation(bones[1], _skeleton.get_bone_pose_rotation(bones[1]).slerp(lower_local, w))
+
+
+## Bone [param bone]'s transform in skeleton space from the local poses as they are now (the skeleton's own
+## global poses are last frame's).
+func _global_pose(bone: int) -> Transform3D:
+	var chain: Array[int] = []
+	while bone >= 0:
+		chain.push_front(bone)
+		bone = _skeleton.get_bone_parent(bone)
+	var out := Transform3D.IDENTITY
+	for b in chain:
+		out = out * _skeleton.get_bone_pose(b)
+	return out
 
 
 ## Bone [param bone]'s rotation in skeleton space from the local poses as they are now.
