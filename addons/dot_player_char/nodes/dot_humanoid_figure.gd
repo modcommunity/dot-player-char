@@ -167,6 +167,7 @@ var sprint_blend: float = 0.0
 ## Set every frame by the weapon (see [method set_support_grip]).
 var support_point := Vector3.INF
 var _support_weight: float = 0.0
+var _support_cache: Dictionary = {}
 var _crown: Node3D = null
 var _machine := DotPlayerAnimState.new()
 var _motion: Dictionary = {}
@@ -198,6 +199,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	_hand = null
 	_crown = null
 	_upper.clear()
+	_support_cache.clear()
 	_machine.forget_state()
 
 	if _model != null:
@@ -770,17 +772,19 @@ func set_support_grip(point: Vector3) -> void:
 func _apply_support() -> void:
 	if _skeleton == null or _support_weight <= 0.0 or not support_point.is_finite() or downed:
 		return
-	var animation := _anim.get_animation(clip)
-	if animation == null:
+	var bones := _support_bones_for(clip)
+	if bones.is_empty():
 		return
-	var prefix := String(_model.get_path_to(_skeleton))
-	var bones: Array[int] = []
-	for name in SUPPORT_BONES:
-		var i := _skeleton.find_bone(name)
-		if i < 0 or (name != SUPPORT_BONES[2] and animation.find_track(NodePath("%s:%s" % [prefix, name]), Animation.TYPE_ROTATION_3D) < 0):
-			return
-		bones.append(i)
 	DotHumanoidIk.two_bone(_skeleton, bones, _skeleton.global_transform.affine_inverse() * support_point, _to_figure().basis.inverse() * SUPPORT_POLE, _support_weight)
+
+
+## The support arm's bone indices if [param clip_id] keys them (a bone no track writes keeps last frame's pose), else empty; cached per clip.
+func _support_bones_for(clip_id: StringName) -> Array[int]:
+	if _support_cache.has(clip_id):
+		return _support_cache[clip_id]
+	var bones := DotHumanoidIk.keyed_bones(_skeleton, _model, _anim.get_animation(clip_id), SUPPORT_BONES)
+	_support_cache[clip_id] = bones
+	return bones
 
 
 ## Swimming lays the whole body forward, about the hips, and eases back out of it. The swim clip

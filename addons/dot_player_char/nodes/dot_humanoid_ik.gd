@@ -56,3 +56,18 @@ static func chain_rotation(skeleton: Skeleton3D, bone: int) -> Quaternion:
 		q = skeleton.get_bone_pose_rotation(bone) * q
 		bone = skeleton.get_bone_parent(bone)
 	return q
+
+
+## The indices of [param names] in [param skeleton], or empty when one is missing or (all but the last) is not rotated by a track of [param animation].
+static func keyed_bones(skeleton: Skeleton3D, model: Node, animation: Animation, names: Array[String]) -> Array[int]:
+	var bones: Array[int] = []
+	if animation == null:
+		return bones
+	var prefix := String(model.get_path_to(skeleton))
+	for name in names:
+		var i := skeleton.find_bone(name)
+		if i < 0 or (name != names[names.size() - 1] and animation.find_track(NodePath("%s:%s" % [prefix, name]), Animation.TYPE_ROTATION_3D) < 0):
+			bones.clear()
+			return bones
+		bones.append(i)
+	return bones
