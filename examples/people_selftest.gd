@@ -229,6 +229,11 @@ func _test_figure() -> void:
 		f.animate(6.0, 0.1)
 	_check(f.overlay == &"", "and ends")
 
+	await _test_figure_mounts(f)
+
+
+## Mounts, the frame step and a carried figure animating itself; frees [param f].
+func _test_figure_mounts(f: DotHumanoidFigure) -> void:
 	var hand := f.attachment(&"right_hand")
 	_check(hand != null and hand.get_parent() is BoneAttachment3D and f.attachment(&"right_hand") == hand,
 		"a weapon hangs from a bone attachment in the hand, made once")

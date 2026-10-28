@@ -59,17 +59,8 @@ var sprinting: bool = false
 ## held-gun overlay), or a melee weapon (ordinary arms, a slash to swing).
 enum Hold { NONE, GUN, MELEE }
 
-## The atlas colours each body wears, by role, measured by `tools/people_palette.gd`; the shader
-## swaps them for the look's colours. Several swatches of one role all take its colour.
-const WEARS := {
-	&"matt": {"skin": ["7c4e26"], "hair": ["312515"], "top": ["af6c1c"], "bottom": ["4e694b"]},
-	&"lis": {"skin": ["c09264"], "hair": ["225385"], "top": ["bd8e30"], "bottom": ["466469"]},
-	&"sam": {"skin": ["7c4e26"], "hair": ["4c3a21"], "top": ["504c43"], "bottom": ["333333"]},
-	&"shaun": {"skin": ["c09264"], "hair": ["923c12"], "top": ["5f4009"], "bottom": ["466469"]},
-}
-
 ## The body whose file carries the clip set; the others play it through [method DotHumanoidClips.retarget].
-const CLIP_BODY := &"matt"
+const CLIP_BODY := DotHumanoidAssets.CLIP_BODY
 
 ## The bone a weapon is held in: the right hand. The kit's people are left-handed (every weapon
 ## in it hangs off `Middle1.L`), so the clip set is mirrored once when it is loaded
@@ -98,43 +89,6 @@ const SPRINT_DROP := 0.6
 ## The support arm's bones, and where its elbow points (figure space: left, down, a little back).
 const SUPPORT_BONES: Array[String] = ["UpperArm.L", "LowerArm.L", "Middle1.L"]
 const SUPPORT_POLE := Vector3(-0.5, -1.0, 0.4)
-
-const SWAPS := 8
-const SHADER := """
-shader_type spatial;
-render_mode cull_back, specular_disabled;
-uniform sampler2D atlas : source_color, filter_nearest, repeat_disable;
-uniform vec4 from_colour[8];
-uniform vec4 to_colour[8];
-uniform vec4 from_linear[8];
-uniform vec4 to_linear[8];
-uniform int swaps = 0;
-uniform float tolerance = 0.002;
-uniform float flash = 0.0;
-
-void fragment() {
-	// Sampled as a StandardMaterial3D samples its albedo (source_color), so a person is lit like
-	// the walls beside them. What comes back differs by renderer (the compatibility one hands back
-	// the stored sRGB values), so a swap is matched in both spaces and answered in the space it
-	// matched; game-zombie-zone's first version converted by hand and drew everybody near black.
-	vec3 c = texture(atlas, UV).rgb;
-	for (int i = 0; i < swaps; i++) {
-		vec3 d = c - from_colour[i].rgb;
-		if (dot(d, d) < tolerance) {
-			c = to_colour[i].rgb;
-			break;
-		}
-		vec3 e = c - from_linear[i].rgb;
-		if (dot(e, e) < tolerance * 0.25) {
-			c = to_linear[i].rgb;
-			break;
-		}
-	}
-	ALBEDO = c;
-	ROUGHNESS = 0.85;
-	EMISSION = vec3(flash * 0.35, flash * 0.05, flash * 0.03);
-}
-"""
 
 ## The look drawn, the height it was built to, and whether the art loaded (or a capsule stands in).
 var look: DotHumanoidLook = null
@@ -234,40 +188,6 @@ var _auto_last: Vector3 = Vector3.INF
 var _model_basis: Basis = Basis.IDENTITY
 var _model_origin: Vector3 = Vector3.ZERO
 
-static var _scenes: Dictionary = {}
-static var _libraries: Dictionary = {}
-static var _materials: Dictionary = {}
-static var _shader: Shader = null
-static var _atlas: Texture2D = null
-
-
-## The directory the people's files are in, found from this script so a pack mounted under
-## another root still finds them.
-static func directory() -> String:
-	var here: String = (DotHumanoidFigure as Script).resource_path
-	return here.get_base_dir().get_base_dir().path_join("people")
-
-
-## Every file a figure may load, for a preloader or a pack manifest.
-static func content_paths() -> PackedStringArray:
-	var out := PackedStringArray()
-	for id in DotHumanoidLook.BODIES:
-		out.append(body_path(id))
-	out.append(directory().path_join("atlas_people.png"))
-	out.append(real_clips_path())
-	return out
-
-
-## The clips baked from the Universal Animation Library ([method DotHumanoidClips.adopt]); a
-## figure without the file plays the made ones.
-static func real_clips_path() -> String:
-	return directory().path_join("people_ual.res")
-
-
-static func body_path(id: StringName) -> String:
-	return directory().path_join("people_%s.glb" % id)
-
-
 ## Builds the figure for [param p_look], [param p_height] metres tall, feet at this node's origin,
 ## facing -Z.
 func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
@@ -288,7 +208,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 		_mesh = null
 		_anim = null
 
-	var scene := _scene(body_path(look.body))
+	var scene := DotHumanoidAssets.scene(body_path(look.body))
 	if scene != null:
 		_model = scene.instantiate() as Node3D
 
@@ -314,7 +234,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	# Advanced here, not by the engine: see the class note.
 	_anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 
-	var library := _library_for(look.body, _skeleton)
+	var library := DotHumanoidAssets.library_for(look.body, _skeleton)
 	if library != null:
 		for name in _anim.get_animation_library_list():
 			_anim.remove_animation_library(name)
@@ -478,7 +398,7 @@ func aim(pitch_radians: float) -> void:
 ## How high above the feet the hips are when sitting, in metres at this figure's height: a game
 ## puts the figure's origin this far under the seat.
 func seat_height() -> float:
-	var base: float = _libraries.get(&"sit_height", 0.0)
+	var base: float = DotHumanoidAssets.sit_height()
 	if _skeleton == null or base <= 0.0:
 		return height * 0.25
 	return base * height / maxf(_measure(), 0.01)
@@ -826,7 +746,7 @@ func _apply_aim() -> void:
 	for bone: String in shares:
 		var i := _skeleton.find_bone(bone)
 		if i >= 0:
-			parents[i] = _chain_rotation(_skeleton.get_bone_parent(i))
+			parents[i] = DotHumanoidIk.chain_rotation(_skeleton, _skeleton.get_bone_parent(i))
 	for bone: String in shares:
 		var i := _skeleton.find_bone(bone)
 		if i < 0 or animation.find_track(NodePath("%s:%s" % [prefix, bone]), Animation.TYPE_ROTATION_3D) < 0:
@@ -860,58 +780,7 @@ func _apply_support() -> void:
 		if i < 0 or (name != SUPPORT_BONES[2] and animation.find_track(NodePath("%s:%s" % [prefix, name]), Animation.TYPE_ROTATION_3D) < 0):
 			return
 		bones.append(i)
-	var upper := _global_pose(bones[0])
-	var lower := _global_pose(bones[1])
-	var wrist := _global_pose(bones[2])
-	var target := _skeleton.global_transform.affine_inverse() * support_point
-	var a := lower.origin - upper.origin
-	var b := wrist.origin - lower.origin
-	var la := a.length()
-	var lb := b.length()
-	var to_target := target - upper.origin
-	if la < 0.0001 or lb < 0.0001 or to_target.length() < 0.0001:
-		return
-	var reach := clampf(to_target.length(), absf(la - lb) + 0.001, la + lb - 0.001)
-	var dir := to_target.normalized()
-	var along := (la * la - lb * lb + reach * reach) / (2.0 * reach)
-	var height := sqrt(maxf(la * la - along * along, 0.0))
-	var pole := _to_figure().basis.inverse() * SUPPORT_POLE
-	var side := pole - dir * pole.dot(dir)
-	side = side.normalized() if side.length_squared() > 0.000001 else Vector3.UP
-	var elbow := upper.origin + dir * along + side * height
-	var hand_goal := upper.origin + dir * reach
-	var q1 := Quaternion(a.normalized(), (elbow - upper.origin).normalized())
-	var q2 := Quaternion((q1 * b).normalized(), (hand_goal - elbow).normalized())
-	var upper_rot := (q1 * upper.basis.get_rotation_quaternion()).normalized()
-	var lower_rot := (q2 * q1 * lower.basis.get_rotation_quaternion()).normalized()
-	var upper_parent := _global_pose(_skeleton.get_bone_parent(bones[0])).basis.get_rotation_quaternion()
-	var upper_local := (upper_parent.inverse() * upper_rot).normalized()
-	var lower_local := (upper_rot.inverse() * lower_rot).normalized()
-	var w := clampf(_support_weight, 0.0, 1.0)
-	_skeleton.set_bone_pose_rotation(bones[0], _skeleton.get_bone_pose_rotation(bones[0]).slerp(upper_local, w))
-	_skeleton.set_bone_pose_rotation(bones[1], _skeleton.get_bone_pose_rotation(bones[1]).slerp(lower_local, w))
-
-
-## Bone [param bone]'s transform in skeleton space from the local poses as they are now (the skeleton's own
-## global poses are last frame's).
-func _global_pose(bone: int) -> Transform3D:
-	var chain: Array[int] = []
-	while bone >= 0:
-		chain.push_front(bone)
-		bone = _skeleton.get_bone_parent(bone)
-	var out := Transform3D.IDENTITY
-	for b in chain:
-		out = out * _skeleton.get_bone_pose(b)
-	return out
-
-
-## Bone [param bone]'s rotation in skeleton space from the local poses as they are now.
-func _chain_rotation(bone: int) -> Quaternion:
-	var q := Quaternion.IDENTITY
-	while bone >= 0:
-		q = _skeleton.get_bone_pose_rotation(bone) * q
-		bone = _skeleton.get_bone_parent(bone)
-	return q
+	DotHumanoidIk.two_bone(_skeleton, bones, _skeleton.global_transform.affine_inverse() * support_point, _to_figure().basis.inverse() * SUPPORT_POLE, _support_weight)
 
 
 ## Swimming lays the whole body forward, about the hips, and eases back out of it. The swim clip
@@ -960,153 +829,48 @@ func _measure() -> float:
 	return (to_model * aabb).size.y
 
 
-static func _scene(path: String) -> PackedScene:
-	if not _scenes.has(path):
-		_scenes[path] = load_model(path)
-	return _scenes[path]
+## The directory the people's files are in.
+static func directory() -> String:
+	return DotHumanoidAssets.directory()
 
 
-## A model by path, imported or not: [code]load()[/code] when the project has imported it, and
-## otherwise the source file read at run time through [GLTFDocument], packed as a scene.
-##
-## The fallback is not a nicety. A project only imports a file when the editor (or
-## [code]--import[/code]) scans it, and a game started straight from a clone or a fresh addon
-## copy, with an import cache from before the file arrived, has the [code].glb[/code] and
-## its [code].import[/code] and no imported scene: [code]load()[/code] fails, and every person
-## was a capsule in three games on a machine that pulled the people and played without opening
-## the editor. The run-time read builds the same skeleton, skin, mesh and clips as the importer
-## does with this addon's import settings (compared bone for bone), so nothing downstream can
-## tell. An exported build has no source file, and there the import is always present.
+## Every file a figure may load, for a preloader or a pack manifest.
+static func content_paths() -> PackedStringArray:
+	return DotHumanoidAssets.content_paths()
+
+
+## The baked real clips' path; a figure without the file plays the made ones.
+static func real_clips_path() -> String:
+	return DotHumanoidAssets.real_clips_path()
+
+
+static func body_path(id: StringName) -> String:
+	return DotHumanoidAssets.body_path(id)
+
+
+## A model by path, imported or not (see [method DotHumanoidAssets.load_model]).
 static func load_model(path: String) -> PackedScene:
-	if ResourceLoader.exists(path):
-		var imported := load(path) as PackedScene
-		if imported != null:
-			return imported
-	if not FileAccess.file_exists(path):
-		return null
-	var doc := GLTFDocument.new()
-	var state := GLTFState.new()
-	var err := doc.append_from_file(path, state)
-	var root := doc.generate_scene(state, 30.0, false, true) if err == OK else null
-	if root == null:
-		DotLog.warn(CHANNEL, "model is neither imported nor readable", {"path": path, "error": error_string(err)})
-		return null
-	var packed := PackedScene.new()
-	var packed_err := packed.pack(root)
-	root.free()
-	if packed_err != OK:
-		return null
-	DotLog.warn(CHANNEL, "model was never imported; read from the source file instead (run the project's import once)", {"path": path})
-	return packed
+	return DotHumanoidAssets.load_model(path)
 
 
-## A texture by path, imported or not; the image fallback is [method load_model]'s reasoning.
+## A texture by path, imported or not.
 static func load_texture(path: String) -> Texture2D:
-	if ResourceLoader.exists(path):
-		var imported := load(path) as Texture2D
-		if imported != null:
-			return imported
-	if not FileAccess.file_exists(path):
-		return null
-	# From the bytes rather than Image.load_from_file, which prints an export warning for any
-	# res:// path even where, as here, there is nothing to export.
-	var image := Image.new()
-	if image.load_png_from_buffer(FileAccess.get_file_as_bytes(path)) != OK:
-		return null
-	return ImageTexture.create_from_image(image)
-
-
-## The clip set for [param id]'s body: the clip body's own (with the made clips), carried onto
-## this body's rest by [method DotHumanoidClips.retarget], once per body and shared.
-##
-## Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made clips added, then
-## the real ones from [method real_clips_path] put over the made ones they replace.
-static func _library_for(id: StringName, skeleton: Skeleton3D) -> AnimationLibrary:
-	var base_key := StringName("base")
-	if not _libraries.has(base_key):
-		var scene := _scene(body_path(CLIP_BODY))
-		var probe := scene.instantiate() if scene != null else null
-		var bones: Array = probe.find_children("*", "Skeleton3D", true, false) if probe != null else []
-		var clip_skeleton: Skeleton3D = bones.front() as Skeleton3D if not bones.is_empty() else null
-		var library := DotHumanoidClips.mirror(DotHumanoidClips.library_of(scene))
-		_libraries[base_key] = DotHumanoidClips.synthesise(library, clip_skeleton)
-		var real_path := real_clips_path()
-		var real: AnimationLibrary = load(real_path) as AnimationLibrary if ResourceLoader.exists(real_path) else null
-		var _adopted := DotHumanoidClips.adopt(library, real)
-		_libraries[&"rests"] = DotHumanoidClips.rests_of(clip_skeleton)
-		_libraries[&"sit_height"] = DotHumanoidClips.sit_height(library, clip_skeleton)
-		if probe != null:
-			probe.free()
-	if id == CLIP_BODY or skeleton == null:
-		return _libraries[base_key]
-	if not _libraries.has(id):
-		_libraries[id] = DotHumanoidClips.retarget(_libraries[base_key], _libraries[&"rests"], skeleton)
-	return _libraries[id]
+	return DotHumanoidAssets.load_texture(path)
 
 
 ## One material per look: people with the same colours share it.
 static func material_for(p_look: DotHumanoidLook) -> ShaderMaterial:
-	var key := p_look.key()
-	if _materials.has(key):
-		return _materials[key]
-	if _shader == null:
-		_shader = Shader.new()
-		_shader.code = SHADER
-	if _atlas == null:
-		var path := directory().path_join("atlas_people.png")
-		_atlas = load_texture(path)
-
-	var wears: Dictionary = WEARS.get(p_look.body, {})
-	var colours := {"skin": p_look.skin, "hair": p_look.hair, "top": p_look.top, "bottom": p_look.bottom}
-	# vec4, not vec3: a vec3 array is padded on the GPU and a PackedVector3Array set into one is
-	# read skewed.
-	var from := PackedVector4Array()
-	var to := PackedVector4Array()
-	var from_lin := PackedVector4Array()
-	var to_lin := PackedVector4Array()
-	for role: String in ["skin", "hair", "top", "bottom"]:
-		for hex: String in wears.get(role, []):
-			if from.size() >= SWAPS:
-				break
-			var a := Color(hex)
-			var b: Color = colours[role]
-			from.append(Vector4(a.r, a.g, a.b, 1.0))
-			to.append(Vector4(b.r, b.g, b.b, 1.0))
-			var al := a.srgb_to_linear()
-			var bl := b.srgb_to_linear()
-			from_lin.append(Vector4(al.r, al.g, al.b, 1.0))
-			to_lin.append(Vector4(bl.r, bl.g, bl.b, 1.0))
-	var used := from.size()
-	while from.size() < SWAPS:
-		from.append(Vector4(-9.0, -9.0, -9.0, 0.0))
-		to.append(Vector4.ZERO)
-		from_lin.append(Vector4(-9.0, -9.0, -9.0, 0.0))
-		to_lin.append(Vector4.ZERO)
-
-	var material := ShaderMaterial.new()
-	material.shader = _shader
-	material.set_shader_parameter(&"atlas", _atlas)
-	material.set_shader_parameter(&"from_colour", from)
-	material.set_shader_parameter(&"to_colour", to)
-	material.set_shader_parameter(&"from_linear", from_lin)
-	material.set_shader_parameter(&"to_linear", to_lin)
-	material.set_shader_parameter(&"swaps", used)
-	_materials[key] = material
-	return material
+	return DotHumanoidAssets.material_for(p_look)
 
 
 ## How many distinct materials the looks drawn so far made: a crowd's draw-state cost.
 static func material_count() -> int:
-	return _materials.size()
+	return DotHumanoidAssets.material_count()
 
 
 ## Drops every shared scene, library, material, shader and atlas so a process can exit without leaking them.
 static func clear_cache() -> void:
-	_scenes.clear()
-	_libraries.clear()
-	_materials.clear()
-	_shader = null
-	_atlas = null
+	DotHumanoidAssets.clear_cache()
 
 
 static func _capsule(p_height: float, colour: Color) -> Node3D:
