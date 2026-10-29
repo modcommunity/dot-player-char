@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 120
+const CHECKS := 123
 
 var _passed := 0
 var _failed := 0
@@ -186,6 +186,13 @@ func _test_figure() -> void:
 	for _i in 5:
 		f.animate(6.0, 0.1)
 	_check(f.sprint_blend < 0.01, "an explicit sprinting=false wins over the run state (%.2f)" % f.sprint_blend)
+	_check(f.clip == DotHumanoidClips.SPRINT, "sprinting=false does not bring the hovering run clip back above its pace (%s)" % f.clip)
+	var hold_anim: Animation = f._anim.get_animation(DotHumanoidClips.IDLE_GUN)
+	var track := hold_anim.find_track(NodePath("%s:LowerArm.L" % f._model.get_path_to(f.skeleton())), Animation.TYPE_ROTATION_3D)
+	var arm_now := f.skeleton().get_bone_pose_rotation(f.skeleton().find_bone("LowerArm.L"))
+	_check(rad_to_deg(arm_now.angle_to(hold_anim.rotation_track_interpolate(track, 0.0))) < 8.0, "a gun held at sprint pace keeps its arms on the gun (the idle-gun overlay)")
+	f.animate(4.5, 0.1)
+	_check(f.clip == DotHumanoidClips.RUN_GUN, "sprinting=false below the run clip's pace: the gun run (%s)" % f.clip)
 	f.set_motion({"crouched": true})
 	f.animate(0.0, 0.1)
 	_check(f.clip == DotHumanoidClips.CROUCH, "crouched: the crouch")

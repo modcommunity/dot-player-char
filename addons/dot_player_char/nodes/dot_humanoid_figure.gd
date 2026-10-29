@@ -782,13 +782,11 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 func _sprint_clip_for(speed: float) -> bool:
 	if _anim == null or not _anim.has_animation(DotHumanoidClips.SPRINT):
 		return false
-	if _motion.has("sprinting"):
-		_sprint_clip = sprinting
-	else:
-		var from := sprint_speed if sprint_speed > 0.0 else _machine.run_speed * 1.6
-		# The run clip hovers (both feet up) above its own pace; the sprint clip stays grounded.
-		from = minf(from, RUN_CLIP_MAX_SPEED)
-		_sprint_clip = speed >= from - (SPRINT_EXIT if _sprint_clip else 0.0)
+	var from := sprint_speed if sprint_speed > 0.0 else _machine.run_speed * 1.6
+	# The run clip hovers (both feet up) above its own pace, whoever says sprinting; the sprint clip stays grounded.
+	from = minf(from, RUN_CLIP_MAX_SPEED)
+	var fast := speed >= from - (SPRINT_EXIT if _sprint_clip else 0.0)
+	_sprint_clip = (sprinting or fast) if _motion.has("sprinting") else fast
 	return _sprint_clip
 
 

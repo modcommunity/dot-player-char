@@ -225,10 +225,11 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 			continue
 		var walking: bool = pair[1] == CROUCH_WALK
 		var made := _bent(library.get_animation(pair[0]), idle, duck, low, CROUCH_WALK_BEND if walking else 1.0)
-		if skeleton != null:
-			_lift_to_feet(made, library.get_animation(pair[0]), skeleton)
+		# The bob goes in first so the lift to the feet takes its dip out too.
 		if walking:
 			_bob(made, CROUCH_WALK_BOB)
+		if skeleton != null:
+			_lift_to_feet(made, library.get_animation(pair[0]), skeleton)
 		if library.has_animation(pair[1]):
 			library.remove_animation(pair[1])
 		var _a := library.add_animation(pair[1], made)
