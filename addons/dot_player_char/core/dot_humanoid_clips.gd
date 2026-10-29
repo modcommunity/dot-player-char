@@ -47,6 +47,11 @@ const ALL: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CR
 ## Clips that loop; the rest play once and hold their last frame.
 const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, DRIVE, CLIMB, SWIM]
 
+## How much of the duck's bend a crouch walk keeps (the full bend left no room for a stride), and
+## how far the hips dip at each step, in the clip body's units.
+const CROUCH_WALK_BEND := 0.7
+const CROUCH_WALK_BOB := 0.03
+
 ## The bones a crouch bends: the body's height and the legs. The arms and head keep what the
 ## walk does with them.
 const CROUCH_BONES: Array[String] = ["Body", "Hips", "Abdomen", "Torso", "UpperLeg.L", "UpperLeg.R",
@@ -216,7 +221,10 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 	for pair: Array in [[IDLE, CROUCH], [WALK, CROUCH_WALK]]:
 		if not library.has_animation(pair[0]):
 			continue
-		var made := _bent(library.get_animation(pair[0]), idle, duck, low)
+		var walking: bool = pair[1] == CROUCH_WALK
+		var made := _bent(library.get_animation(pair[0]), idle, duck, low, CROUCH_WALK_BEND if walking else 1.0)
+		if walking:
+			_bob(made, CROUCH_WALK_BOB)
 		if library.has_animation(pair[1]):
 			library.remove_animation(pair[1])
 		var _a := library.add_animation(pair[1], made)
@@ -578,7 +586,7 @@ static func _skeleton_prefix(animation: Animation) -> String:
 
 
 ## [param base] with the duck's bend at [param low] added on [constant CROUCH_BONES], looping.
-static func _bent(base: Animation, idle: Animation, duck: Animation, low: float) -> Animation:
+static func _bent(base: Animation, idle: Animation, duck: Animation, low: float, amount := 1.0) -> Animation:
 	var made := base.duplicate(true) as Animation
 	made.loop_mode = Animation.LOOP_LINEAR
 	for t in made.get_track_count():
@@ -596,11 +604,22 @@ static func _bent(base: Animation, idle: Animation, duck: Animation, low: float)
 		for k in made.track_get_key_count(t):
 			var v: Variant = made.track_get_key_value(t, k)
 			if type == Animation.TYPE_ROTATION_3D:
-				var change := (rest_value as Quaternion).inverse() * (bent_value as Quaternion)
+				var change := Quaternion.IDENTITY.slerp((rest_value as Quaternion).inverse() * (bent_value as Quaternion), amount)
 				made.track_set_key_value(t, k, ((v as Quaternion) * change).normalized())
 			elif type == Animation.TYPE_POSITION_3D:
-				made.track_set_key_value(t, k, (v as Vector3) + ((bent_value as Vector3) - (rest_value as Vector3)))
+				made.track_set_key_value(t, k, (v as Vector3) + ((bent_value as Vector3) - (rest_value as Vector3)) * amount)
 	return made
+
+
+## The hips dip at each footfall, twice a cycle: a crouch walk that holds one height slides.
+static func _bob(animation: Animation, depth: float) -> void:
+	var body := _body_track(animation)
+	if body < 0:
+		return
+	for k in animation.track_get_key_count(body):
+		var at := animation.track_get_key_time(body, k) / maxf(animation.length, 0.01)
+		var p: Vector3 = animation.track_get_key_value(body, k)
+		animation.track_set_key_value(body, k, p + Vector3(0.0, depth * (0.5 * cos(at * TAU * 2.0) - 0.5), 0.0))
 
 
 ## Takes the clip's own rise out of [param animation]: at every key, the body and the bones that
