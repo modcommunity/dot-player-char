@@ -52,6 +52,12 @@ const ACTION_BLEND_OUT := 0.3
 ## is drawn upright, and a front crawl is nearly flat with the head a little up.
 const SWIM_LEAN := 1.4
 
+## How far back a propped, downed body leans about the hips, in radians (about 70 degrees from upright).
+const PROP_LEAN := 1.2
+
+## The clip a downed pose plays; a game with better clips assigns its own names.
+var downed_clips: Dictionary = {&"propped": &"", &"crawl": DotHumanoidClips.CRAWL}
+
 ## Whether the person is sprinting (from [method set_motion]; a game that never sends the key gets the run state instead); the carry eases in and out in [member sprint_blend].
 var sprinting: bool = false
 
@@ -108,6 +114,10 @@ var hold: int = Hold.NONE
 
 ## Down: crawling on the floor, whatever the legs would otherwise do.
 var downed: bool = false
+
+## While [member downed]: true lies on the back, propped, weapon out; false crawls on the stomach.
+## Set from the `propped` motion key ([DotDownedRules]).
+var propped: bool = false
 
 ## The overlay playing on the upper body, or empty.
 var overlay: StringName = &""
@@ -184,6 +194,7 @@ var _frame: int = 0
 var _posed_usec: int = -1
 var _upper: Dictionary = {}
 var _swim_pitch: float = 0.0
+var _prop_pitch: float = 0.0
 var _head_hidden: bool = false
 var _auto_last: Vector3 = Vector3.INF
 var _model_basis: Basis = Basis.IDENTITY
@@ -383,6 +394,7 @@ func set_motion(motion: Dictionary) -> void:
 	_motion = motion
 	sprinting = bool(motion.get("sprinting", false))
 	downed = bool(motion.get("downed", false))
+	propped = downed and bool(motion.get("propped", false))
 	seated = bool(motion.get("seated", false))
 	driving = bool(motion.get("driving", false))
 	if motion.has("aim"):
@@ -597,8 +609,13 @@ func set_drawn(on: bool) -> void:
 
 func _clip_for(p_state: StringName, speed: float) -> Array:
 	var gun := hold == Hold.GUN
+	if downed and propped:
+		var named := StringName(downed_clips.get(&"propped", &""))
+		if named == &"":
+			named = DotHumanoidClips.IDLE_GUN if gun else DotHumanoidClips.IDLE
+		return [named, 1.0]
 	if downed:
-		return [DotHumanoidClips.CRAWL, clampf(speed / 1.2, 0.0, 1.6)]
+		return [StringName(downed_clips.get(&"crawl", DotHumanoidClips.CRAWL)), clampf(speed / 1.2, 0.0, 1.6)]
 	if _action_full != &"":
 		return [_action_full, 1.0]
 	# A rider is carried: whatever speed the seat moves at, the legs stay sat.
@@ -793,12 +810,14 @@ func _apply_swim(delta: float) -> void:
 	if _model == null:
 		return
 	var wanted := SWIM_LEAN if state == DotPlayerAnimState.SWIM and not downed else 0.0
-	var before := _swim_pitch
+	var before := _swim_pitch + _prop_pitch
 	_swim_pitch = move_toward(_swim_pitch, wanted, delta * 3.0)
-	if is_equal_approx(before, _swim_pitch) and _swim_pitch == 0.0:
+	_prop_pitch = move_toward(_prop_pitch, -PROP_LEAN if downed and propped else 0.0, delta * 3.0)
+	var total := _swim_pitch + _prop_pitch
+	if is_equal_approx(before, total) and total == 0.0:
 		return
 	var hips := Vector3(0.0, height * 0.55, 0.0)
-	var tilt := Transform3D(Basis(Vector3.RIGHT, -_swim_pitch), Vector3.ZERO)
+	var tilt := Transform3D(Basis(Vector3.RIGHT, -total), Vector3.ZERO)
 	var about := Transform3D(Basis.IDENTITY, hips) * tilt * Transform3D(Basis.IDENTITY, -hips)
 	_model.transform = about * Transform3D(_model_basis, _model_origin)
 
