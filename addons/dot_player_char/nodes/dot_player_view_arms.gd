@@ -8,10 +8,16 @@ extends Node3D
 const CHANNEL := "player.view_arms"
 ## Bones shrunk to nothing; the arms hang off the chest, so they stay.
 const HIDDEN_BONES: Array[String] = ["Head", "Neck", "UpperLeg.L", "UpperLeg.R"]
+## The pack is part of the one skinned mesh, bound to the hips: its vertices are the hip-bound ones this far behind the body.
+const PACK_BONE := "Hips"
+const PACK_BEHIND := -0.3
 
 ## Extension point: `func(look: DotHumanoidLook, height: float) -> Node3D`. The node it returns is parented here and
 ## drawn as is, in place of the person; if it has `set_motion` and `animate` (a [DotHumanoidFigure]) they are driven.
 var arms_factory: Callable = Callable()
+## Extension point: `func(bone: StringName, rest_position: Vector3) -> bool`, true for a vertex that is carried gear
+## (a backpack) and must not show; triangles touching one are dropped. The default is the stock kit's pack.
+var hide_vertex_fn: Callable = Callable()
 ## Where the camera sits relative to the crawling figure's head bone, in the figure's own frame (the clip lies the
 ## person along Z; the eye is measured from the posed head, not assumed, so a game's own figure fits too).
 var eye_from_head: Vector3 = Vector3(0.0, 0.3, -0.4)
@@ -50,12 +56,70 @@ func build(p_look: DotHumanoidLook = null, p_height: float = 1.8) -> void:
 				var i := skeleton.find_bone(bone)
 				if i >= 0:
 					_bones.append(i)
+		_strip_gear(figure)
 	else:
 		add_child(_arms)
 
 	_fitted = false
 	_ticks = 0
 	_arms.visible = shown
+
+
+## Gear is skinned into the body mesh, so it goes by dropping its triangles from this figure's own copy of the mesh.
+func _strip_gear(figure: DotHumanoidFigure) -> void:
+	var instance := figure.mesh()
+	var skeleton := figure.skeleton()
+
+	if instance == null or skeleton == null or instance.mesh == null:
+		return
+
+	var old := instance.mesh
+	var out := ArrayMesh.new()
+
+	for s in old.get_surface_count():
+		var arrays := old.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES] if arrays[Mesh.ARRAY_BONES] != null else PackedInt32Array()
+		var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS] if arrays[Mesh.ARRAY_WEIGHTS] != null else PackedFloat32Array()
+		var per := bones.size() / maxi(verts.size(), 1)
+		var gear := PackedByteArray()
+		gear.resize(verts.size())
+
+		for v in verts.size():
+			if per < 1 or weights.size() < verts.size() * per:
+				break
+
+			var best := 0
+			for k in per:
+				if weights[v * per + k] > weights[v * per + best]:
+					best = k
+
+			var bone := StringName(skeleton.get_bone_name(bones[v * per + best]))
+			gear[v] = 1 if _is_gear(bone, verts[v]) else 0
+
+		var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		if index.is_empty():
+			index.resize(verts.size())
+			for i in verts.size():
+				index[i] = i
+
+		var kept := PackedInt32Array()
+		for t in range(0, index.size() - 2, 3):
+			if gear[index[t]] == 0 and gear[index[t + 1]] == 0 and gear[index[t + 2]] == 0:
+				kept.append_array(index.slice(t, t + 3))
+
+		arrays[Mesh.ARRAY_INDEX] = kept
+		out.add_surface_from_arrays(old.surface_get_primitive_type(s), arrays)
+		out.surface_set_material(s, old.surface_get_material(s))
+
+	instance.mesh = out
+
+
+func _is_gear(bone: StringName, rest: Vector3) -> bool:
+	if hide_vertex_fn.is_valid():
+		return bool(hide_vertex_fn.call(bone, rest))
+
+	return bone == PACK_BONE and rest.z < PACK_BEHIND
 
 
 ## Shows the arms while [param on]. Always the prone crawl: a player propped on their back sees the held weapon, not arms.

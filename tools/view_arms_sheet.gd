@@ -1,6 +1,6 @@
 extends SceneTree
 
-## The downed first-person arms as the player sees them: crawl, six moments, looking 30 and 55 degrees down, a camera at the eye.
+## The downed first-person arms as the player sees them: crawl, six moments, looking 15 and 80 degrees down, a camera at the eye.
 ##   xvfb-run -a godot --path . --script tools/view_arms_sheet.gd -- [--out=res://screenshots] [--off=x,y,z (the eye in the figure's frame)]
 
 const CELL := Vector2i(400, 260)
@@ -72,7 +72,7 @@ func _run() -> void:
 		await process_frame
 	var sheet := Image.create(CELL.x * MOMENTS, CELL.y * 2, false, Image.FORMAT_RGBA8)
 	for row in 2:
-		cam.rotation_degrees.x = -15.0 if row == 0 else -35.0
+		cam.rotation_degrees.x = -15.0 if row == 0 else -80.0
 		arms.set_downed(true)
 		for col in MOMENTS * 6:
 			arms.tick(1.0, 1.0 / 30.0)

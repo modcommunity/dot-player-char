@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 10
-const CHECKS := 94
+const CHECKS := 96
 
 var _passed := 0
 var _failed := 0
@@ -549,6 +549,14 @@ func _test_view_arms() -> void:
 	var head := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Head"))).origin
 	var hand := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Middle1.L"))).origin
 	_check(hand.z < head.z - 0.2 and hand.y < head.y, "the hand reaches ahead of the eye (-Z) and below it")
+	var pack := _gear_triangles(arms.arms() as DotHumanoidFigure)
+	_check(pack == 0, "the view figure has no backpack surface (%d triangles)" % pack)
+	var bare := DotPlayerViewArms.new()
+	add_child(bare)
+	bare.hide_vertex_fn = func(_b, _p): return false
+	bare.build(DotHumanoidLook.stock(7), 1.8)
+	_check(_gear_triangles(bare.arms() as DotHumanoidFigure) > 0, "without the hide the stock figure does carry a pack (the check can fail)")
+	bare.queue_free()
 	arms.set_downed(false)
 	_check(not arms.arms().visible, "hidden once up")
 	var custom := DotPlayerViewArms.new()
@@ -558,6 +566,29 @@ func _test_view_arms() -> void:
 	_check(custom.describe()["custom"] and custom.arms().get_class() == "Node3D", "a game supplies its own arms")
 	arms.queue_free()
 	custom.queue_free()
+
+
+## Triangles with a vertex on the hips more than 0.3 behind the body: the stock kit's backpack.
+func _gear_triangles(figure: DotHumanoidFigure) -> int:
+	var sk := figure.skeleton()
+	var arrays := figure.mesh().mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+	var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var per := bones.size() / verts.size()
+	var n := 0
+	for t in range(0, index.size() - 2, 3):
+		for c in 3:
+			var v := index[t + c]
+			var best := 0
+			for k in per:
+				if weights[v * per + k] > weights[v * per + best]:
+					best = k
+			if sk.get_bone_name(bones[v * per + best]) == "Hips" and verts[v].z < -0.3:
+				n += 1
+				break
+	return n
 
 
 func _section(title: String) -> void:
