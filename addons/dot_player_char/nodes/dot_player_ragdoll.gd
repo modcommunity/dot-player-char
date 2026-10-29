@@ -692,7 +692,7 @@ func _build_jointed_skeletal(mesh_groups: Dictionary) -> void:
 	var share_total := 0.0
 	for role: int in points:
 		share_total += float(MASS_SHARE.get(role, 0.05))
-	var torso_at := _mean(points.get(Role.TORSO, []), global_position)
+	var torso_at := DotPlayerRagdollMath.mean(points.get(Role.TORSO, []), global_position)
 	var forward := -_skel_base.basis.z.normalized()
 
 	var torso: Part = null
@@ -703,14 +703,14 @@ func _build_jointed_skeletal(mesh_groups: Dictionary) -> void:
 		for i in _skel.get_bone_count():
 			if _bone_roles[i] == role:
 				bones.append(i)
-		var centre := _mean(points[role], torso_at)
+		var centre := DotPlayerRagdollMath.mean(points[role], torso_at)
 		var frame: Transform3D
 		if role == Role.TORSO:
 			var anchor: int = found["anchors"][role]
 			frame = Transform3D(_bone_world(anchor).basis.orthonormalized(), centre)
 		else:
 			var top := _top_of(bones, torso_at)
-			frame = Transform3D(_basis_along(centre - top, forward), top)
+			frame = Transform3D(DotPlayerRagdollMath.basis_along(centre - top, forward), top)
 		var part := _new_body(role, frame, rules.mass * float(MASS_SHARE.get(role, 0.05)) / maxf(share_total, 0.01))
 		if mesh_groups.has(role):
 			var _b := _copy_meshes(part, mesh_groups[role], frame)
@@ -724,26 +724,6 @@ func _build_jointed_skeletal(mesh_groups: Dictionary) -> void:
 		if not points.has(role) and torso != null:
 			var _c := _copy_meshes(torso, mesh_groups[role], torso.body.global_transform)
 	_finish_joints(torso)
-
-
-static func _mean(list: Array, fallback: Vector3) -> Vector3:
-	if list.is_empty():
-		return fallback
-	var sum := Vector3.ZERO
-	for p: Vector3 in list:
-		sum += p
-	return sum / float(list.size())
-
-
-## A basis whose Y runs along [param along], with Z as near [param forward] as that allows.
-static func _basis_along(along: Vector3, forward: Vector3) -> Basis:
-	var y := along.normalized() if along.length_squared() > 0.0001 else Vector3.DOWN
-	var z := forward - y * forward.dot(y)
-	if z.length_squared() < 0.0001:
-		z = Vector3.RIGHT.cross(y)
-	z = z.normalized()
-	var x := y.cross(z).normalized()
-	return Basis(x, y, z)
 
 
 ## The top of a part's chain: the one of [param bones] whose parent is not among them, nearest
@@ -792,8 +772,8 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, co
 			zs.append(local.z)
 	var bounds := AABB()
 	if not xs.is_empty():
-		var lo := Vector3(_quantile(xs, 0.05), _quantile(ys, 0.03), _quantile(zs, 0.05))
-		var hi := Vector3(_quantile(xs, 0.95), _quantile(ys, 0.97), _quantile(zs, 0.95))
+		var lo := Vector3(DotPlayerRagdollMath.quantile(xs, 0.05), DotPlayerRagdollMath.quantile(ys, 0.03), DotPlayerRagdollMath.quantile(zs, 0.05))
+		var hi := Vector3(DotPlayerRagdollMath.quantile(xs, 0.95), DotPlayerRagdollMath.quantile(ys, 0.97), DotPlayerRagdollMath.quantile(zs, 0.95))
 		bounds = AABB(lo, hi - lo)
 	for copy in part.copies:
 		# With the posed skin's points in hand, the box is the body's alone. A skinned copy's own
@@ -814,11 +794,6 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, co
 	elif not (part.body is RigidBody3D):
 		part.size = bounds.size
 		part.local_centre = bounds.get_center()
-
-
-static func _quantile(values: Array[float], q: float) -> float:
-	values.sort()
-	return values[clampi(int(q * float(values.size() - 1)), 0, values.size() - 1)]
 
 
 ## Puts every carried bone where its part now is. Bones are written parents first, because a
@@ -864,23 +839,7 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 
 	match reaction.pose:
 		DotPlayerDeathReaction.Pose.FACE_PLANT:
-			# A plank falling about its feet: every part moves as one rigid rotation round the
-			# point under the toes, so it goes over straight rather than folding.
-			var axis := Vector3.UP.cross(forward).normalized()
-			var feet := _feet_point(forward)
-			var omega := axis * 1.6
-			for part in _parts:
-				var body := part.body as RigidBody3D
-				# Undamped until it lands: the damping is for a body flapping on the floor, and
-				# on a plank going over it ate the spin before the top passed the toes. A person
-				# holding a gun out is a deep box, and stood back up (zz's survivors, 2026-10-12).
-				body.angular_damp = 0.0
-				body.angular_velocity = omega
-				body.linear_velocity = velocity + omega.cross(_part_centre(part) - feet)
-			if _parts.size() == 1:
-				_plank_axis = axis
-				_plank_pivot = feet
-				_plank_time = 0.0
+			_drive_plank(forward, velocity)
 			return
 		DotPlayerDeathReaction.Pose.CRUMPLE:
 			# The legs fold forward under the body, which drops and tips back or forward by
@@ -911,6 +870,27 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 		var tumble := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * reaction.spin * 0.35 * wild
 		var flip := Vector3.UP.cross(fall_dir).normalized() * reaction.spin * k * wild
 		body.angular_velocity += (tip + tumble + flip) * torque
+
+
+## Starts a face plant: every part rotates as one rigid body about the point under the toes.
+func _drive_plank(forward: Vector3, velocity: Vector3) -> void:
+	# A plank falling about its feet: every part moves as one rigid rotation round the
+	# point under the toes, so it goes over straight rather than folding.
+	var axis := Vector3.UP.cross(forward).normalized()
+	var feet := _feet_point(forward)
+	var omega := axis * 1.6
+	for part in _parts:
+		var body := part.body as RigidBody3D
+		# Undamped until it lands: the damping is for a body flapping on the floor, and
+		# on a plank going over it ate the spin before the top passed the toes. A person
+		# holding a gun out is a deep box, and stood back up (zz's survivors, 2026-10-12).
+		body.angular_damp = 0.0
+		body.angular_velocity = omega
+		body.linear_velocity = velocity + omega.cross(_part_centre(part) - feet)
+	if _parts.size() == 1:
+		_plank_axis = axis
+		_plank_pivot = feet
+		_plank_time = 0.0
 
 
 ## Keeps a face plant turning until its weight is past the toes. One shove of 1.6 rad/s is enough

@@ -153,18 +153,7 @@ var auto_smooth_time: float = 0.0
 ## The clips whose rate follows the planted foot ([method _matched_rate]), and the fastest they play.
 const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN,
 	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK, DotHumanoidClips.SPRINT]
-## A crawling body's feet: planted until the leg is stretched to [constant CRAWL_FAR] of its length,
-## then swung in [constant CRAWL_SWING_S] to where it is bent to [constant CRAWL_NEAR], one at a time.
-const CRAWL_FAR := 0.9
-const CRAWL_NEAR := 0.35
-const CRAWL_SWING_S := 0.16
-const CRAWL_LIFT_M := 0.1
-const CRAWL_BLEND_S := 0.15
-const CRAWL_LEGS := [["UpperLeg.L", "LowerLeg.L", "Foot.L"], ["UpperLeg.R", "LowerLeg.R", "Foot.R"]]
-const STRIDE_SAMPLES := 48
 const STRIDE_MAX_RATE := 4.0
-## How far above the clip's lowest foot the lower foot is in flight (a run's both-feet-up stretch).
-const STRIDE_AIRBORNE_M := 0.06
 
 ## Ground speed from which a runner plays the sprint clip when the game sends no `sprinting` key (0 picks 1.6 times the run speed), and how far below it the run clip returns.
 var sprint_speed: float = 0.0
@@ -217,17 +206,11 @@ var _stop_time: float = 0.0
 var _overlay_blend: float = BLEND_IN
 var _action_full: StringName = &""
 var _owed: float = 0.0
-var _crawl_at: Array[Vector3] = []
-var _crawl_swing: Array[float] = []
-var _crawl_weight: float = 0.0
+var _crawl := DotHumanoidCrawl.new()
 var _frame: int = 0
 var _posed_frame: int = -1
 var _upper: Dictionary = {}
-var _eased_from: Dictionary = {}
-var _eased_pos: Dictionary = {}
-var _ease_left: float = 0.0
-## Seconds the upper body takes to ease from the pose on screen into a stride clip it was cut to.
-const EASE_S := 0.15
+var _ease := DotHumanoidBlend.new()
 var _swim_pitch: float = 0.0
 var _prop_pitch: float = 0.0
 var _head_hidden: bool = false
@@ -243,9 +226,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	height = p_height
 	clip = &""
 	overlay = &""
-	_eased_from.clear()
-	_eased_pos.clear()
-	_ease_left = 0.0
+	_ease.clear()
 	_hand = null
 	_crown = null
 	_upper.clear()
@@ -268,7 +249,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	if _model == null:
 		# A capsule rather than nothing: an invisible player is worse than a grey one.
 		DotLog.warn(CHANNEL, "no body model; drawing a capsule", {"body": String(look.body)})
-		_model = _capsule(height, look.top)
+		_model = DotHumanoidFrames.capsule(height, look.top)
 		add_child(_model)
 		from_art = false
 		return
@@ -300,7 +281,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 
 	# The kit faces +Z and this family's forward is -Z; scaled to the height asked for, measured
 	# from the mesh rather than assumed.
-	var tall := _measure()
+	var tall := DotHumanoidFrames.measure(_mesh, _model)
 	var s := height / maxf(tall, 0.01)
 	_model_basis = Basis(Vector3.UP, PI).scaled(Vector3.ONE * s)
 	_model_origin = Vector3.ZERO
@@ -392,7 +373,7 @@ func animate(speed: float, delta: float) -> void:
 	# The clip is advanced less often far from the camera, with the skipped time carried.
 	_owed += delta
 	_frame += 1
-	anim_step = _step_for_distance()
+	anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
 	if _frame % anim_step != 0:
 		return
 	var matched := _matched_rate(speed, _owed)
@@ -403,7 +384,7 @@ func animate(speed: float, delta: float) -> void:
 	_owed = 0.0
 	_apply_overlays()
 	_apply_aim()
-	_apply_ease(advanced)
+	_ease.step(_skeleton, advanced)
 	_apply_support()
 	_apply_head()
 	_apply_swim(delta * anim_step)
@@ -411,79 +392,9 @@ func animate(speed: float, delta: float) -> void:
 	_apply_crawl_feet(speed, advanced)
 
 
-## The clip's feet scrape the ground at a pace of their own, so a crawling body's feet are held
-## still in the world and stepped by IK when the leg runs out of reach. A phase-timed plant
-## ([DotFootPlant]) overreaches here: the legs are short and the clip surges the hips.
 func _apply_crawl_feet(speed: float, dt: float) -> void:
 	var id := StringName(downed_clips.get(&"crawl", DotHumanoidClips.CRAWL))
-	_crawl_weight = move_toward(_crawl_weight, 1.0 if speed >= 0.1 else 0.0, dt / CRAWL_BLEND_S)
-	if not downed or propped or clip != id or _anim.current_animation != String(id) or _crawl_weight <= 0.0:
-		_crawl_at.clear()
-		_crawl_weight = 0.0
-		return
-	var legs: Array = []
-	for names: Array in CRAWL_LEGS:
-		var ids: Array[int] = [_skeleton.find_bone(names[0]), _skeleton.find_bone(names[1]), _skeleton.find_bone(names[2])]
-		if ids.has(-1):
-			return
-		legs.append(ids)
-	# In the world, about the figure's own upright frame: the model may still be tilting out of a pose.
-	var to_world := _skeleton.global_transform
-	var to_skel := to_world.affine_inverse()
-	var sized := to_world.basis.get_scale().y
-	var back := Vector3(global_transform.basis.z.x, 0.0, global_transform.basis.z.z).normalized()
-	var right := Vector3(global_transform.basis.x.x, 0.0, global_transform.basis.x.z).normalized()
-	var hips: Array[Vector3] = []
-	var ankles: Array[Vector3] = []
-	var lands: Array[Vector3] = []
-	var reach: Array[float] = []
-	for leg: Array in legs:
-		var knee := DotHumanoidIk.global_pose(_skeleton, leg[1])
-		var end_local := _skeleton.get_bone_global_rest(leg[1]).affine_inverse() * _skeleton.get_bone_global_rest(leg[2]).origin
-		var hip := to_world * DotHumanoidIk.global_pose(_skeleton, leg[0]).origin
-		var ankle := to_world * (knee * end_local)
-		var length := (DotHumanoidIk.global_pose(_skeleton, leg[0]).origin.distance_to(knee.origin) + end_local.length()) * sized
-		# On the floor at the standing ankle's height, beside the hip as the clip has it, bent to CRAWL_NEAR.
-		var floor_y := global_position.y + _skeleton.get_bone_global_rest(leg[2]).origin.y * sized
-		var side := (ankle - hip).dot(right)
-		var flat := Vector2(side, hip.y - floor_y).length()
-		var land := hip + right * side + back * sqrt(maxf(pow(length * CRAWL_NEAR, 2.0) - flat * flat, 0.0001))
-		land.y = floor_y
-		hips.append(hip)
-		ankles.append(ankle)
-		reach.append(length)
-		lands.append(land)
-	if _crawl_at.size() != 2:
-		_crawl_at = [Vector3(ankles[0].x, lands[0].y, ankles[0].z), Vector3(ankles[1].x, lands[1].y, ankles[1].z)]
-		_crawl_swing = [-1.0, -1.0]
-	var stretch: Array[float] = []
-	for k in 2:
-		stretch.append(hips[k].distance_to(_crawl_at[k]) / reach[k])
-	# One foot at a time, the more stretched first; a leg at full length steps regardless, or it drags.
-	var first := 0 if stretch[0] >= stretch[1] else 1
-	for k in [first, 1 - first]:
-		var other_down := _crawl_swing[1 - k] < 0.0
-		if _crawl_swing[k] < 0.0 and (stretch[k] > CRAWL_FAR and other_down or stretch[k] > 0.98):
-			_crawl_swing[k] = 0.0
-	var w := smoothstep(0.0, 1.0, _crawl_weight)
-	for k in 2:
-		var leg: Array = legs[k]
-		var target := _crawl_at[k]
-		if _crawl_swing[k] >= 0.0:
-			_crawl_swing[k] = minf(_crawl_swing[k] + dt / CRAWL_SWING_S, 1.0)
-			var s := _crawl_swing[k]
-			target = _crawl_at[k].lerp(lands[k], smoothstep(0.0, 1.0, s)) + Vector3.UP * CRAWL_LIFT_M * sin(PI * s)
-			if s >= 1.0:
-				_crawl_at[k] = lands[k]
-				_crawl_swing[k] = -1.0
-		var end_local := _skeleton.get_bone_global_rest(leg[1]).affine_inverse() * _skeleton.get_bone_global_rest(leg[2]).origin
-		# Knees out to the side, as a body crawling flat pushes: the clip's leg is too straight to steer
-		# by (its bend flips from frame to frame), and a knee pointed at the floor would go through it.
-		var hip_x := DotHumanoidIk.global_pose(_skeleton, leg[0]).origin.x
-		var pole := Vector3(signf(hip_x) if hip_x != 0.0 else 1.0, -0.3, 0.0)
-		var ankle := DotHumanoidIk.two_bone_to(_skeleton, leg[0], leg[1], end_local, to_skel * ankles[k].lerp(target, w), pole, 1.0)
-		var parent := _skeleton.get_bone_parent(leg[2])
-		_skeleton.set_bone_pose_position(leg[2], ankle if parent < 0 else DotHumanoidIk.global_pose(_skeleton, parent).affine_inverse() * ankle)
+	_crawl.step(self, _skeleton, downed and not propped and clip == id and _anim.current_animation == String(id), speed, dt)
 
 
 func _apply_head() -> void:
@@ -545,7 +456,7 @@ func seat_height() -> float:
 	var base: float = DotHumanoidAssets.sit_height()
 	if _skeleton == null or base <= 0.0:
 		return height * 0.25
-	return base * height / maxf(_measure(), 0.01)
+	return base * height / maxf(DotHumanoidFrames.measure(_mesh, _model), 0.01)
 
 
 ## What the hand holds: [enum Hold].
@@ -652,7 +563,7 @@ func attachment(point: StringName) -> Node3D:
 	bone.bone_name = HAND_BONE
 	_skeleton.add_child(bone)
 	bone.add_child(_hand)
-	_hand.transform = _hand_frame() * Transform3D(Basis.from_scale(Vector3.ONE * held_scale), Vector3.ZERO)
+	_hand.transform = DotHumanoidFrames.hand_frame(_skeleton, _anim, _model, _to_figure()) * Transform3D(Basis.from_scale(Vector3.ONE * held_scale), Vector3.ZERO)
 	return _hand
 
 
@@ -672,10 +583,7 @@ func _crown_mount() -> Node3D:
 	bone.add_child(_crown)
 	# The crown is the mesh's top, straight over the head bone at rest; upright and metre scale
 	# in the figure's frame, as the hand is.
-	var head := _skeleton.find_bone(HEAD_BONE)
-	var head_in_figure := _to_figure() * _skeleton.get_bone_global_rest(head)
-	var top := Vector3(head_in_figure.origin.x, height, head_in_figure.origin.z)
-	_crown.transform = head_in_figure.affine_inverse() * Transform3D(Basis.IDENTITY, top)
+	_crown.transform = DotHumanoidFrames.crown_local(_skeleton, _to_figure(), height)
 	return _crown
 
 
@@ -684,38 +592,6 @@ func _crown_mount() -> Node3D:
 func _to_figure() -> Transform3D:
 	var skel_to_model := _model.global_transform.affine_inverse() * _skeleton.global_transform if _model.is_inside_tree() else Transform3D.IDENTITY
 	return Transform3D(_model_basis, _model_origin) * skel_to_model
-
-
-## The hand's frame in its bone's, from the held-gun pose: forward is the figure's forward and up
-## is up there, so a weapon model made pointing down -Z points where the gun clips aim.
-func _hand_frame() -> Transform3D:
-	var bone := _skeleton.find_bone(HAND_BONE)
-	var library := _anim.get_animation_library(&"")
-	var gun := library.get_animation(DotHumanoidClips.IDLE_GUN) if library != null and library.has_animation(DotHumanoidClips.IDLE_GUN) else null
-	# The bone's pose in skeleton space at the held-gun pose, computed from the clip's keys.
-	var poses: Dictionary = {}
-	var chain: Array[int] = []
-	var i := bone
-	while i >= 0:
-		chain.push_front(i)
-		i = _skeleton.get_bone_parent(i)
-	var global := Transform3D.IDENTITY
-	for b in chain:
-		var local := _skeleton.get_bone_rest(b)
-		if gun != null:
-			var path := NodePath("%s:%s" % [_model.get_path_to(_skeleton), _skeleton.get_bone_name(b)])
-			var rt := gun.find_track(path, Animation.TYPE_ROTATION_3D)
-			var pt := gun.find_track(path, Animation.TYPE_POSITION_3D)
-			var q := local.basis.get_rotation_quaternion() if rt < 0 else gun.rotation_track_interpolate(rt, 0.0)
-			var p := local.origin if pt < 0 else gun.position_track_interpolate(pt, 0.0)
-			local = Transform3D(Basis(q).scaled(local.basis.get_scale()), p)
-		global = global * local
-		poses[b] = global
-	var bone_global: Transform3D = poses[bone]
-	var bone_in_figure := _to_figure() * bone_global
-	# Wanted: in the figure's frame, -Z forward, +Y up, metres; at the bone plus the grip offset.
-	var wanted := Transform3D(Basis.IDENTITY, bone_in_figure.origin + HAND_OFFSET)
-	return bone_in_figure.affine_inverse() * wanted
 
 
 ## The drawn model, for [DotPlayerRagdoll] (it finds the skeleton and the skinned mesh under it).
@@ -812,87 +688,16 @@ func _matched_rate(speed: float, dt: float) -> float:
 		return -1.0
 	var length := _anim.current_animation_length
 	var phase := fposmod(_anim.current_animation_position, length) / length
-	var want := _distance_at(table, phase) + speed * dt
+	var want := DotHumanoidStride.distance_at(table, phase) + speed * dt
 	var laps := floorf(want / table[-1])
-	var to := _phase_at(table, want - laps * table[-1]) + laps
+	var to := DotHumanoidStride.phase_at(table, want - laps * table[-1]) + laps
 	return clampf((to - phase) * length / dt, 0.0, STRIDE_MAX_RATE)
 
 
-## Metres over the ground at each of [constant STRIDE_SAMPLES] steps through [param clip_id]: the
-## lower foot's backward travel in the figure's frame, never under a third of the mean so the
-## clip does not race through a moment the foot stands still in it, and in flight no less than
-## a stance step, so a run's swing plays at the clip's own pace. Cached per clip.
 func _stride_for(clip_id: StringName) -> PackedFloat32Array:
-	if _strides.has(clip_id):
-		return _strides[clip_id]
-	var table := PackedFloat32Array()
-	_strides[clip_id] = table
-	var animation := _anim.get_animation(clip_id)
-	var feet := [_skeleton.find_bone("Foot.L"), _skeleton.find_bone("Foot.R")]
-	if animation == null or feet.has(-1) or animation.length <= 0.0:
-		return table
-	var prefix := String(_model.get_path_to(_skeleton))
-	var to_figure := _to_figure()
-	var points: Array = []
-	for i in STRIDE_SAMPLES + 1:
-		var t := animation.length * i / STRIDE_SAMPLES
-		points.append(feet.map(func(b: int) -> Vector3: return to_figure * _bone_at(animation, prefix, b, t).origin))
-	var steps := PackedFloat32Array()
-	var airborne: Array[bool] = []
-	var total := 0.0
-	var floor_y := INF
-	for p: Array in points:
-		floor_y = minf(floor_y, minf(p[0].y, p[1].y))
-	var stance := 0.0
-	var stance_steps := 0
-	for i in range(1, points.size()):
-		var k := 0 if points[i][0].y + points[i - 1][0].y < points[i][1].y + points[i - 1][1].y else 1
-		var back: float = maxf(0.0, points[i][k].z - points[i - 1][k].z)
-		steps.append(back)
-		total += back
-		airborne.append(minf(points[i][k].y, points[i - 1][k].y) > floor_y + STRIDE_AIRBORNE_M)
-		if not airborne[-1] and back > 0.0:
-			stance += back
-			stance_steps += 1
-	var least := total / STRIDE_SAMPLES / 3.0
-	# Both feet up: the body flies on at the pace the clip's stance sets, so a run's flight is not raced through.
-	var flight := stance / stance_steps if stance_steps > 0 else least
-	table.append(0.0)
-	for i in steps.size():
-		table.append(table[-1] + (maxf(steps[i], flight) if airborne[i] else maxf(steps[i], least)))
-	_strides[clip_id] = table
-	return table
-
-
-## [param bone]'s skeleton-space transform in [param animation] at [param t], from its tracks or its rest.
-func _bone_at(animation: Animation, prefix: String, bone: int, t: float) -> Transform3D:
-	var path := NodePath("%s:%s" % [prefix, _skeleton.get_bone_name(bone)])
-	var rest := _skeleton.get_bone_rest(bone)
-	var at := rest.origin
-	var turn := rest.basis.get_rotation_quaternion()
-	var track := animation.find_track(path, Animation.TYPE_POSITION_3D)
-	if track >= 0:
-		at = animation.position_track_interpolate(track, t)
-	track = animation.find_track(path, Animation.TYPE_ROTATION_3D)
-	if track >= 0:
-		turn = animation.rotation_track_interpolate(track, t)
-	var local := Transform3D(Basis(turn).scaled(rest.basis.get_scale()), at)
-	var parent := _skeleton.get_bone_parent(bone)
-	return local if parent < 0 else _bone_at(animation, prefix, parent, t) * local
-
-
-static func _distance_at(table: PackedFloat32Array, phase: float) -> float:
-	var x := clampf(phase, 0.0, 1.0) * (table.size() - 1)
-	var i := mini(int(x), table.size() - 2)
-	return lerpf(table[i], table[i + 1], x - i)
-
-
-static func _phase_at(table: PackedFloat32Array, distance: float) -> float:
-	var hi := table.bsearch(distance)
-	hi = clampi(hi, 1, table.size() - 1)
-	var span := table[hi] - table[hi - 1]
-	var x := float(hi - 1) + (clampf((distance - table[hi - 1]) / span, 0.0, 1.0) if span > 0.0 else 0.0)
-	return x / (table.size() - 1)
+	if not _strides.has(clip_id):
+		_strides[clip_id] = DotHumanoidStride.table_for(_anim.get_animation(clip_id), _skeleton, _model, _to_figure())
+	return _strides[clip_id]
 
 
 func _play(wanted: StringName, rate: float) -> void:
@@ -910,55 +715,11 @@ func _play(wanted: StringName, rate: float) -> void:
 	var cross := from >= 0.0 and wanted in STRIDE_CLIPS
 	# A stride cut keeps the feet planted but would snap the arms, and the gun in the hand with them.
 	if cross:
-		_eased_from.clear()
-		for bone: String in _upper:
-			_eased_from[_upper[bone]] = _skeleton.get_bone_pose_rotation(_upper[bone])
-		for bone: String in ["Body", "Hips", HAND_BONE]:
-			var b := _skeleton.find_bone(bone)
-			if b >= 0:
-				_eased_from[b] = _skeleton.get_bone_pose_rotation(b)
-				_eased_pos[b] = _skeleton.get_bone_pose_position(b)
-		_ease_left = EASE_S
-	var feet := _feet_now() if cross else PackedVector3Array()
+		_ease.begin(_skeleton, _upper, HAND_BONE)
+	var feet := DotHumanoidStride.feet_now(_skeleton, _to_figure()) if cross else PackedVector3Array()
 	_anim.play(wanted, 0.0 if cross else 0.15)
 	if cross and not feet.is_empty():
-		_anim.seek(_matching_time(wanted, feet), true)
-
-
-## The feet's figure-frame positions in the pose on screen now.
-func _feet_now() -> PackedVector3Array:
-	var out := PackedVector3Array()
-	var to_figure := _to_figure()
-	for foot in [&"Foot.L", &"Foot.R"]:
-		var b := _skeleton.find_bone(foot)
-		if b < 0:
-			return PackedVector3Array()
-		out.append(to_figure * (_skeleton.get_bone_global_pose(b).origin))
-	return out
-
-
-## The time in [param clip_id] whose feet sit closest to [param feet], so a clip entered there carries the planted (lower) foot on as it was.
-func _matching_time(clip_id: StringName, feet: PackedVector3Array) -> float:
-	var animation := _anim.get_animation(clip_id)
-	var prefix := String(_model.get_path_to(_skeleton))
-	var ids := [_skeleton.find_bone("Foot.L"), _skeleton.find_bone("Foot.R")]
-	var to_figure := _to_figure()
-	var low := 0 if feet[0].y <= feet[1].y else 1
-	var best := 0.0
-	var least := INF
-	for i in STRIDE_SAMPLES * 2:
-		var t := animation.length * i / (STRIDE_SAMPLES * 2)
-		var at: Array[Vector3] = [to_figure * _bone_at(animation, prefix, ids[0], t).origin, to_figure * _bone_at(animation, prefix, ids[1], t).origin]
-		# The planted foot must be the clip's lower one too: a run's flight would lift it off the ground.
-		if (at[0].y <= at[1].y) != (low == 0):
-			continue
-		var cost := 0.0
-		for k in 2:
-			cost += at[k].distance_squared_to(feet[k]) * (20.0 if k == low else 1.0)
-		if cost < least:
-			least = cost
-			best = t
-	return best
+		_anim.seek(DotHumanoidStride.matching_time(_anim.get_animation(wanted), _skeleton, _model, _to_figure(), feet), true)
 
 
 ## How far through its stride the playing clip's planted foot is, 0 to 1, or -1 when it is not a stride clip. A clip entered at this fraction keeps the foot it stands on travelling with the ground.
@@ -969,7 +730,7 @@ func _stride_fraction() -> float:
 	if table.size() < 2 or table[-1] <= 0.0:
 		return -1.0
 	var length := _anim.current_animation_length
-	return _distance_at(table, fposmod(_anim.current_animation_position, length) / length) / table[-1]
+	return DotHumanoidStride.distance_at(table, fposmod(_anim.current_animation_position, length) / length) / table[-1]
 
 
 ## Ends a looping or full-body action when the player leaves the spot: a pose is for standing.
@@ -1043,76 +804,20 @@ func _apply_overlays() -> void:
 			continue
 		var q := source.rotation_track_interpolate(track, t)
 		var now := _skeleton.get_bone_pose_rotation(index)
-		_skeleton.set_bone_pose_rotation(index, _toward(now, q, clampf(weight, 0.0, 1.0), _overlay_gain))
+		_skeleton.set_bone_pose_rotation(index, DotHumanoidBlend.toward(now, q, clampf(weight, 0.0, 1.0), _overlay_gain))
 
 
-## [param from] turned [param weight] of the way to [param to], the angle then multiplied by [param gain]; a slerp past 1 flips the long way round and pops.
-static func _toward(from: Quaternion, to: Quaternion, weight: float, gain: float) -> Quaternion:
-	if gain == 1.0:
-		return from.slerp(to, weight)
-	var d := from.inverse() * to
-	if d.w < 0.0:
-		d = -d
-	var angle := d.get_angle()
-	if angle < 0.0001:
-		return from
-	return from * Quaternion(d.get_axis(), angle * weight * gain)
-
-
-## Eases the upper body from the pose a stride cut left into the new clip's, so a hand-held weapon turns smoothly.
-func _apply_ease(dt: float) -> void:
-	if _ease_left <= 0.0:
-		return
-	_ease_left = maxf(0.0, _ease_left - dt)
-	var w := 1.0 - _ease_left / EASE_S
-	for index: int in _eased_from:
-		var from: Quaternion = _eased_from[index]
-		_skeleton.set_bone_pose_rotation(index, from.slerp(_skeleton.get_bone_pose_rotation(index), w))
-	for index: int in _eased_pos:
-		var at: Vector3 = _eased_pos[index]
-		_skeleton.set_bone_pose_position(index, at.lerp(_skeleton.get_bone_pose_position(index), w))
-	if _ease_left <= 0.0:
-		_eased_from.clear()
-		_eased_pos.clear()
-
-
-## Bends the waist and chest by [member aim_pitch] about the figure's own left-to-right axis,
-## after the clip and the overlays, so whatever the arms are doing points up or down with the
-## view. Not while down, dead, swimming or climbing (the body is not upright to bend), and only
-## on a bone the playing clip keys: a bone no track writes keeps last frame's pose, and the bend
-## would add up frame after frame.
+## Bends the waist and chest by [member aim_pitch] after the clip and the overlays, so what the arms
+## do points up or down with the view; not while down, dead, swimming or climbing, and only on a
+## bone the playing clip keys (see [DotHumanoidAim]).
 func _apply_aim() -> void:
 	if _skeleton == null or (is_zero_approx(aim_pitch) and sprint_blend <= 0.0) or downed:
 		return
 	if state == DotPlayerAnimState.DEAD or state == DotPlayerAnimState.SWIM or state == DotPlayerAnimState.CLIMB:
 		return
 	var animation := _anim.get_animation(clip)
-	if animation == null:
-		return
-	# Figure right, in skeleton space: the axis a nod turns about.
-	var axis := (_to_figure().basis.inverse() * Vector3.RIGHT).normalized()
-	var prefix := String(_model.get_path_to(_skeleton))
-	# Every parent's pose is read before any bone is turned. Turns about one axis commute, so each
-	# bone's share goes on through its parent's unturned frame: local' = P^-1 * turn * P * local.
-	# Read from the local poses up the chain, not get_bone_global_pose: the skeleton updates its
-	# global poses later in the frame, so that is last frame's (with last frame's bend in it).
-	var shares: Dictionary = DotHumanoidClips.AIM_BONES
-	if hold != Hold.NONE:
-		shares = shares.merged(DotHumanoidClips.AIM_ARM)
-	var parents := {}
-	for bone: String in shares:
-		var i := _skeleton.find_bone(bone)
-		if i >= 0:
-			parents[i] = DotHumanoidIk.chain_rotation(_skeleton, _skeleton.get_bone_parent(i))
-	for bone: String in shares:
-		var i := _skeleton.find_bone(bone)
-		if i < 0 or animation.find_track(NodePath("%s:%s" % [prefix, bone]), Animation.TYPE_ROTATION_3D) < 0:
-			continue
-		var share: float = shares[bone]
-		var p: Quaternion = parents[i]
-		var drop := -SPRINT_DROP * sprint_blend if DotHumanoidClips.AIM_ARM.has(bone) else 0.0
-		var turn := Quaternion(axis, aim_pitch * share + drop)
-		_skeleton.set_bone_pose_rotation(i, (p.inverse() * turn * p * _skeleton.get_bone_pose_rotation(i)).normalized())
+	if animation != null:
+		DotHumanoidAim.apply(_skeleton, _model, animation, _to_figure(), hold != Hold.NONE, aim_pitch, sprint_blend)
 
 
 ## Where the support hand goes: the weapon's foregrip, [constant Vector3.INF] when the gun is held with one
@@ -1160,36 +865,6 @@ func _apply_swim(delta: float) -> void:
 	_model.transform = about * Transform3D(_model_basis, _model_origin)
 
 
-func _step_for_distance() -> int:
-	var viewport := get_viewport() if is_inside_tree() else null
-	var camera := viewport.get_camera_3d() if viewport != null else null
-	if camera == null:
-		return 1
-	var d := camera.global_position.distance_to(global_position)
-	if _mesh != null:
-		var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if d <= SHADOW_RANGE else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		if _mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY and _mesh.cast_shadow != shadow:
-			_mesh.cast_shadow = shadow
-	if d <= ANIM_NEAR:
-		return 1
-	return 2 if d <= ANIM_FAR else 4
-
-
-## The body's height at rest, from its mesh (the unposed bind shape, which is standing).
-func _measure() -> float:
-	if _mesh == null or _mesh.mesh == null:
-		return 1.8
-	var aabb := _mesh.mesh.get_aabb()
-	# The mesh's own transform under the model (the importer may scale the armature).
-	var to_model := Transform3D.IDENTITY
-	var node: Node = _mesh
-	while node != null and node != _model:
-		if node is Node3D:
-			to_model = (node as Node3D).transform * to_model
-		node = node.get_parent()
-	return (to_model * aabb).size.y
-
-
 ## The directory the people's files are in.
 static func directory() -> String:
 	return DotHumanoidAssets.directory()
@@ -1232,23 +907,6 @@ static func material_count() -> int:
 ## Drops every shared scene, library, material, shader and atlas so a process can exit without leaking them.
 static func clear_cache() -> void:
 	DotHumanoidAssets.clear_cache()
-
-
-static func _capsule(p_height: float, colour: Color) -> Node3D:
-	var root := Node3D.new()
-	root.name = "Capsule"
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	var trunk := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.32
-	capsule.height = p_height
-	trunk.mesh = capsule
-	trunk.material_override = material
-	trunk.position = Vector3(0.0, p_height * 0.5, 0.0)
-	trunk.name = "torso"
-	root.add_child(trunk)
-	return root
 
 
 func describe() -> Dictionary:
