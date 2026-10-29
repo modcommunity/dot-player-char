@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 119
+const CHECKS := 120
 
 var _passed := 0
 var _failed := 0
@@ -696,15 +696,16 @@ func _test_held_arms() -> void:
 	var sk: Skeleton3D = (arms.arms() as DotHumanoidFigure).skeleton()
 	_check(arms.arms().visible and arms.describe()["held"], "shown while a grip is set")
 	var right := _bone_world(sk, "Middle1.R")
-	_check(right.distance_to(weapon.to_global(grip)) < 0.03, "the firing hand is on the grip (%.3f m)" % right.distance_to(weapon.to_global(grip)))
+	_check(right.distance_to(_palm(arms, weapon.to_global(grip))) < 0.03, "the firing hand is palm_offset from the grip (%.3f m)" % right.distance_to(_palm(arms, weapon.to_global(grip))))
+	_check(arms.palm_offset != Vector3.ZERO and right.distance_to(weapon.to_global(grip)) > 0.05, "by default the wrist is off the gun's centreline so the hand does not cover it (%.3f m)" % right.distance_to(weapon.to_global(grip)))
 	var left := _bone_world(sk, "Middle1.L")
-	_check(left.distance_to(weapon.to_global(fore)) < 0.05, "the support hand reaches the foregrip (%.3f m)" % left.distance_to(weapon.to_global(fore)))
+	_check(left.distance_to(_palm(arms, weapon.to_global(fore), true)) < 0.05, "the support hand reaches the foregrip (%.3f m)" % left.distance_to(_palm(arms, weapon.to_global(fore), true)))
 	_check(sk.get_bone_pose_scale(sk.find_bone("Head")).x < 0.01 and sk.get_bone_pose_scale(sk.find_bone("UpperLeg.L")).x < 0.01, "head and legs are shrunk away")
 	weapon.position += Vector3(0.1, 0.05, -0.05)
 	for i in 3:
 		arms.tick(0.0, 1.0 / 30.0)
 	var moved := _bone_world(sk, "Middle1.R")
-	_check(moved.distance_to(weapon.to_global(grip)) < 0.03 and moved.distance_to(right) > 0.05, "the hand follows the weapon when it moves (%.3f m off)" % moved.distance_to(weapon.to_global(grip)))
+	_check(moved.distance_to(_palm(arms, weapon.to_global(grip))) < 0.03 and moved.distance_to(right) > 0.05, "the hand follows the weapon when it moves (%.3f m off)" % moved.distance_to(_palm(arms, weapon.to_global(grip))))
 	var before := arms.sway()
 	for i in 20:
 		arms.tick(5.0, 1.0 / 30.0)
@@ -712,7 +713,7 @@ func _test_held_arms() -> void:
 	var worst := 0.0
 	for i in 150:
 		arms.tick(5.0, 1.0 / 30.0)
-		worst = maxf(worst, _bone_world(sk, "Middle1.R").distance_to(weapon.to_global(grip)))
+		worst = maxf(worst, _bone_world(sk, "Middle1.R").distance_to(_palm(arms, weapon.to_global(grip))))
 		worst = maxf(worst, _bone_world(sk, "LowerArm.R").distance_to(weapon.to_global(grip)) - 0.6)
 	_check(worst < 0.03, "the hand stays on the grip through a long walk (worst %.3f m)" % worst)
 	arms.set_held(DotViewGrip.one_hand(weapon, grip))
@@ -745,6 +746,12 @@ func _test_held_arms() -> void:
 	_check(not DotViewGrip.new().is_valid(), "a grip with no anchor is not valid, so the arms rest")
 	arms.queue_free()
 	weapon.queue_free()
+
+
+## Where the wrist should be for a grip point: the point shifted by palm_offset in the arms' frame (x mirrored for the support hand).
+func _palm(arms: DotPlayerViewArms, point: Vector3, support := false) -> Vector3:
+	var o := arms.palm_offset
+	return point + arms.global_transform.basis * Vector3(-o.x if support else o.x, o.y, o.z)
 
 
 func _bone_world(sk: Skeleton3D, bone: String) -> Vector3:

@@ -34,14 +34,17 @@ var held_eye_from_head: Vector3 = Vector3(0.0, 0.18, 0.06)
 const LEFT_REST := Vector3(-0.25, 0.9, 0.1)
 var elbow_pole: Vector3 = Vector3(1.0, -1.2, 0.5)
 ## The held arms' size and how much wider apart the shoulders sit: slimmer arms leave the weapon visible.
-var held_scale: float = 1.0
+var held_scale: float = 0.75
 var held_spread: float = 1.25
 ## Draw the support forearm and hand as the firing ones mirrored, so one-sided forearm gear never crosses the view.
 var mirror_support_forearm: bool = true
 ## Show the idle left arm in a one-hand grip. Off: it has no hand in view, only its sleeve at the screen edge.
 var show_idle_left_arm: bool = false
 ## The hand's size with a weapon (1 is the kit's own mitts).
-var hand_scale: float = 0.68
+var hand_scale: float = 0.5
+## Where the wrist sits from the grip point, in the arms' frame (x out to the hand's side, y up, -z forward): the grip
+## points are on a gun's centreline, so a wrist left on them lays the whole hand over the gun and its sights.
+var palm_offset: Vector3 = Vector3(0.0, -0.04, 0.07)
 ## Idle breathing and walk bob, metres: [method sway] is what the host adds to its weapon mount.
 var breath_amplitude: float = 0.003
 var bob_amplitude: float = 0.012
@@ -365,11 +368,12 @@ func _reach(skeleton: Skeleton3D) -> void:
 		_left = DotHumanoidIk.keyed_bones(skeleton, figure.body_node(), _clip_of(figure), ["UpperArm.L", "LowerArm.L", "Middle1.L"])
 
 	if not _right.is_empty():
-		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * _grip.grip_world(), out, 1.0)
+		var shift := global_transform.basis * palm_offset
+		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * (_grip.grip_world() + shift), out, 1.0)
 
 	if not _left.is_empty() and not _left_hidden():
 		var rest := figure.global_transform * (_base + LEFT_REST)
-		var target := _grip.support_world() if _grip.is_two_hand() else rest
+		var target := _grip.support_world() + global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z) if _grip.is_two_hand() else rest
 		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, Vector3(-out.x, out.y, out.z), 1.0)
 
 
