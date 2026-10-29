@@ -10,8 +10,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 9
-const CHECKS := 87
+const SECTIONS := 10
+const CHECKS := 94
 
 var _passed := 0
 var _failed := 0
@@ -34,6 +34,7 @@ func _run() -> void:
 	_test_materials()
 	await _test_break()
 	_test_unimported()
+	await _test_view_arms()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -529,6 +530,34 @@ func _test_upload() -> void:
 	_check(plays and rest.angle_to(moved) > 0.3, "and plays on the kit's arm (%.2f rad)" % rest.angle_to(moved))
 	f.free()
 	scene.free()
+
+
+func _test_view_arms() -> void:
+	_section("your own arms while downed")
+	var arms := DotPlayerViewArms.new()
+	add_child(arms)
+	arms.build(DotHumanoidLook.stock(3), 1.8)
+	_check(arms.arms() is DotHumanoidFigure and not arms.arms().visible, "built hidden, as a figure")
+	_check(arms.describe()["hidden_bones"] == 4, "head, neck and both legs are shrunk away")
+	arms.set_downed(true)
+	for i in 4:
+		arms.tick(1.0, 1.0 / 30.0)
+		await get_tree().process_frame
+	_check(arms.arms().visible, "shown while downed")
+	var sk: Skeleton3D = (arms.arms() as DotHumanoidFigure).skeleton()
+	_check(sk.get_bone_pose_scale(sk.find_bone("Head")).x < 0.01 and sk.get_bone_pose_scale(sk.find_bone("LowerArm.L")).x > 0.5, "the head is gone and the arms are not")
+	var head := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Head"))).origin
+	var hand := (sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Middle1.L"))).origin
+	_check(hand.z < head.z - 0.2 and hand.y < head.y, "the hand reaches ahead of the eye (-Z) and below it")
+	arms.set_downed(false)
+	_check(not arms.arms().visible, "hidden once up")
+	var custom := DotPlayerViewArms.new()
+	add_child(custom)
+	custom.arms_factory = func(_l, _h): return Node3D.new()
+	custom.build()
+	_check(custom.describe()["custom"] and custom.arms().get_class() == "Node3D", "a game supplies its own arms")
+	arms.queue_free()
+	custom.queue_free()
 
 
 func _section(title: String) -> void:

@@ -17,5 +17,6 @@ extends RefCounted
 # 4: the `driving` motion key and DotHumanoidClips.DRIVE (a retargeted Driving_Loop in people_ual.res).
 # 5: DotHumanoidActions and DotHumanoidFigure.play_action/stop_action: the 13 starter emotes, poses and gestures.
 # 6: DotHumanoidFigure.add_action_scene, DotHumanoidActions.from_upload/humanoid_bone_map/profile_bone_of: uploaded clips.
-const LEVEL := 6
+# 7: DotPlayerViewArms: your own crawling arms in first person while downed (arms_factory to replace them).
+const LEVEL := 7
 const OLDEST := 1
