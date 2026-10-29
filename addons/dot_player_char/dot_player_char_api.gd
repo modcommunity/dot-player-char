@@ -20,5 +20,6 @@ extends RefCounted
 # 7: DotPlayerViewArms: your own crawling arms in first person while downed (arms_factory to replace them).
 # 8: DotPlayerViewArms.set_held and DotViewGrip: the arms posed on a weapon mesh the host supplies.
 # 9: DotHumanoidFigure.sprint_speed and DotHumanoidClips.SPRINT: a runner above it plays the real sprint clip.
-const LEVEL := 9
+# 10: DotFootPlant (feet planted over a gait phase) and DotHumanoidIk.two_bone_to.
+const LEVEL := 10
 const OLDEST := 1

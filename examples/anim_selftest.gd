@@ -12,8 +12,8 @@ extends Node
 ## godot --headless --path . res://examples/anim_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 6
-const CHECKS := 98
+const SECTIONS := 7
+const CHECKS := 106
 
 var _passed := 0
 var _failed := 0
@@ -35,6 +35,7 @@ func _run() -> void:
 	_test_set()
 	await _test_driver()
 	await _test_sinks()
+	_test_foot_plant()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -525,6 +526,55 @@ func _test_sinks() -> void:
 
 
 # --- Harness ---------------------------------------------------------------
+
+func _test_foot_plant() -> void:
+	_section("foot plant")
+
+	var plant := DotFootPlant.new()
+	var velocity := Vector3(1.2, 0.0, 0.0)
+	var dt := 1.0 / 60.0
+	var still := 0.0
+	var apex := 0.0
+	var hop := 0.0
+	var touchdown_gap := 0.0
+	var last: Array[Vector3] = []
+	var was_planted := [true, true]
+	for frame in 180:
+		var t := frame * dt
+		var body := velocity * t
+		var feet := plant.step(t / 1.0, [body + Vector3(0, 0, -0.1), body + Vector3(0, 0, 0.1)] as Array[Vector3], velocity, 1.0)
+		for i in 2:
+			apex = maxf(apex, feet[i].y)
+			if not last.is_empty():
+				hop = maxf(hop, feet[i].distance_to(last[i]))
+				if plant.is_planted(i) and was_planted[i]:
+					still = maxf(still, feet[i].distance_to(last[i]))
+				elif plant.is_planted(i):
+					touchdown_gap = maxf(touchdown_gap, Vector2(feet[i].x - last[i].x, feet[i].z - last[i].z).length())
+			was_planted[i] = plant.is_planted(i)
+		last = feet
+	_check(still < 0.0001, "a planted foot stays where it landed while the body walks on (%.5f m)" % still)
+	_check(absf(apex - plant.lift) < 0.01, "a swing rises to the lift (%.3f m)" % apex)
+	_check(hop < 0.12, "no foot jumps between frames (%.3f m)" % hop)
+	_check(touchdown_gap < 0.02, "a foot lands where its swing was going (%.3f m)" % touchdown_gap)
+
+	var turned := plant.step(0.1, [Vector3(5, 0, 0), Vector3(5, 0, 0)] as Array[Vector3], velocity, 1.0)
+	_check(turned[0].distance_to(Vector3(5, 0, 0)) < plant.reach, "a body moved far away plants again under itself")
+	plant.reset()
+	_check(not plant.is_planted(0) and not plant.is_planted(1), "reset forgets every plant")
+
+	var skeleton := Skeleton3D.new()
+	skeleton.add_bone("Upper")
+	skeleton.add_bone("Lower")
+	skeleton.set_bone_parent(1, 0)
+	skeleton.set_bone_rest(1, Transform3D(Basis.IDENTITY, Vector3(0, -0.5, 0)))
+	skeleton.reset_bone_poses()
+	var reached := DotHumanoidIk.two_bone_to(skeleton, 0, 1, Vector3(0, -0.5, 0), Vector3(0.3, -0.6, 0.2), Vector3(0, 0, 1), 1.0)
+	_check(reached.distance_to(Vector3(0.3, -0.6, 0.2)) < 0.002, "two_bone_to reaches a target in reach (%.4f m off)" % reached.distance_to(Vector3(0.3, -0.6, 0.2)))
+	reached = DotHumanoidIk.two_bone_to(skeleton, 0, 1, Vector3(0, -0.5, 0), Vector3(0, -3, 0), Vector3(0, 0, 1), 1.0)
+	_check(absf(reached.length() - 1.0) < 0.01 and reached.y < -0.99, "and straightens toward one out of reach")
+	skeleton.free()
+
 
 func _section(title: String) -> void:
 	_section_count += 1

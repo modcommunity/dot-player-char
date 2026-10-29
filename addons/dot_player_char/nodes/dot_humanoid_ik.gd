@@ -36,6 +36,35 @@ static func two_bone(skeleton: Skeleton3D, bones: Array[int], target: Vector3, p
 	skeleton.set_bone_pose_rotation(bones[1], skeleton.get_bone_pose_rotation(bones[1]).slerp(lower_local, w))
 
 
+## Two-bone IK for a limb whose end is a point, not a bone: [param end_local] is that point in
+## [param lower]'s frame (a leg whose foot bone hangs off the root). Returns where the end reached.
+static func two_bone_to(skeleton: Skeleton3D, upper: int, lower: int, end_local: Vector3, target: Vector3, pole_dir: Vector3, weight: float) -> Vector3:
+	var top := global_pose(skeleton, upper)
+	var mid := global_pose(skeleton, lower)
+	var a := mid.origin - top.origin
+	var b := mid * end_local - mid.origin
+	var la := a.length()
+	var lb := b.length()
+	var to_target := target - top.origin
+	if la < 0.0001 or lb < 0.0001 or to_target.length() < 0.0001:
+		return mid * end_local
+	var reach := clampf(to_target.length(), absf(la - lb) + 0.001, la + lb - 0.001)
+	var dir := to_target.normalized()
+	var along := (la * la - lb * lb + reach * reach) / (2.0 * reach)
+	var side := pole_dir - dir * pole_dir.dot(dir)
+	side = side.normalized() if side.length_squared() > 0.000001 else Vector3.UP
+	var knee := top.origin + dir * along + side * sqrt(maxf(la * la - along * along, 0.0))
+	var q1 := Quaternion(a.normalized(), (knee - top.origin).normalized())
+	var q2 := Quaternion((q1 * b).normalized(), (top.origin + dir * reach - knee).normalized())
+	var upper_rot := (q1 * top.basis.get_rotation_quaternion()).normalized()
+	var lower_rot := (q2 * q1 * mid.basis.get_rotation_quaternion()).normalized()
+	var parent := global_pose(skeleton, skeleton.get_bone_parent(upper)).basis.get_rotation_quaternion()
+	var w := clampf(weight, 0.0, 1.0)
+	skeleton.set_bone_pose_rotation(upper, skeleton.get_bone_pose_rotation(upper).slerp((parent.inverse() * upper_rot).normalized(), w))
+	skeleton.set_bone_pose_rotation(lower, skeleton.get_bone_pose_rotation(lower).slerp((upper_rot.inverse() * lower_rot).normalized(), w))
+	return global_pose(skeleton, lower) * end_local
+
+
 ## Bone [param bone]'s transform in skeleton space from the local poses as they are now (the skeleton's own
 ## global poses are last frame's).
 static func global_pose(skeleton: Skeleton3D, bone: int) -> Transform3D:
