@@ -161,6 +161,9 @@ const STRIDE_AIRBORNE_M := 0.06
 ## Ground speed from which a runner plays the sprint clip when the game sends no `sprinting` key (0 picks 1.6 times the run speed), and how far below it the run clip returns.
 var sprint_speed: float = 0.0
 const SPRINT_EXIT := 0.8
+
+## Fastest a runner plays the run clip; faster plays the grounded sprint clip, since the run clip's flight hovers.
+const RUN_CLIP_MAX_SPEED := 5.5
 var _sprint_clip: bool = false
 
 ## Ground speed above which the figure runs, and below which a runner walks again ([member DotPlayerAnimState.run_speed], [member DotPlayerAnimState.run_exit_speed]). A game whose walking pace is near the default 4.0 raises them so a walk does not play the hunched run clip.
@@ -686,6 +689,8 @@ func _sprint_clip_for(speed: float) -> bool:
 		_sprint_clip = sprinting
 	else:
 		var from := sprint_speed if sprint_speed > 0.0 else _machine.run_speed * 1.6
+		# The run clip hovers (both feet up) above its own pace; the sprint clip stays grounded.
+		from = minf(from, RUN_CLIP_MAX_SPEED)
 		_sprint_clip = speed >= from - (SPRINT_EXIT if _sprint_clip else 0.0)
 	return _sprint_clip
 

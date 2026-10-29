@@ -225,6 +225,8 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 			continue
 		var walking: bool = pair[1] == CROUCH_WALK
 		var made := _bent(library.get_animation(pair[0]), idle, duck, low, CROUCH_WALK_BEND if walking else 1.0)
+		if skeleton != null:
+			_lift_to_feet(made, library.get_animation(pair[0]), skeleton)
 		if walking:
 			_bob(made, CROUCH_WALK_BOB)
 		if library.has_animation(pair[1]):
@@ -611,6 +613,42 @@ static func _bent(base: Animation, idle: Animation, duck: Animation, low: float,
 			elif type == Animation.TYPE_POSITION_3D:
 				made.track_set_key_value(t, k, (v as Vector3) + ((bent_value as Vector3) - (rest_value as Vector3)) * amount)
 	return made
+
+
+## Raises the body at each of its keys by however far the made crouch's lowest ankle (a shin's end:
+## the foot bones hang off the root) is under [param base]'s, so the bent legs still reach the floor.
+static func _lift_to_feet(made: Animation, base: Animation, skeleton: Skeleton3D) -> void:
+	var track := _body_track(made)
+	var body := skeleton.find_bone("Body")
+	if track < 0 or body < 0:
+		return
+	var shins: Array[int] = []
+	var anchors: Array[Vector3] = []
+	for side in [".L", ".R"]:
+		var shin := skeleton.find_bone("LowerLeg" + side)
+		var foot := skeleton.find_bone("Foot" + side)
+		if shin >= 0 and foot >= 0:
+			shins.append(shin)
+			anchors.append(skeleton.get_bone_global_rest(shin).affine_inverse() * skeleton.get_bone_global_rest(foot).origin)
+	if shins.is_empty():
+		return
+	var up := Vector3.UP
+	var parent := skeleton.get_bone_parent(body)
+	if parent >= 0:
+		up = (_globals(_locals(base, 0.0, skeleton), skeleton)[parent] as Transform3D).basis.inverse() * Vector3.UP
+	for k in made.track_get_key_count(track):
+		var t := made.track_get_key_time(track, k)
+		var gap := _ankle_low(base, t, skeleton, shins, anchors) - _ankle_low(made, t, skeleton, shins, anchors)
+		if gap > 0.0:
+			made.track_set_key_value(track, k, (made.track_get_key_value(track, k) as Vector3) + up * gap)
+
+
+static func _ankle_low(animation: Animation, time: float, skeleton: Skeleton3D, shins: Array[int], anchors: Array[Vector3]) -> float:
+	var g := _globals(_locals(animation, time, skeleton), skeleton)
+	var low := INF
+	for i in shins.size():
+		low = minf(low, ((g[shins[i]] as Transform3D) * anchors[i]).y)
+	return low
 
 
 ## The hips dip at each footfall, twice a cycle: a crouch walk that holds one height slides.

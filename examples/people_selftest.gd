@@ -172,10 +172,12 @@ func _test_figure() -> void:
 	_check(f.clip == DotHumanoidClips.IDLE, "standing: idle")
 	f.animate(1.5, 0.1)
 	_check(f.clip == DotHumanoidClips.WALK, "walking: walk")
-	f.animate(6.0, 0.1)
+	f.animate(5.0, 0.1)
 	_check(f.clip == DotHumanoidClips.RUN, "running: run")
-	f.set_hold(DotHumanoidFigure.Hold.GUN)
 	f.animate(6.0, 0.1)
+	_check(f.clip == DotHumanoidClips.SPRINT, "above the run clip's pace: the grounded sprint clip, not a hovering run")
+	f.set_hold(DotHumanoidFigure.Hold.GUN)
+	f.animate(4.0, 0.1)
 	_check(f.clip == DotHumanoidClips.RUN_GUN, "running with a gun: the gun run")
 	for _i in 5:
 		f.animate(6.0, 0.1)
@@ -224,7 +226,7 @@ func _test_figure() -> void:
 
 	f.set_motion({})
 	f.set_hold(DotHumanoidFigure.Hold.MELEE)
-	f.animate(6.0, 0.1)
+	f.animate(5.0, 0.1)
 	f.swing()
 	_check(f.overlay == DotHumanoidClips.SLASH and f.clip == DotHumanoidClips.RUN, "a swing plays over the run: the legs keep running")
 	for i in range(20):
