@@ -153,6 +153,14 @@ var auto_smooth_time: float = 0.0
 ## The clips whose rate follows the planted foot ([method _matched_rate]), and the fastest they play.
 const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN,
 	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK, DotHumanoidClips.SPRINT]
+## A crawling body's feet: planted until the leg is stretched to [constant CRAWL_FAR] of its length,
+## then swung in [constant CRAWL_SWING_S] to where it is bent to [constant CRAWL_NEAR], one at a time.
+const CRAWL_FAR := 0.9
+const CRAWL_NEAR := 0.35
+const CRAWL_SWING_S := 0.16
+const CRAWL_LIFT_M := 0.1
+const CRAWL_BLEND_S := 0.15
+const CRAWL_LEGS := [["UpperLeg.L", "LowerLeg.L", "Foot.L"], ["UpperLeg.R", "LowerLeg.R", "Foot.R"]]
 const STRIDE_SAMPLES := 48
 const STRIDE_MAX_RATE := 4.0
 ## How far above the clip's lowest foot the lower foot is in flight (a run's both-feet-up stretch).
@@ -209,8 +217,11 @@ var _stop_time: float = 0.0
 var _overlay_blend: float = BLEND_IN
 var _action_full: StringName = &""
 var _owed: float = 0.0
+var _crawl_at: Array[Vector3] = []
+var _crawl_swing: Array[float] = []
+var _crawl_weight: float = 0.0
 var _frame: int = 0
-var _posed_usec: int = -1
+var _posed_frame: int = -1
 var _upper: Dictionary = {}
 var _swim_pitch: float = 0.0
 var _prop_pitch: float = 0.0
@@ -333,10 +344,18 @@ func recolour(p_look: DotHumanoidLook) -> void:
 func pose(at: Vector3, yaw_radians: float, speed: float) -> void:
 	global_position = at
 	rotation = Vector3(0.0, yaw_radians, 0.0)
-	var now := Time.get_ticks_usec()
-	var delta := 0.0 if _posed_usec < 0 else clampf((now - _posed_usec) / 1e6, 0.0, 0.1)
-	_posed_usec = now
-	animate(speed, delta)
+	animate(speed, frame_delta())
+
+
+## Game seconds since the last call, once per drawn frame (0 on a second call in the same frame),
+## clamped to 0.1. Game time, not the wall clock: the body moves by it, so the feet must too
+## (a slowed, fixed-rate or recorded frame otherwise skates them).
+func frame_delta() -> float:
+	var now := Engine.get_process_frames()
+	var frames := 0 if _posed_frame < 0 else now - _posed_frame
+	_posed_frame = now
+	var step := get_process_delta_time() if is_inside_tree() else 0.0
+	return clampf(step * frames, 0.0, 0.1)
 
 
 ## Advances the animation by [param delta] at ground [param speed]. [method pose] calls it; a suite
@@ -372,12 +391,90 @@ func animate(speed: float, delta: float) -> void:
 	if matched >= 0.0:
 		_anim.speed_scale = matched
 	_anim.advance(_owed)
+	var advanced := _owed
 	_owed = 0.0
 	_apply_overlays()
 	_apply_aim()
 	_apply_support()
 	_apply_head()
 	_apply_swim(delta * anim_step)
+	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
+	_apply_crawl_feet(speed, advanced)
+
+
+## The clip's feet scrape the ground at a pace of their own, so a crawling body's feet are held
+## still in the world and stepped by IK when the leg runs out of reach. A phase-timed plant
+## ([DotFootPlant]) overreaches here: the legs are short and the clip surges the hips.
+func _apply_crawl_feet(speed: float, dt: float) -> void:
+	var id := StringName(downed_clips.get(&"crawl", DotHumanoidClips.CRAWL))
+	_crawl_weight = move_toward(_crawl_weight, 1.0 if speed >= 0.1 else 0.0, dt / CRAWL_BLEND_S)
+	if not downed or propped or clip != id or _anim.current_animation != String(id) or _crawl_weight <= 0.0:
+		_crawl_at.clear()
+		_crawl_weight = 0.0
+		return
+	var legs: Array = []
+	for names: Array in CRAWL_LEGS:
+		var ids: Array[int] = [_skeleton.find_bone(names[0]), _skeleton.find_bone(names[1]), _skeleton.find_bone(names[2])]
+		if ids.has(-1):
+			return
+		legs.append(ids)
+	# In the world, about the figure's own upright frame: the model may still be tilting out of a pose.
+	var to_world := _skeleton.global_transform
+	var to_skel := to_world.affine_inverse()
+	var sized := to_world.basis.get_scale().y
+	var back := Vector3(global_transform.basis.z.x, 0.0, global_transform.basis.z.z).normalized()
+	var right := Vector3(global_transform.basis.x.x, 0.0, global_transform.basis.x.z).normalized()
+	var hips: Array[Vector3] = []
+	var ankles: Array[Vector3] = []
+	var lands: Array[Vector3] = []
+	var reach: Array[float] = []
+	for leg: Array in legs:
+		var knee := DotHumanoidIk.global_pose(_skeleton, leg[1])
+		var end_local := _skeleton.get_bone_global_rest(leg[1]).affine_inverse() * _skeleton.get_bone_global_rest(leg[2]).origin
+		var hip := to_world * DotHumanoidIk.global_pose(_skeleton, leg[0]).origin
+		var ankle := to_world * (knee * end_local)
+		var length := (DotHumanoidIk.global_pose(_skeleton, leg[0]).origin.distance_to(knee.origin) + end_local.length()) * sized
+		# On the floor at the standing ankle's height, beside the hip as the clip has it, bent to CRAWL_NEAR.
+		var floor_y := global_position.y + _skeleton.get_bone_global_rest(leg[2]).origin.y * sized
+		var side := (ankle - hip).dot(right)
+		var flat := Vector2(side, hip.y - floor_y).length()
+		var land := hip + right * side + back * sqrt(maxf(pow(length * CRAWL_NEAR, 2.0) - flat * flat, 0.0001))
+		land.y = floor_y
+		hips.append(hip)
+		ankles.append(ankle)
+		reach.append(length)
+		lands.append(land)
+	if _crawl_at.size() != 2:
+		_crawl_at = [Vector3(ankles[0].x, lands[0].y, ankles[0].z), Vector3(ankles[1].x, lands[1].y, ankles[1].z)]
+		_crawl_swing = [-1.0, -1.0]
+	var stretch: Array[float] = []
+	for k in 2:
+		stretch.append(hips[k].distance_to(_crawl_at[k]) / reach[k])
+	# One foot at a time, the more stretched first; a leg at full length steps regardless, or it drags.
+	var first := 0 if stretch[0] >= stretch[1] else 1
+	for k in [first, 1 - first]:
+		var other_down := _crawl_swing[1 - k] < 0.0
+		if _crawl_swing[k] < 0.0 and (stretch[k] > CRAWL_FAR and other_down or stretch[k] > 0.98):
+			_crawl_swing[k] = 0.0
+	var w := smoothstep(0.0, 1.0, _crawl_weight)
+	for k in 2:
+		var leg: Array = legs[k]
+		var target := _crawl_at[k]
+		if _crawl_swing[k] >= 0.0:
+			_crawl_swing[k] = minf(_crawl_swing[k] + dt / CRAWL_SWING_S, 1.0)
+			var s := _crawl_swing[k]
+			target = _crawl_at[k].lerp(lands[k], smoothstep(0.0, 1.0, s)) + Vector3.UP * CRAWL_LIFT_M * sin(PI * s)
+			if s >= 1.0:
+				_crawl_at[k] = lands[k]
+				_crawl_swing[k] = -1.0
+		var end_local := _skeleton.get_bone_global_rest(leg[1]).affine_inverse() * _skeleton.get_bone_global_rest(leg[2]).origin
+		# Knees out to the side, as a body crawling flat pushes: the clip's leg is too straight to steer
+		# by (its bend flips from frame to frame), and a knee pointed at the floor would go through it.
+		var hip_x := DotHumanoidIk.global_pose(_skeleton, leg[0]).origin.x
+		var pole := Vector3(signf(hip_x) if hip_x != 0.0 else 1.0, -0.3, 0.0)
+		var ankle := DotHumanoidIk.two_bone_to(_skeleton, leg[0], leg[1], end_local, to_skel * ankles[k].lerp(target, w), pole, 1.0)
+		var parent := _skeleton.get_bone_parent(leg[2])
+		_skeleton.set_bone_pose_position(leg[2], ankle if parent < 0 else DotHumanoidIk.global_pose(_skeleton, parent).affine_inverse() * ankle)
 
 
 func _apply_head() -> void:

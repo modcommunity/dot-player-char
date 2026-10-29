@@ -21,5 +21,6 @@ extends RefCounted
 # 8: DotPlayerViewArms.set_held and DotViewGrip: the arms posed on a weapon mesh the host supplies.
 # 9: DotHumanoidFigure.sprint_speed and DotHumanoidClips.SPRINT: a runner above it plays the real sprint clip.
 # 10: DotFootPlant (feet planted over a gait phase) and DotHumanoidIk.two_bone_to.
-const LEVEL := 10
+# 11: DotHumanoidFigure.frame_delta: the game-time step pose() animates by, for a figure that wraps it.
+const LEVEL := 11
 const OLDEST := 1

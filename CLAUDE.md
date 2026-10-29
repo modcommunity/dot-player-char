@@ -51,7 +51,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `nodes/dot_humanoid_figure.gd` | a person drawn: palette material per look, clip from motion, overlays, the hand, LOD stepping |
 | `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py`; `people_ual.res`, the real sit (Universal Animation Library, CC0) |
 | `tools/` | `build_people.py` (Blender), `ual_retarget.gd` (library clips onto the rig: `people_ual.res`), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`, `--compare`), `survivor_compare.gd` (made vs real clip strips), `crowd_bench.tscn` (a browser crowd measurement) |
-| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 10 since `DotFootPlant` (9: `sprint_speed`) (8: `DotViewGrip`) (7: `DotPlayerViewArms`) (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
+| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 11 since `frame_delta` (10: `DotFootPlant`) (9: `sprint_speed`) (8: `DotViewGrip`) (7: `DotPlayerViewArms`) (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
 | `examples/` | six suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
 Paths under `core/`, `nodes/` and `people/` are in `addons/dot_player_char/`; `tools/` is at the repository root and does not ship.
