@@ -26,8 +26,9 @@ var eye_from_head: Vector3 = Vector3(0.0, 0.3, -0.4)
 var look: DotHumanoidLook = null
 var height: float = 1.8
 var shown: bool = false
-## Where the camera sits from the head bone when holding a weapon (upright figure, forward is -Z).
-var held_eye_from_head: Vector3 = Vector3(0.0, 0.18, -0.05)
+## Where the camera sits from the head bone when holding a weapon (upright figure, forward is -Z). A little behind it:
+## further forward a near grip (a pump gun's) folds the elbow up beside the eye and the forearm fans across the view.
+var held_eye_from_head: Vector3 = Vector3(0.0, 0.18, 0.06)
 ## Elbow directions in the arms' frame (right arm; the left is mirrored): out, down, a little back.
 ## Where the idle hand rests, from the arms node, out of the view, when the weapon is held with one hand.
 const LEFT_REST := Vector3(-0.25, 0.9, 0.1)
