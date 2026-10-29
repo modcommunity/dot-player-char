@@ -155,6 +155,8 @@ const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips
 	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK, DotHumanoidClips.SPRINT]
 const STRIDE_SAMPLES := 48
 const STRIDE_MAX_RATE := 4.0
+## How far above the clip's lowest foot the lower foot is in flight (a run's both-feet-up stretch).
+const STRIDE_AIRBORNE_M := 0.06
 
 ## Ground speed from which a runner plays the sprint clip when the game sends no `sprinting` key (0 picks 1.6 times the run speed), and how far below it the run clip returns.
 var sprint_speed: float = 0.0
@@ -709,7 +711,8 @@ func _matched_rate(speed: float, dt: float) -> float:
 
 ## Metres over the ground at each of [constant STRIDE_SAMPLES] steps through [param clip_id]: the
 ## lower foot's backward travel in the figure's frame, never under a third of the mean so the
-## clip does not race through a moment the foot stands still in it. Cached per clip.
+## clip does not race through a moment the foot stands still in it, and in flight no less than
+## a stance step, so a run's swing plays at the clip's own pace. Cached per clip.
 func _stride_for(clip_id: StringName) -> PackedFloat32Array:
 	if _strides.has(clip_id):
 		return _strides[clip_id]
@@ -726,16 +729,28 @@ func _stride_for(clip_id: StringName) -> PackedFloat32Array:
 		var t := animation.length * i / STRIDE_SAMPLES
 		points.append(feet.map(func(b: int) -> Vector3: return to_figure * _bone_at(animation, prefix, b, t).origin))
 	var steps := PackedFloat32Array()
+	var airborne: Array[bool] = []
 	var total := 0.0
+	var floor_y := INF
+	for p: Array in points:
+		floor_y = minf(floor_y, minf(p[0].y, p[1].y))
+	var stance := 0.0
+	var stance_steps := 0
 	for i in range(1, points.size()):
 		var k := 0 if points[i][0].y + points[i - 1][0].y < points[i][1].y + points[i - 1][1].y else 1
 		var back: float = maxf(0.0, points[i][k].z - points[i - 1][k].z)
 		steps.append(back)
 		total += back
+		airborne.append(minf(points[i][k].y, points[i - 1][k].y) > floor_y + STRIDE_AIRBORNE_M)
+		if not airborne[-1] and back > 0.0:
+			stance += back
+			stance_steps += 1
 	var least := total / STRIDE_SAMPLES / 3.0
+	# Both feet up: the body flies on at the pace the clip's stance sets, so a run's flight is not raced through.
+	var flight := stance / stance_steps if stance_steps > 0 else least
 	table.append(0.0)
-	for back in steps:
-		table.append(table[-1] + maxf(back, least))
+	for i in steps.size():
+		table.append(table[-1] + (maxf(steps[i], flight) if airborne[i] else maxf(steps[i], least)))
 	_strides[clip_id] = table
 	return table
 

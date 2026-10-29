@@ -25,8 +25,9 @@ const MATT := "res://addons/dot_player_char/people/people_matt.glb"
 const OUT := "res://addons/dot_player_char/people/people_ual.res"
 
 ## The family's clip name, the library's clip name, and what is done with the body: `grounded`
-## (the lower foot put back on the floor), `free` (left where the clip has it) or `upright` (a
-## prone clip stood up about the hips, for one the figure lays down itself, like the swim).
+## (the lower foot put back on the floor), `lifted` (moved once so the loop's lowest foot is on
+## it: a run keeps its flight), `free` (left where the clip has it) or `upright` (a prone clip
+## stood up about the hips, for one the figure lays down itself, like the swim).
 const CLIPS := {
 	&"sit": ["Sitting_Idle_Loop", "grounded"],
 	&"drive": ["Driving_Loop", "grounded"],
@@ -36,7 +37,7 @@ const CLIPS := {
 	&"ual_knockback": ["Hit_Knockback", "free"],
 	&"ual_lay_to_idle": ["LayToIdle", "free"],
 	&"ual_slide": ["Slide_Loop", "free"],
-	&"ual_sprint": ["Sprint_Loop", "grounded"],
+	&"ual_sprint": ["Sprint_Loop", "lifted"],
 	&"ual_jog": ["Jog_Fwd_Loop", "grounded"],
 	&"ual_crouch_walk": ["Crouch_Fwd_Loop", "grounded"],
 	&"ual_hit_chest": ["Hit_Chest", "grounded"],
@@ -172,6 +173,14 @@ func _bake(source: Animation, from: Skeleton3D, to: Skeleton3D, prefix: String, 
 	var body := to.find_bone("Body")
 
 	var frames := maxi(1, roundi(source.length * fps))
+	var lift := INF
+	if mode == "lifted":
+		for frame in frames + 1:
+			var ual := _globals(_locals(source, from_prefix, source.length * float(frame) / float(frames), from), from)
+			var g := []
+			g.resize(to.get_bone_count())
+			lift = minf(lift, minf(_place(to.find_bone("Foot.L"), to, to_rest, from, from_rest, ual, ratio, g).origin.y,
+				_place(to.find_bone("Foot.R"), to, to_rest, from, from_rest, ual, ratio, g).origin.y))
 	for frame in frames + 1:
 		var time := source.length * float(frame) / float(frames)
 		var ual := _globals(_locals(source, from_prefix, time, from), from)
@@ -186,8 +195,8 @@ func _bake(source: Animation, from: Skeleton3D, to: Skeleton3D, prefix: String, 
 				if to.get_bone_parent(i) >= 0:
 					var t: Transform3D = g[i]
 					g[i] = Transform3D(stand * t.basis, at + stand * (t.origin - hips))
-		if mode == "grounded":
-			var lowest: float = minf(g[to.find_bone("Foot.L")].origin.y, g[to.find_bone("Foot.R")].origin.y)
+		if mode == "grounded" or mode == "lifted":
+			var lowest: float = lift if mode == "lifted" else minf(g[to.find_bone("Foot.L")].origin.y, g[to.find_bone("Foot.R")].origin.y)
 			var down := Vector3(0.0, floor_y - lowest, 0.0)
 			for i in g.size():
 				if to.get_bone_parent(i) >= 0:
