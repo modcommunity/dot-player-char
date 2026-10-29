@@ -663,6 +663,9 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 		DotPlayerAnimState.CROUCH_WALK:
 			return [DotHumanoidClips.CROUCH_WALK, clampf(speed / 1.6, 0.5, 1.6)]
 		DotPlayerAnimState.WALK:
+			# A game whose run threshold sits above its sprint speed would walk at a sprinter's pace.
+			if sprint_speed > 0.0 and speed >= sprint_speed and _sprint_clip_for(speed):
+				return [DotHumanoidClips.SPRINT, 1.0]
 			return [DotHumanoidClips.WALK_GUN if gun else DotHumanoidClips.WALK, clampf(speed / 1.9, 0.6, 1.6)]
 		DotPlayerAnimState.RUN:
 			if _sprint_clip_for(speed):
@@ -778,8 +781,56 @@ func _play(wanted: StringName, rate: float) -> void:
 	_anim.speed_scale = rate
 	if clip == wanted:
 		return
+	var from := _stride_fraction()
 	clip = wanted
-	_anim.play(wanted, 0.15)
+	var cross := from >= 0.0 and wanted in STRIDE_CLIPS
+	var feet := _feet_now() if cross else PackedVector3Array()
+	_anim.play(wanted, 0.0 if cross else 0.15)
+	if cross and not feet.is_empty():
+		_anim.seek(_matching_time(wanted, feet), true)
+
+
+## The feet's figure-frame positions in the pose on screen now.
+func _feet_now() -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var to_figure := _to_figure()
+	for foot in [&"Foot.L", &"Foot.R"]:
+		var b := _skeleton.find_bone(foot)
+		if b < 0:
+			return PackedVector3Array()
+		out.append(to_figure * (_skeleton.get_bone_global_pose(b).origin))
+	return out
+
+
+## The time in [param clip_id] whose feet sit closest to [param feet], so a clip entered there carries the planted (lower) foot on as it was.
+func _matching_time(clip_id: StringName, feet: PackedVector3Array) -> float:
+	var animation := _anim.get_animation(clip_id)
+	var prefix := String(_model.get_path_to(_skeleton))
+	var ids := [_skeleton.find_bone("Foot.L"), _skeleton.find_bone("Foot.R")]
+	var to_figure := _to_figure()
+	var low := 0 if feet[0].y <= feet[1].y else 1
+	var best := 0.0
+	var least := INF
+	for i in STRIDE_SAMPLES * 2:
+		var t := animation.length * i / (STRIDE_SAMPLES * 2)
+		var cost := 0.0
+		for k in 2:
+			cost += (to_figure * _bone_at(animation, prefix, ids[k], t).origin).distance_squared_to(feet[k]) * (6.0 if k == low else 1.0)
+		if cost < least:
+			least = cost
+			best = t
+	return best
+
+
+## How far through its stride the playing clip's planted foot is, 0 to 1, or -1 when it is not a stride clip. A clip entered at this fraction keeps the foot it stands on travelling with the ground.
+func _stride_fraction() -> float:
+	if not clip in STRIDE_CLIPS or _anim.current_animation != String(clip):
+		return -1.0
+	var table := _stride_for(clip)
+	if table.size() < 2 or table[-1] <= 0.0:
+		return -1.0
+	var length := _anim.current_animation_length
+	return _distance_at(table, fposmod(_anim.current_animation_position, length) / length) / table[-1]
 
 
 ## Ends a looping or full-body action when the player leaves the spot: a pose is for standing.

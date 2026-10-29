@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 112
+const CHECKS := 114
 
 var _passed := 0
 var _failed := 0
@@ -233,6 +233,8 @@ func _test_figure() -> void:
 
 	_check_planted_foot(2.0, DotHumanoidClips.WALK, "a walker's")
 	_check_sprint_pop(9.0)
+	_check_handover_slide(7.0)
+	_check_handover_slide(7.5)
 	await _test_figure_mounts(f)
 
 
@@ -257,6 +259,40 @@ func _check_sprint_pop(pace: float) -> void:
 		if r["check"] == "bone_pop":
 			pop = float(r["value"])
 	_check(g.clip == DotHumanoidClips.SPRINT and pop < 135.0, "a sprinter at %.0f m/s keeps bone pop under 135 degrees at 15 fps (clip %s, %.1f)" % [pace, g.clip, pop])
+	g.queue_free()
+
+
+## Through the walk-to-sprint hand-over (60 fps ramp) the foot on the ground stays within 8 cm of where it was: the incoming clip enters at the outgoing pose.
+func _check_handover_slide(pace: float) -> void:
+	var g := DotHumanoidFigure.new()
+	add_child(g)
+	g.build(DotHumanoidLook.stock(9), 1.8)
+	g.set_run_speeds(6.84, 6.04)
+	g.sprint_speed = 6.0
+	var sk := g.skeleton()
+	var feet := [sk.find_bone("Foot.L"), sk.find_bone("Foot.R")]
+	var dt := 1.0 / 60.0
+	var v := 0.0
+	var before: Array = []
+	var worst := 0.0
+	var switched := -99
+	var last: StringName = &""
+	for i in 60:
+		v = minf(pace, v + pace / 0.3 * dt)
+		g.position.z -= v * dt
+		g.animate(v, dt)
+		sk.force_update_all_bone_transforms()
+		var at: Array = feet.map(func(b: int) -> Vector3: return sk.global_transform * sk.get_bone_global_pose(b).origin)
+		if g.clip != last:
+			if last == DotHumanoidClips.WALK:
+				switched = i
+			last = g.clip
+		if not before.is_empty() and i == switched:
+			for k in 2:
+				if before[k].y < 0.06:
+					worst = maxf(worst, (at[k] - before[k]).length())
+		before = at
+	_check(g.clip == DotHumanoidClips.SPRINT and worst < 0.08, "a ramp to %.1f m/s: the foot on the ground moves under 8 cm over the hand-over frame (%.3f m)" % [pace, worst])
 	g.queue_free()
 
 
