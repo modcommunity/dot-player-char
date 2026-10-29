@@ -152,9 +152,14 @@ var auto_smooth_time: float = 0.0
 
 ## The clips whose rate follows the planted foot ([method _matched_rate]), and the fastest they play.
 const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN,
-	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK]
+	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK, DotHumanoidClips.SPRINT]
 const STRIDE_SAMPLES := 48
 const STRIDE_MAX_RATE := 4.0
+
+## Ground speed from which a runner plays the sprint clip when the game sends no `sprinting` key (0 picks 1.6 times the run speed), and how far below it the run clip returns.
+var sprint_speed: float = 0.0
+const SPRINT_EXIT := 0.8
+var _sprint_clip: bool = false
 
 ## Ground speed above which the figure runs, and below which a runner walks again ([member DotPlayerAnimState.run_speed], [member DotPlayerAnimState.run_exit_speed]). A game whose walking pace is near the default 4.0 raises them so a walk does not play the hunched run clip.
 func set_run_speeds(run_speed: float, run_exit_speed: float) -> void:
@@ -660,10 +665,24 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 		DotPlayerAnimState.WALK:
 			return [DotHumanoidClips.WALK_GUN if gun else DotHumanoidClips.WALK, clampf(speed / 1.9, 0.6, 1.6)]
 		DotPlayerAnimState.RUN:
+			if _sprint_clip_for(speed):
+				return [DotHumanoidClips.SPRINT, 1.0]
 			return [DotHumanoidClips.RUN_GUN if gun else DotHumanoidClips.RUN, clampf(speed / 5.0, 0.7, 1.5)]
 		DotPlayerAnimState.CLIMB:
 			return [DotHumanoidClips.CLIMB, clampf(absf(float(_motion.get("vertical", 0.0))) / 2.5, 0.0, 1.2)]
 	return [DotHumanoidClips.IDLE_GUN if gun else DotHumanoidClips.IDLE, 1.0]
+
+
+## Whether a runner at [param speed] plays the sprint clip: the game's `sprinting` key when it sends one, else the speed, with a gap so it does not flicker.
+func _sprint_clip_for(speed: float) -> bool:
+	if _anim == null or not _anim.has_animation(DotHumanoidClips.SPRINT):
+		return false
+	if _motion.has("sprinting"):
+		_sprint_clip = sprinting
+	else:
+		var from := sprint_speed if sprint_speed > 0.0 else _machine.run_speed * 1.6
+		_sprint_clip = speed >= from - (SPRINT_EXIT if _sprint_clip else 0.0)
+	return _sprint_clip
 
 
 ## The rate that moves the lower foot back exactly as far as the body goes this step, or -1 when the

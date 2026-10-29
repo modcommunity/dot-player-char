@@ -39,13 +39,15 @@ const SIT := &"sit"
 const DRIVE := &"drive"
 const CLIMB := &"climb"
 const SWIM := &"swim"
+## A real sprint, only from `people/people_ual.res` (the library's `Sprint_Loop`); a figure without it runs.
+const SPRINT := &"ual_sprint"
 
 ## Every clip a figure is expected to have, for a suite and a contact sheet.
 const ALL: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK,
 	JUMP, FALL, LAND, SLASH, STAB, PUNCH, HIT, DEATH, CRAWL, WAVE, YES, NO, DUCK, SIT, DRIVE, CLIMB, SWIM]
 
 ## Clips that loop; the rest play once and hold their last frame.
-const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, DRIVE, CLIMB, SWIM]
+const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, DRIVE, CLIMB, SWIM, SPRINT]
 
 ## How much of the duck's bend a crouch walk keeps (the full bend left no room for a stride), and
 ## how far the hips dip at each step, in the clip body's units.

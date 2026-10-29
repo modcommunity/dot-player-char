@@ -19,5 +19,6 @@ extends RefCounted
 # 6: DotHumanoidFigure.add_action_scene, DotHumanoidActions.from_upload/humanoid_bone_map/profile_bone_of: uploaded clips.
 # 7: DotPlayerViewArms: your own crawling arms in first person while downed (arms_factory to replace them).
 # 8: DotPlayerViewArms.set_held and DotViewGrip: the arms posed on a weapon mesh the host supplies.
-const LEVEL := 8
+# 9: DotHumanoidFigure.sprint_speed and DotHumanoidClips.SPRINT: a runner above it plays the real sprint clip.
+const LEVEL := 9
 const OLDEST := 1

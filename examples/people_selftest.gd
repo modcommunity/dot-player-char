@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 111
+const CHECKS := 112
 
 var _passed := 0
 var _failed := 0
@@ -231,12 +231,37 @@ func _test_figure() -> void:
 		f.animate(6.0, 0.1)
 	_check(f.overlay == &"", "and ends")
 
-	_check_planted_foot()
+	_check_planted_foot(2.0, DotHumanoidClips.WALK, "a walker's")
+	_check_sprint_pop(9.0)
 	await _test_figure_mounts(f)
 
 
+## A sprinter sampled at 15 fps, as the filmstrip captures, keeps every bone under the pop limit.
+func _check_sprint_pop(pace: float) -> void:
+	var g := DotHumanoidFigure.new()
+	add_child(g)
+	g.build(DotHumanoidLook.stock(9), 1.8)
+	g.set_run_speeds(6.84, 6.04)
+	g.sprint_speed = 6.0
+	var m := DotClipMetrics.new()
+	var dt := 1.0 / 15.0
+	var v := 0.0
+	for i in 42:
+		v = minf(pace, v + pace / 0.3 * dt)
+		g.position.z -= v * dt
+		g.animate(v, dt)
+		g.skeleton().force_update_all_bone_transforms()
+		m.add(m.pose_sample(i * dt, g.skeleton(), g.global_position, true))
+	var pop := 999.0
+	for r in m.evaluate({"pop_deg": 135.0}):
+		if r["check"] == "bone_pop":
+			pop = float(r["value"])
+	_check(g.clip == DotHumanoidClips.SPRINT and pop < 135.0, "a sprinter at %.0f m/s keeps bone pop under 135 degrees at 15 fps (clip %s, %.1f)" % [pace, g.clip, pop])
+	g.queue_free()
+
+
 ## A walker carried forward at a steady pace keeps the foot it stands on still in the world.
-func _check_planted_foot() -> void:
+func _check_planted_foot(pace: float, expect: StringName, who: String) -> void:
 	var g := DotHumanoidFigure.new()
 	add_child(g)
 	g.build(DotHumanoidLook.stock(9), 1.8)
@@ -248,8 +273,8 @@ func _check_planted_foot() -> void:
 	var worst := 0.0
 	var stances := 0
 	for i in 150:
-		g.position.z -= 2.0 * dt
-		g.animate(2.0, dt)
+		g.position.z -= pace * dt
+		g.animate(pace, dt)
 		sk.force_update_all_bone_transforms()
 		var at: Array = feet.map(func(b: int) -> Vector3: return sk.global_transform * sk.get_bone_global_pose(b).origin)
 		var k := 0 if at[0].y < at[1].y else 1
@@ -263,7 +288,7 @@ func _check_planted_foot() -> void:
 			var moved: Vector3 = at[k] - start[1]
 			worst = maxf(worst, Vector2(moved.x, moved.z).length() / ((i - int(start[2])) * dt))
 			stances += 1
-	_check(g.clip == DotHumanoidClips.WALK and stances > 10 and worst < 0.25, "a walker's planted foot stays put: %.2f m/s at most over %d windows of 0.1 s or more" % [worst, stances])
+	_check(g.clip == expect and stances > 10 and worst < 0.25, "%s planted foot stays put (clip %s): %.2f m/s at most over %d windows of 0.1 s or more" % [who, g.clip, worst, stances])
 	g.queue_free()
 
 
@@ -281,7 +306,7 @@ func _test_figure_mounts(f: DotHumanoidFigure) -> void:
 	for i in 12:
 		walker.position.x += 0.05
 		await get_tree().process_frame
-	_check(walker.clip == DotHumanoidClips.WALK or walker.clip == DotHumanoidClips.RUN,
+	_check(walker.clip in [DotHumanoidClips.WALK, DotHumanoidClips.RUN, DotHumanoidClips.SPRINT],
 		"a figure carried by something else animates from how far it moved (%s)" % walker.clip)
 	walker.free()
 	f.free()
