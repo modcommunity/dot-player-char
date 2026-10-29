@@ -70,6 +70,10 @@ const ON_SHIN := {"Foot.L": "LowerLeg.L", "Foot.R": "LowerLeg.R", "PoleTarget.L"
 ## Keys a second. The clips kept are slow (a seated idle), so this is plenty and keeps the file small.
 const FPS := 15.0
 
+## Clips baked finer: a sprint's foot plant is shorter than a 15 fps key, so the pose between two
+## keys sinks the foot below the floor.
+const CLIP_FPS := {&"ual_sprint": 60.0}
+
 
 func _initialize() -> void:
 	var ual_paths: Array[String] = []
@@ -125,7 +129,7 @@ func _initialize() -> void:
 		if at < 0:
 			printerr("no clip ", source)
 			continue
-		var made := _bake(ual_players[at].get_animation(source), ual_skeletons[at], skeleton, prefix, String(clips[name][1]))
+		var made := _bake(ual_players[at].get_animation(source), ual_skeletons[at], skeleton, prefix, String(clips[name][1]), float(CLIP_FPS.get(name, FPS)))
 		var _a := library.add_animation(name, made)
 		print("BAKED %s from %s: %.2f s, %d tracks" % [name, source, made.length, made.get_track_count()])
 
@@ -137,7 +141,7 @@ func _initialize() -> void:
 	quit(0 if err == OK else 1)
 
 
-func _bake(source: Animation, from: Skeleton3D, to: Skeleton3D, prefix: String, mode: String) -> Animation:
+func _bake(source: Animation, from: Skeleton3D, to: Skeleton3D, prefix: String, mode: String, fps: float) -> Animation:
 	var from_rest := _rest_globals(from)
 	var to_rest := _rest_globals(to)
 	var from_prefix := _prefix_of(source)
@@ -167,7 +171,7 @@ func _bake(source: Animation, from: Skeleton3D, to: Skeleton3D, prefix: String, 
 		stand = Basis(Quaternion(spine.normalized(), Vector3.UP))
 	var body := to.find_bone("Body")
 
-	var frames := maxi(1, roundi(source.length * FPS))
+	var frames := maxi(1, roundi(source.length * fps))
 	for frame in frames + 1:
 		var time := source.length * float(frame) / float(frames)
 		var ual := _globals(_locals(source, from_prefix, time, from), from)

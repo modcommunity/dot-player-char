@@ -64,7 +64,7 @@ Quaternius' [Universal Animation Library](https://quaternius.com/packs/universal
   - The made `crouch_walk` was too deep and barely changed over the cycle; it now bends at `CROUCH_WALK_BEND` (0.7 of the crouch) with a two-dip hip bob (`CROUCH_WALK_BOB`).
   - `Driving_Loop` (hands on a wheel) and `Sitting_Talking_Loop` read well but have no made clip to replace and no motion that asks for them; a driver pose would need a `driving` motion from the games (queue item `people-drive-clip-1`).
 - **The `ual_*` clips (both libraries, free Standard, CC0)** are baked beside `sit` for games to play by name: `ual_zombie_idle`, `ual_zombie_walk`, `ual_zombie_scratch`, `ual_sprint`, `ual_jog`, `ual_crouch_walk`, `ual_hit_chest`, `ual_hit_head` (grounded) and `ual_knockback`, `ual_lay_to_idle`, `ual_slide` (free: the clip's own hip height is kept). The free tier has only three zombie clips: no zombie run, crawl or lay-face-up; the paid tiers add them. game-zombie-zone's commons play them (`ZzZombieView.UAL_FOR`), carried from matt's rest onto each zombie body's, and fall back to the made clips when the file is missing.
-- **Cost:** `people_ual.res` is 163 KB (13 clips at 15 keys a second, still tracks kept to one key, compressed). It lives in the addon, so it ships with any game's pack that ships the addon.
+- **Cost:** `people_ual.res` is 174 KB (13 clips at 15 keys a second, `ual_sprint` at 60 so its short foot plant is not sampled away, still tracks kept to one key, compressed). It lives in the addon, so it ships with any game's pack that ships the addon.
 
 ## Aiming up and down
 
