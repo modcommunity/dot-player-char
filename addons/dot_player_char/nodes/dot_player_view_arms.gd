@@ -11,6 +11,8 @@ const HIDDEN_BONES: Array[String] = ["Head", "Neck", "UpperLeg.L", "UpperLeg.R"]
 ## The pack is part of the one skinned mesh, bound to the hips: its vertices are the hip-bound ones this far behind the body.
 const PACK_BONE := "Hips"
 const PACK_BEHIND := -0.3
+## The finger roots, all at the wrist: scaling them shrinks the hand about the wrist, so the forearm and the reach are untouched.
+const FINGER_ROOTS: Array[String] = ["Pinky1", "Middle1", "Index1", "Thumb1"]
 
 ## Extension point: `func(look: DotHumanoidLook, height: float) -> Node3D`. The node it returns is parented here and
 ## drawn as is, in place of the person; if it has `set_motion` and `animate` (a [DotHumanoidFigure]) they are driven.
@@ -33,12 +35,15 @@ var elbow_pole: Vector3 = Vector3(1.0, -1.2, 0.5)
 ## The held arms' size and how much wider apart the shoulders sit: slimmer arms leave the weapon visible.
 var held_scale: float = 1.0
 var held_spread: float = 1.25
+## The hand's size with a weapon (1 is the kit's own mitts).
+var hand_scale: float = 0.68
 ## Idle breathing and walk bob, metres: [method sway] is what the host adds to its weapon mount.
 var breath_amplitude: float = 0.003
 var bob_amplitude: float = 0.012
 
 var _arms: Node3D = null
 var _bones: Array[int] = []
+var _fingers: Array[int] = []
 var _fitted := false
 var _ticks := 0
 var _head: int = -1
@@ -75,6 +80,12 @@ func build(p_look: DotHumanoidLook = null, p_height: float = 1.8) -> void:
 				var i := skeleton.find_bone(bone)
 				if i >= 0:
 					_bones.append(i)
+
+			for root in FINGER_ROOTS:
+				for side in [".L", ".R"]:
+					var f := skeleton.find_bone(root + side)
+					if f >= 0:
+						_fingers.append(f)
 		_strip_gear(figure)
 	else:
 		add_child(_arms)
@@ -199,6 +210,9 @@ func tick(speed: float, delta: float) -> void:
 		for i in _bones:
 			skeleton.set_bone_pose_scale(i, Vector3.ONE * 0.001)
 
+		for i in _fingers:
+			skeleton.set_bone_pose_scale(i, Vector3.ONE * (hand_scale if _holding() else 1.0))
+
 		_reach(skeleton)
 
 
@@ -276,3 +290,4 @@ func _clear() -> void:
 		_arms = null
 
 	_bones.clear()
+	_fingers.clear()
