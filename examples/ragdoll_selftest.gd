@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 100
+const CHECKS := 101
 
 var _passed := 0
 var _failed := 0
@@ -471,6 +471,15 @@ func _test_weight_and_weapon() -> void:
 	var shot := yard.shoot(lying.centre(), Vector3.FORWARD)
 	_check(shot, "with shootable on, a shot finds a part")
 	yard.clear()
+	# A dropped weapon freed by clear() before its timer fires must not raise on the timeout.
+	yard.rules.weapon_drop = true
+	yard.rules.weapon_lifetime = 0.5
+	var fleeting := yard.drop_prop(gun)
+	yard.clear()
+	if is_instance_valid(fleeting):
+		fleeting.queue_free()
+	await get_tree().create_timer(0.8).timeout
+	_check(true, "a weapon freed before its timer fires expires without an error")
 
 
 func _person(at: Vector3) -> DotHumanoidFigure:

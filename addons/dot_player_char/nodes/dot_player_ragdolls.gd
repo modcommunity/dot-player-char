@@ -151,11 +151,11 @@ func drop_prop(model: Node3D, velocity: Vector3 = Vector3.ZERO) -> RigidBody3D:
 	return body
 
 
-func _expire_prop(prop: Object) -> void:
-	# Untyped: clear() may have freed it, and a freed object cannot convert to RigidBody3D.
-	_props.erase(prop)
+func _expire_prop(prop) -> void:
+	# Untyped and checked first: a freed object converts to no type, and erase() on a typed array converts.
 	if not is_instance_valid(prop):
 		return
+	_props.erase(prop)
 	var body := prop as RigidBody3D
 	body.freeze = true
 	var tween := body.create_tween()
