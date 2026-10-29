@@ -42,14 +42,15 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `nodes/dot_player_ragdoll.gd` | one dead body: parts by name, joints, the push, settle and freeze, the fade |
 | `nodes/dot_player_ragdolls.gd` | where bodies lie: `spawn`, the cap, sounds out |
 | `nodes/dot_player_first_person_body.gd` | your own body in first person: head shadow-only, body back |
-| `nodes/dot_player_view_arms.gd` | your own crawling arms in first person while downed, under the yaw pivot; `arms_factory` swaps them (no game mounts it yet) |
+| `core/dot_view_grip.gd` | where the hands go on a first-person weapon: anchor, grip, support |
+| `nodes/dot_player_view_arms.gd` | your own crawling arms in first person while downed, under the yaw pivot; `arms_factory` swaps them and `set_held` poses them on a weapon (`DotViewGrip`); no game mounts it yet |
 | `core/dot_humanoid_look.gd` | a person as data: body and four colours; `stock(seed)`, `from_site(avatar)`, `with_side` |
 | `core/dot_humanoid_clips.gd` | the family clip names, `retarget`, the made crouch and grounded air clips, `adopt` (real clips over made ones) |
 | `core/dot_humanoid_actions.gd` | the 13 starter emotes, poses and gestures as clips (made, CC0 wave/nod/sit), and `rename_humanoid` for an uploaded clip |
 | `nodes/dot_humanoid_figure.gd` | a person drawn: palette material per look, clip from motion, overlays, the hand, LOD stepping |
 | `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py`; `people_ual.res`, the real sit (Universal Animation Library, CC0) |
 | `tools/` | `build_people.py` (Blender), `ual_retarget.gd` (library clips onto the rig: `people_ual.res`), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`, `--compare`), `survivor_compare.gd` (made vs real clip strips), `crowd_bench.tscn` (a browser crowd measurement) |
-| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 7 since `DotPlayerViewArms` (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
+| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 8 since `DotViewGrip` (7: `DotPlayerViewArms`) (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
 | `examples/` | six suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
 Paths under `core/`, `nodes/` and `people/` are in `addons/dot_player_char/`; `tools/` is at the repository root and does not ship.

@@ -114,3 +114,9 @@ A dead person falls by its bones through dot-player-char's own ragdoll, not a se
 ## Sprinting and the support hand
 
 `set_motion` reads `"sprinting"`; `sprint_blend` eases over `SPRINT_SECONDS` and `_apply_aim` drops the gun arm by `SPRINT_DROP`. `set_support_grip(global_transform)` makes `_apply_support` reach the left hand there (two-bone IK, pole `SUPPORT_POLE`, weighted by `_support_weight`); a one-handed weapon passes none. `held_scale` is 1.7, times the weapon pose's world factor.
+
+## Your own arms holding a weapon
+
+`DotPlayerViewArms` (under the camera's yaw pivot, API 8) draws the first-person hands on a weapon mesh the host supplies. A game calls, once, `arms.build(look, height)`, then each time the weapon changes `arms.set_held(DotViewGrip.one_hand(anchor, grip))` or `DotViewGrip.two_hand(anchor, grip, support)` (`anchor` is the weapon's node or a marker on it, the points are in its space, `Vector3.INF` for the support means one hand), and every frame `arms.tick(ground_speed, delta)` then `weapon_mount.position = rest_position + arms.sway()`. `arms.set_held(null)` puts it away. While downed the crawl wins; `set_downed` is unchanged. Hide the backpack with `hide_vertex_fn`, as for the crawl.
+
+The figure plays its held-gun clip and each arm is then reached onto the grip point by two-bone IK every tick, so the hands follow the weapon wherever the host moves it, sway or not. The kit has no wrist bone: the fingers hang off the forearm, so the hand's turn is the forearm's. The elbows bow out and down (`elbow_pole`), the eye sits `held_eye_from_head` from the head bone. Look at `tools/view_arms_sheet.gd -- --held` (one hand, two hands, from the side, looking 60 degrees down; idle then walking) after changing any of it.

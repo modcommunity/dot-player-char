@@ -10,8 +10,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 10
-const CHECKS := 96
+const SECTIONS := 11
+const CHECKS := 111
 
 var _passed := 0
 var _failed := 0
@@ -35,6 +35,7 @@ func _run() -> void:
 	await _test_break()
 	_test_unimported()
 	await _test_view_arms()
+	await _test_held_arms()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -599,6 +600,71 @@ func _test_view_arms() -> void:
 	_check(custom.describe()["custom"] and custom.arms().get_class() == "Node3D", "a game supplies its own arms")
 	arms.queue_free()
 	custom.queue_free()
+
+
+func _test_held_arms() -> void:
+	_section("your own arms holding a weapon")
+	var arms := DotPlayerViewArms.new()
+	add_child(arms)
+	var weapon := Node3D.new()
+	add_child(weapon)
+	weapon.position = Vector3(0.08, -0.2, -0.4)
+	arms.build(DotHumanoidLook.stock(3), 1.8)
+	_check(not arms.arms().visible and not arms.describe()["held"], "off by default: nothing shown")
+	var grip := Vector3(0.0, -0.08, 0.1)
+	var fore := Vector3(-0.03, -0.07, -0.1)
+	arms.set_held(DotViewGrip.two_hand(weapon, grip, fore))
+	for i in 8:
+		arms.tick(0.0, 1.0 / 30.0)
+		await get_tree().process_frame
+	var sk: Skeleton3D = (arms.arms() as DotHumanoidFigure).skeleton()
+	_check(arms.arms().visible and arms.describe()["held"], "shown while a grip is set")
+	var right := _bone_world(sk, "Middle1.R")
+	_check(right.distance_to(weapon.to_global(grip)) < 0.03, "the firing hand is on the grip (%.3f m)" % right.distance_to(weapon.to_global(grip)))
+	var left := _bone_world(sk, "Middle1.L")
+	_check(left.distance_to(weapon.to_global(fore)) < 0.05, "the support hand reaches the foregrip (%.3f m)" % left.distance_to(weapon.to_global(fore)))
+	_check(sk.get_bone_pose_scale(sk.find_bone("Head")).x < 0.01 and sk.get_bone_pose_scale(sk.find_bone("UpperLeg.L")).x < 0.01, "head and legs are shrunk away")
+	weapon.position += Vector3(0.1, 0.05, -0.05)
+	for i in 3:
+		arms.tick(0.0, 1.0 / 30.0)
+	var moved := _bone_world(sk, "Middle1.R")
+	_check(moved.distance_to(weapon.to_global(grip)) < 0.03 and moved.distance_to(right) > 0.05, "the hand follows the weapon when it moves (%.3f m off)" % moved.distance_to(weapon.to_global(grip)))
+	var before := arms.sway()
+	for i in 20:
+		arms.tick(5.0, 1.0 / 30.0)
+	_check(arms.sway().length() > 0.001 and not arms.sway().is_equal_approx(before), "walking sways the weapon mount (%.4f m)" % arms.sway().length())
+	var worst := 0.0
+	for i in 150:
+		arms.tick(5.0, 1.0 / 30.0)
+		worst = maxf(worst, _bone_world(sk, "Middle1.R").distance_to(weapon.to_global(grip)))
+		worst = maxf(worst, _bone_world(sk, "LowerArm.R").distance_to(weapon.to_global(grip)) - 0.6)
+	_check(worst < 0.03, "the hand stays on the grip through a long walk (worst %.3f m)" % worst)
+	arms.set_held(DotViewGrip.one_hand(weapon, grip))
+	arms.tick(0.0, 1.0 / 30.0)
+	var rest_left := _bone_world(sk, "Middle1.L")
+	_check(rest_left.distance_to(weapon.to_global(fore)) > 0.1, "a one-hand grip leaves the other hand off the foregrip (%.2f m away)" % rest_left.distance_to(weapon.to_global(fore)))
+	arms.set_held(DotViewGrip.two_hand(weapon, grip, Vector3(0.0, 5.0, 0.0)))
+	arms.tick(0.0, 1.0 / 30.0)
+	_check(_bone_world(sk, "Middle1.L").distance_to(weapon.to_global(Vector3(0.0, 5.0, 0.0))) > 1.0, "a support point out of reach is not reached (the check can fail)")
+	arms.set_held(DotViewGrip.two_hand(weapon, grip, fore))
+	arms.set_downed(true)
+	for i in 4:
+		arms.tick(1.0, 1.0 / 30.0)
+		await get_tree().process_frame
+	_check(not arms.describe()["held"] and (arms.arms() as DotHumanoidFigure).downed, "downed wins over a held weapon")
+	var head := _bone_world(sk, "Head")
+	var crawl_hand := _bone_world(sk, "Middle1.L")
+	_check(crawl_hand.z < head.z - 0.2 and crawl_hand.y < head.y, "and the crawl is as without a grip: the hand ahead of the eye")
+	arms.set_downed(false)
+	arms.set_held(null)
+	_check(not arms.arms().visible and arms.sway() == Vector3.ZERO, "mode off hides the arms and stops the sway")
+	_check(not DotViewGrip.new().is_valid(), "a grip with no anchor is not valid, so the arms rest")
+	arms.queue_free()
+	weapon.queue_free()
+
+
+func _bone_world(sk: Skeleton3D, bone: String) -> Vector3:
+	return (sk.global_transform * sk.get_bone_global_pose(sk.find_bone(bone))).origin
 
 
 ## Triangles with a vertex on the hips more than 0.3 behind the body: the stock kit's backpack.

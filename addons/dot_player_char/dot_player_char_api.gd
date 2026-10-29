@@ -18,5 +18,6 @@ extends RefCounted
 # 5: DotHumanoidActions and DotHumanoidFigure.play_action/stop_action: the 13 starter emotes, poses and gestures.
 # 6: DotHumanoidFigure.add_action_scene, DotHumanoidActions.from_upload/humanoid_bone_map/profile_bone_of: uploaded clips.
 # 7: DotPlayerViewArms: your own crawling arms in first person while downed (arms_factory to replace them).
-const LEVEL := 7
+# 8: DotPlayerViewArms.set_held and DotViewGrip: the arms posed on a weapon mesh the host supplies.
+const LEVEL := 8
 const OLDEST := 1
