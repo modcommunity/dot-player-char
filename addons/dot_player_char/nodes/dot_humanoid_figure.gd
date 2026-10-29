@@ -828,9 +828,13 @@ func _matching_time(clip_id: StringName, feet: PackedVector3Array) -> float:
 	var least := INF
 	for i in STRIDE_SAMPLES * 2:
 		var t := animation.length * i / (STRIDE_SAMPLES * 2)
+		var at: Array[Vector3] = [to_figure * _bone_at(animation, prefix, ids[0], t).origin, to_figure * _bone_at(animation, prefix, ids[1], t).origin]
+		# The planted foot must be the clip's lower one too: a run's flight would lift it off the ground.
+		if (at[0].y <= at[1].y) != (low == 0):
+			continue
 		var cost := 0.0
 		for k in 2:
-			cost += (to_figure * _bone_at(animation, prefix, ids[k], t).origin).distance_squared_to(feet[k]) * (6.0 if k == low else 1.0)
+			cost += at[k].distance_squared_to(feet[k]) * (20.0 if k == low else 1.0)
 		if cost < least:
 			least = cost
 			best = t

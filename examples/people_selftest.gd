@@ -290,7 +290,9 @@ func _check_handover_slide(pace: float) -> void:
 		if not before.is_empty() and i == switched:
 			for k in 2:
 				if before[k].y < 0.06:
-					worst = maxf(worst, (at[k] - before[k]).length())
+					# Along the ground: a sprint's foot entered late in its short stance lifts off that frame, which is not a slide.
+					var moved: Vector3 = at[k] - before[k]
+					worst = maxf(worst, Vector2(moved.x, moved.z).length())
 		before = at
 	_check(g.clip == DotHumanoidClips.SPRINT and worst < 0.08, "a ramp to %.1f m/s: the foot on the ground moves under 8 cm over the hand-over frame (%.3f m)" % [pace, worst])
 	g.queue_free()
