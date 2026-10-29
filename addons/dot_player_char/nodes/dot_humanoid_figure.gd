@@ -590,7 +590,7 @@ func _crown_mount() -> Node3D:
 ## Skeleton space to the figure's frame: the skeleton's own transform under the model, then the
 ## model's turn and scale.
 func _to_figure() -> Transform3D:
-	var skel_to_model := _model.global_transform.affine_inverse() * _skeleton.global_transform if _model.is_inside_tree() else Transform3D.IDENTITY
+	var skel_to_model := _model.global_transform.affine_inverse() * _skeleton.global_transform if _model.is_inside_tree() and absf(_model.global_basis.determinant()) > 1e-9 else Transform3D.IDENTITY
 	return Transform3D(_model_basis, _model_origin) * skel_to_model
 
 
