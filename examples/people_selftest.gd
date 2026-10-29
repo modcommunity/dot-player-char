@@ -10,8 +10,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 11
-const CHECKS := 123
+const SECTIONS := 12
+const CHECKS := 126
 
 var _passed := 0
 var _failed := 0
@@ -36,6 +36,7 @@ func _run() -> void:
 	_test_unimported()
 	await _test_view_arms()
 	await _test_held_arms()
+	await _test_held_gun_steady()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -817,6 +818,39 @@ func _forearm_triangles(figure: DotHumanoidFigure) -> Array:
 		elif sides.size() == 1 and sides.has(".R"):
 			counts[1] += 1
 	return counts
+
+
+## A gun in the hand stays put when the pace flickers across the walk, run and sprint thresholds
+## (a bot's noisy speed, a remote player's interpolation): the stride cut used to snap the arm.
+func _test_held_gun_steady() -> void:
+	_section("a held gun while the pace flickers")
+	var world := Node3D.new()
+	add_child(world)
+	var f := DotHumanoidFigure.new()
+	world.add_child(f)
+	f.build(DotHumanoidLook.stock(21), 1.8)
+	f.set_hold(DotHumanoidFigure.Hold.GUN)
+	var hand := f.attachment(&"right_hand")
+	var worst := {}
+	for pair: Array in [[2.0, 4.6], [4.6, 6.5]]:
+		var last := Transform3D.IDENTITY
+		var big := 0.0
+		var far := 0.0
+		for i in 240:
+			f.animate(pair[0] if (i / 6) % 2 == 0 else pair[1], 1.0 / 60.0)
+			await get_tree().process_frame
+			var now: Transform3D = f.global_transform.affine_inverse() * hand.global_transform
+			if i > 30:
+				big = maxf(big, last.basis.get_rotation_quaternion().angle_to(now.basis.get_rotation_quaternion()))
+				far = maxf(far, (now.origin - last.origin).length())
+			last = now
+		worst[pair[1]] = [rad_to_deg(big), far]
+	var sprint: Array = worst[6.5]
+	var run: Array = worst[4.6]
+	_check(run[0] < 8.0 and sprint[0] < 8.0, "the hand turns under 8 degrees a frame (%.1f / %.1f)" % [run[0], sprint[0]])
+	_check(run[1] < 0.08 and sprint[1] < 0.08, "the hand moves under 8 cm a frame (%.3f / %.3f)" % [run[1], sprint[1]])
+	f.queue_free()
+	_check(true, "the flicker run finished")
 
 
 func _section(title: String) -> void:

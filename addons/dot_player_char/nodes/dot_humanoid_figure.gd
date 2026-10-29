@@ -223,6 +223,11 @@ var _crawl_weight: float = 0.0
 var _frame: int = 0
 var _posed_frame: int = -1
 var _upper: Dictionary = {}
+var _eased_from: Dictionary = {}
+var _eased_pos: Dictionary = {}
+var _ease_left: float = 0.0
+## Seconds the upper body takes to ease from the pose on screen into a stride clip it was cut to.
+const EASE_S := 0.15
 var _swim_pitch: float = 0.0
 var _prop_pitch: float = 0.0
 var _head_hidden: bool = false
@@ -238,6 +243,9 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	height = p_height
 	clip = &""
 	overlay = &""
+	_eased_from.clear()
+	_eased_pos.clear()
+	_ease_left = 0.0
 	_hand = null
 	_crown = null
 	_upper.clear()
@@ -395,6 +403,7 @@ func animate(speed: float, delta: float) -> void:
 	_owed = 0.0
 	_apply_overlays()
 	_apply_aim()
+	_apply_ease(advanced)
 	_apply_support()
 	_apply_head()
 	_apply_swim(delta * anim_step)
@@ -899,6 +908,17 @@ func _play(wanted: StringName, rate: float) -> void:
 	var from := _stride_fraction()
 	clip = wanted
 	var cross := from >= 0.0 and wanted in STRIDE_CLIPS
+	# A stride cut keeps the feet planted but would snap the arms, and the gun in the hand with them.
+	if cross:
+		_eased_from.clear()
+		for bone: String in _upper:
+			_eased_from[_upper[bone]] = _skeleton.get_bone_pose_rotation(_upper[bone])
+		for bone: String in ["Body", "Hips", HAND_BONE]:
+			var b := _skeleton.find_bone(bone)
+			if b >= 0:
+				_eased_from[b] = _skeleton.get_bone_pose_rotation(b)
+				_eased_pos[b] = _skeleton.get_bone_pose_position(b)
+		_ease_left = EASE_S
 	var feet := _feet_now() if cross else PackedVector3Array()
 	_anim.play(wanted, 0.0 if cross else 0.15)
 	if cross and not feet.is_empty():
@@ -1037,6 +1057,23 @@ static func _toward(from: Quaternion, to: Quaternion, weight: float, gain: float
 	if angle < 0.0001:
 		return from
 	return from * Quaternion(d.get_axis(), angle * weight * gain)
+
+
+## Eases the upper body from the pose a stride cut left into the new clip's, so a hand-held weapon turns smoothly.
+func _apply_ease(dt: float) -> void:
+	if _ease_left <= 0.0:
+		return
+	_ease_left = maxf(0.0, _ease_left - dt)
+	var w := 1.0 - _ease_left / EASE_S
+	for index: int in _eased_from:
+		var from: Quaternion = _eased_from[index]
+		_skeleton.set_bone_pose_rotation(index, from.slerp(_skeleton.get_bone_pose_rotation(index), w))
+	for index: int in _eased_pos:
+		var at: Vector3 = _eased_pos[index]
+		_skeleton.set_bone_pose_position(index, at.lerp(_skeleton.get_bone_pose_position(index), w))
+	if _ease_left <= 0.0:
+		_eased_from.clear()
+		_eased_pos.clear()
 
 
 ## Bends the waist and chest by [member aim_pitch] about the figure's own left-to-right axis,
