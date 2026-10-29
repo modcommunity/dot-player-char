@@ -25,11 +25,14 @@ var look: DotHumanoidLook = null
 var height: float = 1.8
 var shown: bool = false
 ## Where the camera sits from the head bone when holding a weapon (upright figure, forward is -Z).
-var held_eye_from_head: Vector3 = Vector3(0.0, 0.1, -0.05)
+var held_eye_from_head: Vector3 = Vector3(0.0, 0.18, -0.05)
 ## Elbow directions in the arms' frame (right arm; the left is mirrored): out, down, a little back.
 ## Where the idle hand rests, from the arms node, out of the view, when the weapon is held with one hand.
 const LEFT_REST := Vector3(-0.25, 0.9, 0.1)
-var elbow_pole: Vector3 = Vector3(0.5, -1.0, 0.4)
+var elbow_pole: Vector3 = Vector3(1.0, -1.2, 0.5)
+## The held arms' size and how much wider apart the shoulders sit: slimmer arms leave the weapon visible.
+var held_scale: float = 1.0
+var held_spread: float = 1.25
 ## Idle breathing and walk bob, metres: [method sway] is what the host adds to its weapon mount.
 var breath_amplitude: float = 0.003
 var bob_amplitude: float = 0.012
@@ -210,7 +213,8 @@ func _fit() -> void:
 	_arms.transform = Transform3D.IDENTITY
 	var head := _arms.global_transform.affine_inverse() * (skeleton.global_transform * skeleton.get_bone_global_pose(_head)).origin
 	var eye := held_eye_from_head if _holding() else eye_from_head
-	_arms.transform = Transform3D(Basis.IDENTITY, -(head + eye))
+	var basis := Basis.from_scale(Vector3(held_scale * held_spread, held_scale, held_scale)) if _holding() else Basis.IDENTITY
+	_arms.transform = Transform3D(basis, -(basis * head + eye))
 	_base = _arms.position
 
 
