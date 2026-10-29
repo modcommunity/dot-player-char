@@ -96,7 +96,9 @@ func drop_prop(model: Node3D, velocity: Vector3 = Vector3.ZERO) -> RigidBody3D:
 	if model == null or rules == null or not rules.weapon_drop or not model.is_inside_tree():
 		return null
 	var meshes: Array[MeshInstance3D] = []
-	meshes = DotPlayerRagdoll.meshes_of(model)
+	for mesh in DotPlayerRagdoll.meshes_of(model):
+		if not _is_effect(mesh, model):
+			meshes.append(mesh)
 	if meshes.is_empty():
 		return null
 
@@ -149,6 +151,17 @@ func drop_prop(model: Node3D, velocity: Vector3 = Vector3.ZERO) -> RigidBody3D:
 	var _t := timer.timeout.connect(_expire_prop.bind(body))
 	DotLog.debug(CHANNEL, "weapon dropped", {"life": rules.weapon_lifetime})
 	return body
+
+
+## True for a mesh under a muzzle flash (duck-typed: it can be fired and asked if it shows).
+## Copied into a prop it freezes at the muzzle and inflates the collider, so the gun stood on end.
+static func _is_effect(mesh: Node, root: Node) -> bool:
+	var n := mesh.get_parent()
+	while n != null and n != root:
+		if n.has_method("is_showing") and n.has_method("fire"):
+			return true
+		n = n.get_parent()
+	return false
 
 
 func _expire_prop(prop) -> void:

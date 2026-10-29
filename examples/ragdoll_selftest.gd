@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 101
+const CHECKS := 102
 
 var _passed := 0
 var _failed := 0
@@ -463,6 +463,19 @@ func _test_weight_and_weapon() -> void:
 	for i in range(90):
 		await get_tree().physics_frame
 	_check(dropped != null and dropped.global_position.y < 3.0, "and falls (y %.2f)" % (dropped.global_position.y if dropped != null else 0.0))
+	var flash := _FlashStub.new()
+	var flash_mesh := MeshInstance3D.new()
+	var big := BoxMesh.new()
+	big.size = Vector3(1, 1, 6)
+	flash_mesh.mesh = big
+	flash.add_child(flash_mesh)
+	gun.add_child(flash)
+	var with_flash := yard.drop_prop(gun)
+	var span := 0.0
+	if with_flash != null:
+		span = ((with_flash.get_child(0) as CollisionShape3D).shape as BoxShape3D).size.z
+	_check(with_flash != null and with_flash.get_child_count() == 2 and span < 2.0, "a muzzle flash under the gun is left out of the prop (collider %.2f m)" % span)
+	flash.queue_free()
 	yard.rules.weapon_drop = false
 	_check(yard.drop_prop(gun) == null, "weapon_drop off drops nothing")
 	_check(not yard.shoot(Vector3(0, 1, 40), Vector3.FORWARD), "shooting a body does nothing by default")
@@ -681,3 +694,11 @@ func _check(condition: bool, what: String) -> void:
 
 func _line(text: String) -> void:
 	print(text)
+
+
+class _FlashStub extends Node3D:
+	func fire() -> bool:
+		return true
+
+	func is_showing() -> bool:
+		return true
