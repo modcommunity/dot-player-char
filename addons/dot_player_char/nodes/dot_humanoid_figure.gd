@@ -67,6 +67,9 @@ enum Hold { NONE, GUN, MELEE }
 
 ## The body whose file carries the clip set; the others play it through [method DotHumanoidClips.retarget].
 const CLIP_BODY := DotHumanoidAssets.CLIP_BODY
+## How far past the clip's pose a flinch turns the upper body (1 is the clip as authored).
+const FLINCH_GAIN := 1.4
+var _overlay_gain := 1.0
 
 ## The bone a weapon is held in: the right hand. The kit's people are left-handed (every weapon
 ## in it hangs off `Middle1.L`), so the clip set is mirrored once when it is loaded
@@ -431,9 +434,10 @@ func swing(which: StringName = &"") -> void:
 	_start_overlay(which, 1.4)
 
 
-## A hit: the kit's flinch on the upper body, quick.
+## A hit: the kit's flinch on the upper body, pushed past its authored pose so a third-person view reads it.
 func flinch() -> void:
-	_start_overlay(DotHumanoidClips.HIT, 1.6)
+	_start_overlay(DotHumanoidClips.HIT, 1.0)
+	_overlay_gain = FLINCH_GAIN
 
 
 ## A gesture over the upper body: wave, yes, no.
@@ -688,6 +692,7 @@ func _start_overlay(which: StringName, rate: float) -> void:
 	overlay = which
 	_overlay_time = 0.0
 	_overlay_rate = rate
+	_overlay_gain = 1.0
 
 
 ## Writes the upper body over the locomotion pose: a playing overlay (swing, flinch, gesture),
@@ -735,7 +740,20 @@ func _apply_overlays() -> void:
 			continue
 		var q := source.rotation_track_interpolate(track, t)
 		var now := _skeleton.get_bone_pose_rotation(index)
-		_skeleton.set_bone_pose_rotation(index, now.slerp(q, clampf(weight, 0.0, 1.0)))
+		_skeleton.set_bone_pose_rotation(index, _toward(now, q, clampf(weight, 0.0, 1.0), _overlay_gain))
+
+
+## [param from] turned [param weight] of the way to [param to], the angle then multiplied by [param gain]; a slerp past 1 flips the long way round and pops.
+static func _toward(from: Quaternion, to: Quaternion, weight: float, gain: float) -> Quaternion:
+	if gain == 1.0:
+		return from.slerp(to, weight)
+	var d := from.inverse() * to
+	if d.w < 0.0:
+		d = -d
+	var angle := d.get_angle()
+	if angle < 0.0001:
+		return from
+	return from * Quaternion(d.get_axis(), angle * weight * gain)
 
 
 ## Bends the waist and chest by [member aim_pitch] about the figure's own left-to-right axis,
