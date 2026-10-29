@@ -230,7 +230,40 @@ func _test_figure() -> void:
 		f.animate(6.0, 0.1)
 	_check(f.overlay == &"", "and ends")
 
+	_check_planted_foot()
 	await _test_figure_mounts(f)
+
+
+## A walker carried forward at a steady pace keeps the foot it stands on still in the world.
+func _check_planted_foot() -> void:
+	var g := DotHumanoidFigure.new()
+	add_child(g)
+	g.build(DotHumanoidLook.stock(9), 1.8)
+	var sk := g.skeleton()
+	var feet := [sk.find_bone("Foot.L"), sk.find_bone("Foot.R")]
+	var dt := 1.0 / 60.0
+	var ground := INF
+	var start: Array = []
+	var worst := 0.0
+	var stances := 0
+	for i in 150:
+		g.position.z -= 2.0 * dt
+		g.animate(2.0, dt)
+		sk.force_update_all_bone_transforms()
+		var at: Array = feet.map(func(b: int) -> Vector3: return sk.global_transform * sk.get_bone_global_pose(b).origin)
+		var k := 0 if at[0].y < at[1].y else 1
+		ground = minf(ground, at[k].y)
+		if i < 30 or at[k].y > ground + 0.02 or (not start.is_empty() and start[0] != k):
+			start.clear()
+			continue
+		if start.is_empty():
+			start = [k, at[k], i]
+		elif (i - int(start[2])) * dt >= 0.1:
+			var moved: Vector3 = at[k] - start[1]
+			worst = maxf(worst, Vector2(moved.x, moved.z).length() / ((i - int(start[2])) * dt))
+			stances += 1
+	_check(g.clip == DotHumanoidClips.WALK and stances > 10 and worst < 0.25, "a walker's planted foot stays put: %.2f m/s at most over %d windows of 0.1 s or more" % [worst, stances])
+	g.queue_free()
 
 
 ## Mounts, the frame step and a carried figure animating itself; frees [param f].

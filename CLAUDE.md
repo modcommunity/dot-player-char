@@ -81,6 +81,7 @@ The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything
 - The kit is left-handed; `DotHumanoidClips.mirror` makes every clip right-handed at load, before the made clips and the retarget. A rebuilt kit is mirrored the same way, never in the glb. [people](docs/people.md#legs-from-the-clip-arms-from-an-overlay)
 - The swim clip is drawn upright and the figure lays it flat (`SWIM_LEAN`); no held-gun arms while swimming. Look at it with `people_sheet.gd --swim`. [people](docs/people.md#the-made-clips)
 - `DotDownedRules` (`sv_downed_*` cvars, pure functions of the rules) picks the downed weapon kind, who may crawl, the pose and the holster; the figure lies propped on its back (`set_motion` key `propped`, `PROP_LEAN`) or crawls, clips behind `downed_clips`.
+- The walk, run and crouch walk play at the rate that keeps the planted foot still (`_matched_rate`, from a per-clip distance table); a constant rate skates it. [people](docs/people.md#legs-from-the-clip-arms-from-an-overlay)
 - The rig's feet hang off the root, not the shins: a made pose moves the foot to the shin's end, measuring the shin before moving the body. [people](docs/people.md#the-made-clips)
 - `aim()` bends only bones the playing clip keys, from parents read off the local poses (`get_bone_global_pose` is last frame's). [people](docs/people.md#aiming-up-and-down)
 - A skinned body falls by the same parts with bones riding on them, not a `PhysicalBoneSimulator3D`; a packed array read out of a Dictionary is a copy. [ragdolls](docs/ragdolls.md#a-skinned-body)

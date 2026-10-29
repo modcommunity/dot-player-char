@@ -150,6 +150,12 @@ var auto_animate: bool = false:
 ## Seconds over which [member auto_animate]'s measured speed is averaged. A body carried in physics ticks or on network snapshots moves in steps, so its per-frame speed alternates between zero and double and the clip flips between idle, walk and run. 0 keeps the raw measure.
 var auto_smooth_time: float = 0.0
 
+## The clips whose rate follows the planted foot ([method _matched_rate]), and the fastest they play.
+const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN,
+	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK]
+const STRIDE_SAMPLES := 48
+const STRIDE_MAX_RATE := 4.0
+
 ## Ground speed above which the figure runs, and below which a runner walks again ([member DotPlayerAnimState.run_speed], [member DotPlayerAnimState.run_exit_speed]). A game whose walking pace is near the default 4.0 raises them so a walk does not play the hunched run clip.
 func set_run_speeds(run_speed: float, run_exit_speed: float) -> void:
 	_machine.run_speed = run_speed
@@ -201,6 +207,7 @@ var _prop_pitch: float = 0.0
 var _head_hidden: bool = false
 var _auto_last: Vector3 = Vector3.INF
 var _model_basis: Basis = Basis.IDENTITY
+var _strides: Dictionary = {}
 var _model_origin: Vector3 = Vector3.ZERO
 
 ## Builds the figure for [param p_look], [param p_height] metres tall, feet at this node's origin,
@@ -214,6 +221,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	_crown = null
 	_upper.clear()
 	_support_cache.clear()
+	_strides.clear()
 	_machine.forget_state()
 
 	if _model != null:
@@ -350,6 +358,9 @@ func animate(speed: float, delta: float) -> void:
 	anim_step = _step_for_distance()
 	if _frame % anim_step != 0:
 		return
+	var matched := _matched_rate(speed, _owed)
+	if matched >= 0.0:
+		_anim.speed_scale = matched
 	_anim.advance(_owed)
 	_owed = 0.0
 	_apply_overlays()
@@ -653,6 +664,89 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 		DotPlayerAnimState.CLIMB:
 			return [DotHumanoidClips.CLIMB, clampf(absf(float(_motion.get("vertical", 0.0))) / 2.5, 0.0, 1.2)]
 	return [DotHumanoidClips.IDLE_GUN if gun else DotHumanoidClips.IDLE, 1.0]
+
+
+## The rate that moves the lower foot back exactly as far as the body goes this step, or -1 when the
+## clip is not a stride. The clips have no root motion and sweep the planted foot back unevenly, so
+## any constant rate skates it; the rate is read off the clip's distance table instead.
+func _matched_rate(speed: float, dt: float) -> float:
+	if dt <= 0.0 or not state in [DotPlayerAnimState.WALK, DotPlayerAnimState.RUN, DotPlayerAnimState.CROUCH_WALK]:
+		return -1.0
+	if not clip in STRIDE_CLIPS or _anim.current_animation != String(clip):
+		return -1.0
+	var table := _stride_for(clip)
+	if table.size() < 2 or table[-1] <= 0.0:
+		return -1.0
+	var length := _anim.current_animation_length
+	var phase := fposmod(_anim.current_animation_position, length) / length
+	var want := _distance_at(table, phase) + speed * dt
+	var laps := floorf(want / table[-1])
+	var to := _phase_at(table, want - laps * table[-1]) + laps
+	return clampf((to - phase) * length / dt, 0.0, STRIDE_MAX_RATE)
+
+
+## Metres over the ground at each of [constant STRIDE_SAMPLES] steps through [param clip_id]: the
+## lower foot's backward travel in the figure's frame, never under a third of the mean so the
+## clip does not race through a moment the foot stands still in it. Cached per clip.
+func _stride_for(clip_id: StringName) -> PackedFloat32Array:
+	if _strides.has(clip_id):
+		return _strides[clip_id]
+	var table := PackedFloat32Array()
+	_strides[clip_id] = table
+	var animation := _anim.get_animation(clip_id)
+	var feet := [_skeleton.find_bone("Foot.L"), _skeleton.find_bone("Foot.R")]
+	if animation == null or feet.has(-1) or animation.length <= 0.0:
+		return table
+	var prefix := String(_model.get_path_to(_skeleton))
+	var to_figure := _to_figure()
+	var points: Array = []
+	for i in STRIDE_SAMPLES + 1:
+		var t := animation.length * i / STRIDE_SAMPLES
+		points.append(feet.map(func(b: int) -> Vector3: return to_figure * _bone_at(animation, prefix, b, t).origin))
+	var steps := PackedFloat32Array()
+	var total := 0.0
+	for i in range(1, points.size()):
+		var k := 0 if points[i][0].y + points[i - 1][0].y < points[i][1].y + points[i - 1][1].y else 1
+		var back: float = maxf(0.0, points[i][k].z - points[i - 1][k].z)
+		steps.append(back)
+		total += back
+	var least := total / STRIDE_SAMPLES / 3.0
+	table.append(0.0)
+	for back in steps:
+		table.append(table[-1] + maxf(back, least))
+	_strides[clip_id] = table
+	return table
+
+
+## [param bone]'s skeleton-space transform in [param animation] at [param t], from its tracks or its rest.
+func _bone_at(animation: Animation, prefix: String, bone: int, t: float) -> Transform3D:
+	var path := NodePath("%s:%s" % [prefix, _skeleton.get_bone_name(bone)])
+	var rest := _skeleton.get_bone_rest(bone)
+	var at := rest.origin
+	var turn := rest.basis.get_rotation_quaternion()
+	var track := animation.find_track(path, Animation.TYPE_POSITION_3D)
+	if track >= 0:
+		at = animation.position_track_interpolate(track, t)
+	track = animation.find_track(path, Animation.TYPE_ROTATION_3D)
+	if track >= 0:
+		turn = animation.rotation_track_interpolate(track, t)
+	var local := Transform3D(Basis(turn).scaled(rest.basis.get_scale()), at)
+	var parent := _skeleton.get_bone_parent(bone)
+	return local if parent < 0 else _bone_at(animation, prefix, parent, t) * local
+
+
+static func _distance_at(table: PackedFloat32Array, phase: float) -> float:
+	var x := clampf(phase, 0.0, 1.0) * (table.size() - 1)
+	var i := mini(int(x), table.size() - 2)
+	return lerpf(table[i], table[i + 1], x - i)
+
+
+static func _phase_at(table: PackedFloat32Array, distance: float) -> float:
+	var hi := table.bsearch(distance)
+	hi = clampi(hi, 1, table.size() - 1)
+	var span := table[hi] - table[hi - 1]
+	var x := float(hi - 1) + (clampf((distance - table[hi - 1]) / span, 0.0, 1.0) if span > 0.0 else 0.0)
+	return x / (table.size() - 1)
 
 
 func _play(wanted: StringName, rate: float) -> void:
