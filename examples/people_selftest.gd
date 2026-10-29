@@ -411,6 +411,14 @@ func _test_hand_and_aim() -> void:
 	f.set_motion({"crouched": true})
 	_check(is_equal_approx(f.aim_pitch, 0.4), "the motion's `aim` sets it, and a motion without one leaves it")
 
+	world.scale = Vector3.ZERO
+	f.aim(0.5)
+	f.animate(0.0, 0.1)
+	await get_tree().process_frame
+	var after := f.skeleton().get_bone_pose_rotation(abdomen)
+	world.scale = Vector3.ONE
+	_check(after.is_finite() and absf(after.length() - 1.0) < 0.01, "a figure scaled to nothing aims without an error and keeps a unit pose")
+
 	f.aim(0.0)
 	f.set_motion({"seated": true})
 	f.animate(3.0, 0.1)

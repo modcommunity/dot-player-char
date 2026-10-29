@@ -11,7 +11,13 @@ extends RefCounted
 ## would add up frame after frame.
 static func apply(skeleton: Skeleton3D, model: Node3D, animation: Animation, to_figure: Transform3D, arm: bool, pitch: float, sprint_blend: float) -> void:
 	# Figure right, in skeleton space: the axis a nod turns about.
-	var axis := (to_figure.basis.inverse() * Vector3.RIGHT).normalized()
+	# A collapsed basis (a figure scaled to nothing while it pops in or out) has no inverse and so no
+	# axis: keep the clip's pose rather than hand Quaternion a zero or NaN axis.
+	var axis := Vector3.ZERO
+	if absf(to_figure.basis.determinant()) > 1e-9:
+		axis = (to_figure.basis.inverse() * Vector3.RIGHT).normalized()
+	if not axis.is_finite() or axis.length_squared() < 0.5:
+		return
 	var prefix := String(model.get_path_to(skeleton))
 	# Every parent's pose is read before any bone is turned. Turns about one axis commute, so each
 	# bone's share goes on through its parent's unturned frame: local' = P^-1 * turn * P * local.
