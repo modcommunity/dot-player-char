@@ -31,7 +31,7 @@ Before this, every game here drew a death one of two ways, and both looked wrong
 2. Otherwise every reaction with weight above zero whose conditions the kill meets (`needs_headshot`, `needs_power` against `min_power`, `min_damage`) goes into a weighted draw from the seed.
 3. Nothing qualifying is `limp`, which always exists.
 
-The stock set: `limp` (4), `headshot_launch` (6, headshots only), `power_launch` (8, weapons with `params.death_power` at least 0.5), `face_plant` (1.5), `crumple` (2.5). So a headshot launches about six times in fourteen and an ordinary kill never launches. A game adds its own with `add()`; a weapon picks by naming one or by its power. The suite asserts the shares by counting a thousand seeded picks, because a draw that is wrong by a factor of two still picks something every time.
+The stock set: `limp` (4), `headshot_launch` (6, headshots only), `power_launch` (8, weapons with `params.death_power` at least 0.5), `face_plant` (1.5), `crumple` (2.5). With `sv_ragdoll_exaggerate 1` a headshot launches about six times in fourteen; by default every launch reaction has weight 0 (`silence_launches`) and bodies drop under 1.4x gravity. A game adds its own with `add()`; a weapon picks by naming one or by its power. The suite asserts the shares by counting a thousand seeded picks, because a draw that is wrong by a factor of two still picks something every time.
 
 **Weight zero is "off".** `sv_ragdoll_reactions face_plant=0,crumple=0` removes those from the draw, and a weapon naming one falls through to the draw rather than forcing what the server turned off.
 
@@ -44,8 +44,13 @@ The stock set: `limp` (4), `headshot_launch` (6, headshots only), `power_launch`
 | `sv_ragdoll` | 1 | 0: no physics, the topple fallback |
 | `sv_ragdoll_style` | ragdoll | ragdoll, stiff, topple, hide |
 | `sv_ragdoll_time` | 10 | seconds a body lies there before the fade |
-| `sv_ragdoll_max` | 8 | most bodies at once |
+| `sv_ragdoll_max` | 8 | most bodies at once (up to 256; a browser keeps its own lower local cap) |
 | `sv_ragdoll_force` | 1 | multiplies every push and launch; 0 drops bodies where they stood |
+| `sv_ragdoll_torque` | 1 | multiplies the spin a fall gets |
+| `sv_ragdoll_exaggerate` | 0 | 1 allows the launch reactions and flips; 0 is a heavy drop with no throw |
+| `sv_ragdoll_shootable` | 0 | 1 lets `DotPlayerRagdolls.shoot` push a lying body |
+| `sv_ragdoll_weapon_drop` | 1 | the dead player's weapon drops as a short-lived prop (`DotPlayerRagdolls.drop_prop`) |
+| `sv_ragdoll_weapon_time` | 8 | seconds a dropped weapon lies |
 | `sv_ragdoll_reactions` | (stock) | `id=weight,...`; 0 turns one off |
 
 ## The cap

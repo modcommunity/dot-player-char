@@ -45,13 +45,14 @@ signal sound(id: StringName, position: Vector3, volume: float)
 const EVICT_FADE := 0.3
 
 var _live: Array[DotPlayerRagdoll] = []
+var _props: Array[RigidBody3D] = []
 
 
 ## Fewer on a machine that simulates physics on its only thread or is a phone.
 static func default_local_cap() -> int:
 	if not DotPlatform.has_threads() or DotPlatform.is_mobile():
 		return 4
-	return 64
+	return 256
 
 
 ## The cap in force: the rules' and this machine's, the lower.
@@ -73,16 +74,118 @@ func spawn(figure: Node3D, death: DotPlayerDeath, velocity: Vector3 = Vector3.ZE
 	var standing := _standing()
 	while standing.size() > room and not standing.is_empty():
 		standing.pop_front().expire(EVICT_FADE)
+		DotLog.debug(CHANNEL, "cap reached, oldest body fading", {"cap": cap()})
 
 	var reaction := reactions.find(death.reaction) if death != null and reactions != null else null
 	var made := DotPlayerRagdoll.build(figure, self, rules, reaction, death, velocity)
 	if made == null:
+		DotLog.debug(CHANNEL, "no body built", {"figure": figure.name})
 		return null
 
 	var _c := made.sound.connect(_on_sound)
 	_live.append(made)
 	spawned.emit(made)
 	return made
+
+
+## Drops a copy of [param model] (a weapon's world model, usually the held node) as a physics
+## prop at its current pose, which crashes onto the ground and fades after
+## [member DotPlayerRagdollRules.weapon_lifetime]. Null when the rules turn it off or the model
+## has no mesh. Presentation only: it collides with the world and nothing collides with it.
+func drop_prop(model: Node3D, velocity: Vector3 = Vector3.ZERO) -> RigidBody3D:
+	if model == null or rules == null or not rules.weapon_drop or not model.is_inside_tree():
+		return null
+	var meshes: Array[MeshInstance3D] = []
+	meshes = DotPlayerRagdoll.meshes_of(model)
+	if meshes.is_empty():
+		return null
+
+	var frame := model.global_transform.orthonormalized()
+	var to_local := frame.affine_inverse()
+	var bounds := AABB()
+	var first := true
+	for mesh in meshes:
+		var box := (to_local * mesh.global_transform) * mesh.get_aabb()
+		bounds = box if first else bounds.merge(box)
+		first = false
+
+	var body := RigidBody3D.new()
+	body.name = "DroppedWeapon"
+	body.collision_layer = 0
+	body.collision_mask = rules.collision_mask
+	body.mass = 4.0
+	body.gravity_scale = rules.gravity_scale
+	body.continuous_cd = true
+	body.linear_damp = rules.linear_damp
+	body.angular_damp = 0.5
+	var material := PhysicsMaterial.new()
+	material.friction = 0.8
+	material.bounce = 0.25
+	body.physics_material_override = material
+	add_child(body)
+	body.global_transform = frame
+
+	var shape := CollisionShape3D.new()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = bounds.size.max(Vector3.ONE * 0.06)
+	shape.shape = box_shape
+	shape.position = bounds.get_center()
+	body.add_child(shape)
+	for mesh in meshes:
+		var copy := mesh.duplicate(0) as MeshInstance3D
+		body.add_child(copy)
+		copy.visible = true
+		copy.global_transform = mesh.global_transform
+
+	body.linear_velocity = velocity + Vector3.DOWN * 1.5
+	body.angular_velocity = Vector3(0.0, 0.0, 2.0) * (1.0 if velocity.x >= 0.0 else -1.0)
+
+	while _props.size() >= maxi(cap(), 1):
+		var oldest := _props.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
+	_props.append(body)
+	var timer := get_tree().create_timer(rules.weapon_lifetime)
+	var _t := timer.timeout.connect(_expire_prop.bind(body))
+	DotLog.debug(CHANNEL, "weapon dropped", {"life": rules.weapon_lifetime})
+	return body
+
+
+func _expire_prop(body: RigidBody3D) -> void:
+	_props.erase(body)
+	if not is_instance_valid(body):
+		return
+	body.freeze = true
+	var tween := body.create_tween()
+	tween.tween_property(body, "scale", Vector3.ONE * 0.01, 0.4)
+	tween.tween_callback(body.queue_free)
+
+
+## Applies a shot's impulse to the lying body part nearest [param point] (within
+## [param radius]). Does nothing, and returns false, unless [member DotPlayerRagdollRules.shootable].
+func shoot(point: Vector3, direction: Vector3, impulse: float = 4.0, radius: float = 0.6) -> bool:
+	if rules == null or not rules.shootable:
+		return false
+	_reap()
+	var best: RigidBody3D = null
+	var best_d := radius
+	var hit_body: DotPlayerRagdoll = null
+	for body in _live:
+		for node in body.part_nodes():
+			var rb := node as RigidBody3D
+			if rb == null:
+				continue
+			var d := rb.global_position.distance_to(point)
+			if d < best_d:
+				best_d = d
+				best = rb
+				hit_body = body
+	if best == null:
+		return false
+	hit_body.wake()
+	best.freeze = false
+	best.apply_impulse(direction.normalized() * impulse * rules.force_scale, point - best.global_position)
+	return true
 
 
 ## Bodies not yet fading, oldest first.
@@ -120,6 +223,10 @@ func clear() -> void:
 		if is_instance_valid(body):
 			body.queue_free()
 	_live.clear()
+	for prop in _props:
+		if is_instance_valid(prop):
+			prop.queue_free()
+	_props.clear()
 
 
 func _on_sound(id: StringName, at: Vector3, strength: float) -> void:

@@ -13,8 +13,8 @@ extends Node
 ## godot --headless --path . res://examples/ragdoll_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 10
-const CHECKS := 82
+const SECTIONS := 11
+const CHECKS := 100
 
 var _passed := 0
 var _failed := 0
@@ -42,6 +42,7 @@ func _run() -> void:
 	await _test_cap_and_life()
 	await _test_skinned()
 	await _test_faceplant_sweep()
+	await _test_weight_and_weapon()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -215,7 +216,7 @@ func _test_rules() -> void:
 	var rules := DotPlayerRagdollRules.new()
 	_check(rules.effective_style() == DotPlayerRagdollRules.Style.RAGDOLL, "ragdolls by default")
 	var made := rules.bind_cvars(_add_cvar)
-	_check(made.size() == 6, "six sv_ragdoll cvars")
+	_check(made.size() == 11, "eleven sv_ragdoll cvars")
 	_check(rules.max_count == 5, "a value the cvar already held is read back (sv_ragdoll_max 5)")
 	(_made_cvars["sv_ragdoll"] as _FakeCvar).set_string("0")
 	_check(not rules.enabled and rules.effective_style() == DotPlayerRagdollRules.Style.TOPPLE,
@@ -343,6 +344,7 @@ func _test_ragdoll_falls() -> void:
 	_check(heard.count(&"ragdoll.face_plant") == 1, "with exactly one face-plant smack")
 
 	heard.clear()
+	yard.rules.exaggerate = true
 	var launched := yard.spawn(_figure(Vector3(-4, 0, 0)), _death(&"headshot_launch", Vector3(0, 0, 1), true, 100.0))
 	var top := 0.0
 	for i in range(40):
@@ -350,6 +352,7 @@ func _test_ragdoll_falls() -> void:
 		if is_instance_valid(launched):
 			top = maxf(top, launched.centre().y)
 	_check(top > 2.0, "a headshot launch throws the body up (torso reached %.1f m)" % top)
+	yard.rules.exaggerate = false
 	await get_tree().process_frame
 	_check(heard.has(&"ragdoll.whoosh"), "with a whoosh")
 	await _settle(launched, 8.0)
@@ -423,6 +426,51 @@ func _test_cap_and_life() -> void:
 	_check(yard.live().is_empty(), "every body fades and is gone after its lifetime (%.1f s)" % waited)
 	var fps := DotPlayerRagdolls.default_local_cap()
 	_check(fps >= 4, "a machine's own cap is never below four (%d)" % fps)
+
+
+func _test_weight_and_weapon() -> void:
+	_section("the heavy drop, the cvar defaults and the dropped weapon")
+	var r := DotPlayerRagdollRules.new()
+	_check(not r.exaggerate and not r.shootable, "exaggerate and shootable are off by default")
+	_check(is_equal_approx(r.torque_scale, 1.0) and r.weapon_drop, "torque 1, weapon drop on by default")
+	_check(r.reactions().find(&"headshot_launch").weight == 0.0, "launch reactions are not drawn by default")
+	_check(r.reactions().pick(true, 1.0, 100.0, &"power_launch", 7) != &"power_launch", "a weapon naming a launch falls through")
+	var specs := r.cvar_specs().map(func(d: Dictionary) -> String: return String(d["name"]))
+	for name in ["sv_ragdoll_torque", "sv_ragdoll_exaggerate", "sv_ragdoll_shootable", "sv_ragdoll_weapon_drop", "sv_ragdoll_weapon_time"]:
+		_check(specs.has(name), "%s is a cvar" % name)
+	_check(r.set_cvar("sv_ragdoll_exaggerate", "1") and r.reactions().find(&"headshot_launch").weight > 0.0, "exaggerate brings the launches back")
+	_check(r.set_cvar("sv_ragdoll_max", "200") and r.max_count == 200, "the body cap goes past 64")
+
+	var yard := DotPlayerRagdolls.new()
+	yard.local_cap = 64
+	_world.add_child(yard)
+	var launch := DotPlayerDeathReactions.stock().find(&"headshot_launch")
+	var made := DotPlayerRagdoll.build(_figure(Vector3(0, 0, 40)), yard, yard.rules, launch, _death(&"headshot_launch", Vector3(0, 0, 1), true), Vector3.ZERO)
+	var top := 0.0
+	for node in made.part_nodes():
+		top = maxf(top, (node as RigidBody3D).linear_velocity.y)
+	_check(top < 1.0, "a launch reaction does not throw the body up by default (%.2f m/s)" % top)
+	_check((made.part_nodes()[0] as RigidBody3D).gravity_scale > 1.0, "a falling body is heavier than gravity alone")
+
+	var gun := Node3D.new()
+	var gun_mesh := MeshInstance3D.new()
+	gun_mesh.mesh = BoxMesh.new()
+	gun.add_child(gun_mesh)
+	_world.add_child(gun)
+	gun.global_position = Vector3(0, 3, 40)
+	var dropped := yard.drop_prop(gun)
+	_check(dropped != null and dropped.get_child_count() >= 2, "the weapon drops as a physics prop with its mesh")
+	for i in range(90):
+		await get_tree().physics_frame
+	_check(dropped != null and dropped.global_position.y < 3.0, "and falls (y %.2f)" % (dropped.global_position.y if dropped != null else 0.0))
+	yard.rules.weapon_drop = false
+	_check(yard.drop_prop(gun) == null, "weapon_drop off drops nothing")
+	_check(not yard.shoot(Vector3(0, 1, 40), Vector3.FORWARD), "shooting a body does nothing by default")
+	yard.rules.shootable = true
+	var lying := yard.spawn(_figure(Vector3(6, 0, 40)), _death(&"limp"))
+	var shot := yard.shoot(lying.centre(), Vector3.FORWARD)
+	_check(shot, "with shootable on, a shot finds a part")
+	yard.clear()
 
 
 func _person(at: Vector3) -> DotHumanoidFigure:

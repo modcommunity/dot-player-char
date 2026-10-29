@@ -173,6 +173,13 @@ func apply_weights(text: String) -> int:
 	return set_count
 
 
+## Gives every launch reaction weight 0: the default, a drop with no throw.
+func silence_launches() -> void:
+	for reaction in _list:
+		if reaction.pose == DotPlayerDeathReaction.Pose.LAUNCH:
+			reaction.weight = 0.0
+
+
 ## The weights as [method apply_weights] reads them, in [method ids] order.
 func weights_text() -> String:
 	var parts := PackedStringArray()

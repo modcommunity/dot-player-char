@@ -110,6 +110,7 @@ var _topple_angle: float = 0.0
 var _topple_spin: float = 0.0
 var _topple_start: Transform3D = Transform3D.IDENTITY
 var _rng := RandomNumberGenerator.new()
+var _sim_from: float = 0.0
 
 # A skinned body: a copy of the figure's skeleton with copies of its skinned meshes on it, whose
 # bones follow the parts (see [method _pose_bones]).
@@ -394,6 +395,7 @@ func _new_body(role: int, frame: Transform3D, part_mass: float) -> Part:
 	body.mass = maxf(part_mass, 0.5)
 	body.linear_damp = rules.linear_damp
 	body.angular_damp = rules.angular_damp
+	body.gravity_scale = rules.gravity_scale
 	# A launched head moves a metre in a frame: without this it is through the floor.
 	body.continuous_cd = true
 	body.can_sleep = true
@@ -839,6 +841,9 @@ func _pose_bones() -> void:
 
 func _drive(forward: Vector3, velocity: Vector3) -> void:
 	var k := rules.force_scale
+	# Launches and flips are the exaggerated option; off, a LAUNCH reaction falls as a limp one.
+	var wild := 1.0 if rules.exaggerate else 0.0
+	var torque := rules.torque_scale
 	# Along the ground, mostly: a trap that kills "downward" or a shot from a roof pushes a body
 	# into the floor, which reads as nothing. With no sideways part at all there is no push.
 	var dir := death.direction
@@ -851,8 +856,8 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 
 	var base := velocity
 	base += dir * reaction.push * strength * k
-	base += dir * reaction.launch_along * k
-	base += Vector3.UP * reaction.launch_up * k
+	base += dir * reaction.launch_along * k * wild
+	base += Vector3.UP * reaction.launch_up * k * wild
 
 	var torso := _part(Role.TORSO)
 	var hit := _part(Role.HEAD) if death.headshot and _part(Role.HEAD) != null else torso
@@ -886,16 +891,16 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 				var body := part.body as RigidBody3D
 				body.linear_velocity = base + Vector3.DOWN * 1.2
 				if part.role == Role.LEG_L or part.role == Role.LEG_R:
-					body.angular_velocity = -axis * _rng.randf_range(4.0, 6.5)
+					body.angular_velocity = -axis * _rng.randf_range(4.0, 6.5) * torque
 					body.linear_velocity += forward * 1.4
 				elif part.role == Role.TORSO:
-					body.angular_velocity = axis * back * _rng.randf_range(0.8, 1.6)
+					body.angular_velocity = axis * back * _rng.randf_range(0.8, 1.6) * torque
 		_:
 			for part in _parts:
 				(part.body as RigidBody3D).linear_velocity = base
 
 	if hit != null and dir != Vector3.ZERO:
-		(hit.body as RigidBody3D).linear_velocity += dir * reaction.hit_push * k
+		(hit.body as RigidBody3D).linear_velocity += dir * reaction.hit_push * k * (1.0 if rules.exaggerate or reaction.pose != DotPlayerDeathReaction.Pose.LAUNCH else 0.2)
 
 	if torso != null:
 		var body := torso.body as RigidBody3D
@@ -903,9 +908,9 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 		# balances upright on their feet, plus the reaction's seeded tumble.
 		var fall_dir := dir if dir != Vector3.ZERO else -forward
 		var tip := Vector3.UP.cross(fall_dir).normalized() * (1.2 + strength * 0.4)
-		var tumble := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * reaction.spin * 0.35
-		var flip := Vector3.UP.cross(fall_dir).normalized() * reaction.spin * k
-		body.angular_velocity += tip + tumble + flip
+		var tumble := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * reaction.spin * 0.35 * wild
+		var flip := Vector3.UP.cross(fall_dir).normalized() * reaction.spin * k * wild
+		body.angular_velocity += (tip + tumble + flip) * torque
 
 
 ## Keeps a face plant turning until its weight is past the toes. One shove of 1.6 rad/s is enough
@@ -1088,8 +1093,22 @@ func _watch_motion(delta: float) -> void:
 		_become_jointed()
 		return
 
-	if _still_for >= rules.settle_time or age >= rules.max_sim_time:
+	if _still_for >= rules.settle_time or age - _sim_from >= rules.max_sim_time:
 		freeze_all()
+
+
+## Lets a frozen body move again (a shot into it), simulating for up to another
+## [member DotPlayerRagdollRules.max_sim_time].
+func wake() -> void:
+	if style == DotPlayerRagdollRules.Style.TOPPLE:
+		return
+	for part in _parts:
+		var body := part.body as RigidBody3D
+		if body != null:
+			body.freeze = false
+	settled = false
+	_still_for = 0.0
+	_sim_from = age
 
 
 ## Stops every part where it lies. Frozen bodies cost nothing to keep.
