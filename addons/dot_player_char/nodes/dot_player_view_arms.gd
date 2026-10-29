@@ -36,6 +36,8 @@ var elbow_pole: Vector3 = Vector3(1.0, -1.2, 0.5)
 ## The held arms' size and how much wider apart the shoulders sit: slimmer arms leave the weapon visible.
 var held_scale: float = 1.0
 var held_spread: float = 1.25
+## Draw the support forearm and hand as the firing ones mirrored, so one-sided forearm gear never crosses the view.
+var mirror_support_forearm: bool = true
 ## Show the idle left arm in a one-hand grip. Off: it has no hand in view, only its sleeve at the screen edge.
 var show_idle_left_arm: bool = false
 ## The hand's size with a weapon (1 is the kit's own mitts).
@@ -142,10 +144,95 @@ func _strip_gear(figure: DotHumanoidFigure) -> void:
 				kept.append_array(index.slice(t, t + 3))
 
 		arrays[Mesh.ARRAY_INDEX] = kept
+		if mirror_support_forearm and instance.skin != null:
+			_mirror_forearm(arrays, skeleton, instance.skin)
 		out.add_surface_from_arrays(old.surface_get_primitive_type(s), arrays)
 		out.surface_set_material(s, old.surface_get_material(s))
 
 	instance.mesh = out
+
+
+## Replaces the support forearm and hand with the firing ones mirrored across the body (x = the forearms' midpoint).
+## A body's one-sided forearm gear (a bandage's loose wraps) otherwise crosses the view as torn-looking strips.
+func _mirror_forearm(arrays: Array, skeleton: Skeleton3D, skin: Skin) -> void:
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES] if arrays[Mesh.ARRAY_BONES] != null else PackedInt32Array()
+	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS] if arrays[Mesh.ARRAY_WEIGHTS] != null else PackedFloat32Array()
+	var n := verts.size()
+	var per := bones.size() / maxi(n, 1)
+	var bind_of := {}
+	var at := {}
+	for b in skin.get_bind_count():
+		var bone := _bind_bone(skeleton, skin, b)
+		if bone >= 0:
+			bind_of[skeleton.get_bone_name(bone)] = b
+			at[skeleton.get_bone_name(bone)] = skin.get_bind_pose(b).affine_inverse().origin
+	if per < 1 or weights.size() < n * per or not at.has("LowerArm.L") or not at.has("LowerArm.R"):
+		return
+	var l: Vector3 = at["LowerArm.L"]
+	var r: Vector3 = at["LowerArm.R"]
+	if absf(l.y - r.y) > 0.01 or absf(l.z - r.z) > 0.01:
+		return
+	var mid := (l.x + r.x) * 0.5
+	var side := PackedByteArray()
+	side.resize(n)
+	for v in n:
+		var best := 0
+		for k in per:
+			if weights[v * per + k] > weights[v * per + best]:
+				best = k
+		side[v] = _forearm_side(skeleton, skin, bones[v * per + best])
+	var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var kept := PackedInt32Array()
+	var copied := {}
+	var added := PackedInt32Array()
+	for t in range(0, index.size() - 2, 3):
+		var tri := [index[t], index[t + 1], index[t + 2]]
+		if side[tri[0]] == 1 and side[tri[1]] == 1 and side[tri[2]] == 1:
+			continue
+		kept.append_array(index.slice(t, t + 3))
+		if side[tri[0]] == 2 and side[tri[1]] == 2 and side[tri[2]] == 2:
+			for c in [0, 2, 1]:
+				if not copied.has(tri[c]):
+					copied[tri[c]] = n + copied.size()
+					added.append(tri[c])
+				kept.append(copied[tri[c]])
+	for a in arrays.size():
+		var src = arrays[a]
+		if a == Mesh.ARRAY_INDEX or not (src is PackedVector3Array or src is PackedFloat32Array or src is PackedVector2Array or src is PackedInt32Array or src is PackedColorArray):
+			continue
+		var w: int = src.size() / n
+		for v in added:
+			for k in w:
+				var value = src[v * w + k]
+				if a == Mesh.ARRAY_VERTEX:
+					value = Vector3(2.0 * mid - value.x, value.y, value.z)
+				elif a == Mesh.ARRAY_NORMAL:
+					value = Vector3(-value.x, value.y, value.z)
+				elif a == Mesh.ARRAY_TANGENT and (k == 0 or k == 3):
+					value = -value
+				elif a == Mesh.ARRAY_BONES:
+					value = bind_of.get(String(skeleton.get_bone_name(_bind_bone(skeleton, skin, value))).trim_suffix(".R") + ".L", value)
+				src.append(value)
+		arrays[a] = src
+	arrays[Mesh.ARRAY_INDEX] = kept
+
+
+## 1 for a bind on the support forearm or hand (LowerArm.L and below), 2 on the firing one, else 0.
+func _forearm_side(skeleton: Skeleton3D, skin: Skin, bind: int) -> int:
+	var bone := _bind_bone(skeleton, skin, bind)
+	while bone >= 0:
+		var bone_name := skeleton.get_bone_name(bone)
+		if bone_name == "LowerArm.L":
+			return 1
+		if bone_name == "LowerArm.R":
+			return 2
+		bone = skeleton.get_bone_parent(bone)
+	return 0
+
+
+func _bind_bone(skeleton: Skeleton3D, skin: Skin, bind: int) -> int:
+	return skeleton.find_bone(skin.get_bind_name(bind)) if skin.get_bind_name(bind) != &"" else skin.get_bind_bone(bind)
 
 
 func _is_gear(bone: StringName, rest: Vector3) -> bool:

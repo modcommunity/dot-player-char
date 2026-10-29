@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 118
+const CHECKS := 119
 
 var _passed := 0
 var _failed := 0
@@ -656,6 +656,17 @@ func _test_view_arms() -> void:
 	bare.build(DotHumanoidLook.stock(7), 1.8)
 	_check(_gear_triangles(bare.arms() as DotHumanoidFigure) > 0, "without the hide the stock figure does carry a pack (the check can fail)")
 	bare.queue_free()
+	var wrapped := DotHumanoidLook.stock(7)
+	wrapped.body = &"shaun"
+	var sides := []
+	for mirror in [true, false]:
+		var held := DotPlayerViewArms.new()
+		add_child(held)
+		held.mirror_support_forearm = mirror
+		held.build(wrapped, 1.8)
+		sides.append(_forearm_triangles(held.arms() as DotHumanoidFigure))
+		held.queue_free()
+	_check(sides[0][0] == sides[0][1] and sides[1][0] != sides[1][1], "the support forearm is the firing one mirrored, so a one-sided bandage is not drawn (%s, unmirrored %s)" % [sides[0], sides[1]])
 	arms.set_downed(false)
 	_check(not arms.arms().visible, "hidden once up")
 	var custom := DotPlayerViewArms.new()
@@ -761,6 +772,37 @@ func _gear_triangles(figure: DotHumanoidFigure) -> int:
 				n += 1
 				break
 	return n
+
+
+## Triangles wholly on each forearm and hand (support, firing), bones read through the skin's binds.
+func _forearm_triangles(figure: DotHumanoidFigure) -> Array:
+	var sk := figure.skeleton()
+	var skin := figure.mesh().skin
+	var arrays := figure.mesh().mesh.surface_get_arrays(0)
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+	var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var per := bones.size() / (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	var counts := [0, 0]
+	for t in range(0, index.size() - 2, 3):
+		var sides := {}
+		for c in 3:
+			var v := index[t + c]
+			var best := 0
+			for k in per:
+				if weights[v * per + k] > weights[v * per + best]:
+					best = k
+			var bone := sk.find_bone(skin.get_bind_name(bones[v * per + best]))
+			var side := ""
+			while bone >= 0 and side == "":
+				side = sk.get_bone_name(bone).trim_prefix("LowerArm") if sk.get_bone_name(bone).begins_with("LowerArm") else ""
+				bone = sk.get_bone_parent(bone)
+			sides[side] = true
+		if sides.size() == 1 and sides.has(".L"):
+			counts[0] += 1
+		elif sides.size() == 1 and sides.has(".R"):
+			counts[1] += 1
+	return counts
 
 
 func _section(title: String) -> void:
