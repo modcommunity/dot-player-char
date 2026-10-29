@@ -5,7 +5,7 @@ extends SceneTree
 ## (`people/people_ual.res`, see docs/people.md#real-clips-from-the-universal-animation-library).
 ##
 ## [codeblock]
-## godot --headless --path . --script tools/ual_retarget.gd -- --ual=/path/UAL1_Standard.glb [--out=res://addons/dot_player_char/people/people_ual.res] [--clips=sit=Sitting_Idle_Loop]
+## godot --headless --path . --script tools/ual_retarget.gd -- --ual=/path/UAL1_Standard.glb --ual2=/path/UAL2_Standard.glb [--out=res://addons/dot_player_char/people/people_ual.res] [--clips=sit=Sitting_Idle_Loop]
 ## [/codeblock]
 ##
 ## The library is a different skeleton (65 bones, a hand and five three-joint fingers, the feet
@@ -29,6 +29,18 @@ const OUT := "res://addons/dot_player_char/people/people_ual.res"
 ## prone clip stood up about the hips, for one the figure lays down itself, like the swim).
 const CLIPS := {
 	&"sit": ["Sitting_Idle_Loop", "grounded"],
+	&"drive": ["Driving_Loop", "grounded"],
+	&"ual_zombie_idle": ["Zombie_Idle_Loop", "grounded"],
+	&"ual_zombie_walk": ["Zombie_Walk_Fwd_Loop", "grounded"],
+	&"ual_zombie_scratch": ["Zombie_Scratch", "grounded"],
+	&"ual_knockback": ["Hit_Knockback", "free"],
+	&"ual_lay_to_idle": ["LayToIdle", "free"],
+	&"ual_slide": ["Slide_Loop", "free"],
+	&"ual_sprint": ["Sprint_Loop", "grounded"],
+	&"ual_jog": ["Jog_Fwd_Loop", "grounded"],
+	&"ual_crouch_walk": ["Crouch_Fwd_Loop", "grounded"],
+	&"ual_hit_chest": ["Hit_Chest", "grounded"],
+	&"ual_hit_head": ["Hit_Head", "grounded"],
 }
 
 ## Kit bone -> library bone. The kit's `Middle1`, `Index1` and `Pinky1` all start at the wrist
@@ -60,12 +72,12 @@ const FPS := 15.0
 
 
 func _initialize() -> void:
-	var ual_path := ""
+	var ual_paths: Array[String] = []
 	var out := OUT
 	var clips := CLIPS.duplicate()
 	for arg in OS.get_cmdline_user_args():
-		if arg.begins_with("--ual="):
-			ual_path = arg.trim_prefix("--ual=")
+		if arg.begins_with("--ual=") or arg.begins_with("--ual2="):
+			ual_paths.append(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--out="):
 			out = arg.trim_prefix("--out=")
 		elif arg.begins_with("--clips="):
@@ -79,20 +91,26 @@ func _initialize() -> void:
 				elif parts[1].ends_with("^"):
 					mode = "upright"
 				clips[StringName(parts[0])] = [parts[1].trim_suffix("!").trim_suffix("^"), mode]
-	if ual_path == "":
-		printerr("--ual=<UAL1_Standard.glb> is required")
+	if ual_paths.is_empty():
+		printerr("--ual=<UAL1_Standard.glb> [--ual2=<UAL2_Standard.glb>] is required")
 		quit(2)
 		return
 
-	var doc := GLTFDocument.new()
-	var state := GLTFState.new()
-	if doc.append_from_file(ual_path, state) != OK:
-		printerr("cannot read ", ual_path)
-		quit(1)
-		return
-	var ual := doc.generate_scene(state)
-	var ual_skeleton := ual.find_children("*", "Skeleton3D", true, false).front() as Skeleton3D
-	var ual_player := ual.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	# Clip names are unique across the two libraries; a clip comes from whichever has it.
+	var scenes: Array[Node] = []
+	var ual_skeletons: Array[Skeleton3D] = []
+	var ual_players: Array[AnimationPlayer] = []
+	for ual_path in ual_paths:
+		var doc := GLTFDocument.new()
+		var state := GLTFState.new()
+		if doc.append_from_file(ual_path, state) != OK:
+			printerr("cannot read ", ual_path)
+			quit(1)
+			return
+		var scene := doc.generate_scene(state)
+		scenes.append(scene)
+		ual_skeletons.append(scene.find_children("*", "Skeleton3D", true, false).front() as Skeleton3D)
+		ual_players.append(scene.find_child("AnimationPlayer", true, false) as AnimationPlayer)
 	var matt := (load(MATT) as PackedScene).instantiate()
 	var skeleton := matt.find_children("*", "Skeleton3D", true, false).front() as Skeleton3D
 	var prefix := String(matt.get_path_to(skeleton))
@@ -100,17 +118,22 @@ func _initialize() -> void:
 	var library := AnimationLibrary.new()
 	for name: StringName in clips:
 		var source := String(clips[name][0])
-		if not ual_player.has_animation(source):
+		var at := -1
+		for k in ual_players.size():
+			if ual_players[k].has_animation(source):
+				at = k
+		if at < 0:
 			printerr("no clip ", source)
 			continue
-		var made := _bake(ual_player.get_animation(source), ual_skeleton, skeleton, prefix, String(clips[name][1]))
+		var made := _bake(ual_players[at].get_animation(source), ual_skeletons[at], skeleton, prefix, String(clips[name][1]))
 		var _a := library.add_animation(name, made)
 		print("BAKED %s from %s: %.2f s, %d tracks" % [name, source, made.length, made.get_track_count()])
 
 	var err := ResourceSaver.save(library, out, ResourceSaver.FLAG_COMPRESS)
 	print("SAVED ", out, " ", err, " ", FileAccess.get_file_as_bytes(out).size(), " bytes")
 	matt.free()
-	ual.free()
+	for scene in scenes:
+		scene.free()
 	quit(0 if err == OK else 1)
 
 
