@@ -95,15 +95,7 @@ static func scene(path: String) -> PackedScene:
 
 ## A model by path, imported or not: [code]load()[/code] when the project has imported it, and
 ## otherwise the source file read at run time through [GLTFDocument], packed as a scene.
-##
-## The fallback is not a nicety. A project only imports a file when the editor (or
-## [code]--import[/code]) scans it, and a game started straight from a clone or a fresh addon
-## copy, with an import cache from before the file arrived, has the [code].glb[/code] and
-## its [code].import[/code] and no imported scene: [code]load()[/code] fails, and every person
-## was a capsule in three games on a machine that pulled the people and played without opening
-## the editor. The run-time read builds the same skeleton, skin, mesh and clips as the importer
-## does with this addon's import settings (compared bone for bone), so nothing downstream can
-## tell. An exported build has no source file, and there the import is always present.
+## The fallback matters: a stale import cache has the [code].glb[/code] but no imported scene.
 static func load_model(path: String) -> PackedScene:
 	if ResourceLoader.exists(path):
 		var imported := load(path) as PackedScene
@@ -143,11 +135,9 @@ static func load_texture(path: String) -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 
-## The clip set for [param id]'s body: the clip body's own (with the made clips), carried onto
-## this body's rest by [method DotHumanoidClips.retarget], once per body and shared.
-##
-## Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made clips added, then
-## the real ones from [method real_clips_path] put over the made ones they replace.
+## The clip set for [param id]'s body, retargeted by [method DotHumanoidClips.retarget] once per
+## body and shared. Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made
+## clips, then the real ones from [method real_clips_path] over the ones they replace.
 static func library_for(id: StringName, skeleton: Skeleton3D) -> AnimationLibrary:
 	var base_key := StringName("base")
 	if not _libraries.has(base_key):

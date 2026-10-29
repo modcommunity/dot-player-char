@@ -3,11 +3,7 @@ extends RefCounted
 
 ## The starter emotes, poses and gestures of dot-user-avatar (the site's BUILTIN_AVATAR_ACTIONS ids)
 ## as clips on the people's rig, and the path an uploaded humanoid clip takes onto it.
-##
-## Made like the sit and the climb: each pose is bone directions worked out on the idle's first
-## frame in skeleton space (+X the figure's left, +Y up, +Z forward), keyed at 20 frames a second.
-## No art is downloaded or vendored: the kit's own wave and yes are the `wave` and `nod`, the sit
-## is the Universal Animation Library's (both CC0, credited in README.md), the rest is geometry.
+## Poses are bone directions from the idle's first frame; `wave`, `nod`, `sit` are CC0 (README.md).
 
 ## Ids with a clip made here. `wave` and `nod` are the kit's, `sit` the real sit.
 const MADE: Array[StringName] = [&"point", &"thumbs_up", &"shrug", &"cheer", &"dance", &"clap", &"bow",
@@ -67,16 +63,9 @@ static func add_to(library: AnimationLibrary, idle: Animation, skeleton: Skeleto
 	return library
 
 
-## [param animation]'s tracks renamed from [param bone_map]'s bones to the kit's, rotation only,
-## each with its source rest in the result's second element, ready for
-## [method DotHumanoidClips.retarget]. For a clip a member uploaded on a humanoid rig: the
-## [BoneMap] says which of its bones is the hips, spine and so on, and nothing else is trusted.
-##
-## Returns {"animation": Animation, "rests": Dictionary} with rests keyed by kit bone name, from
-## [param source_rests] (source bone name to local rest, [method DotHumanoidClips.rests_of]).
-## Retargeting moves each key off the source rest and onto the kit's, so it needs the two rigs to
-## rest in the same stance; an upload in a T-pose against the kit's A-pose bends the arms by the
-## difference, which is why the upload path asks for the clip's own rest.
+## [param animation] renamed from [param bone_map]'s bones to the kit's, rotation only, ready for
+## [method DotHumanoidClips.retarget]. Returns {"animation", "rests"}; the rigs must share a
+## stance, or a T-pose upload bends the arms.
 static func rename_humanoid(animation: Animation, bone_map: BoneMap, source_rests: Dictionary) -> Dictionary:
 	var out := Animation.new()
 	out.length = animation.length
@@ -153,9 +142,8 @@ static func humanoid_bone_map(skeleton: Skeleton3D) -> BoneMap:
 	return map
 
 
-## The clip [param clip] of an uploaded action's scene (dot-user-avatar's content cache builds it)
-## moved onto [param skeleton], its tracks under [param prefix] (the kit clips' skeleton path).
-## Fails when the scene has no skeleton, no such clip, a clip over [constant MAX_UPLOAD_LENGTH],
+## The clip [param clip] of an uploaded action's scene moved onto [param skeleton], tracks under
+## [param prefix]. Fails with no skeleton, no such clip, a clip over [constant MAX_UPLOAD_LENGTH],
 ## or fewer than [constant MIN_UPLOAD_BONES] of [constant KIT_BONES]' bones.
 static func from_upload(scene: Node, clip: String, skeleton: Skeleton3D, prefix: String, loop: bool) -> DotResult:
 	if scene == null or skeleton == null:
