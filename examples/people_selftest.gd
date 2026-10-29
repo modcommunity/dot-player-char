@@ -11,7 +11,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 115
+const CHECKS := 118
 
 var _passed := 0
 var _failed := 0
@@ -708,6 +708,14 @@ func _test_held_arms() -> void:
 	arms.tick(0.0, 1.0 / 30.0)
 	var rest_left := _bone_world(sk, "Middle1.L")
 	_check(rest_left.distance_to(weapon.to_global(fore)) > 0.1, "a one-hand grip leaves the other hand off the foregrip (%.2f m away)" % rest_left.distance_to(weapon.to_global(fore)))
+	_check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x < 0.01, "a one-hand grip hides the idle left arm")
+	arms.show_idle_left_arm = true
+	arms.tick(0.0, 1.0 / 30.0)
+	_check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x > 0.5, "show_idle_left_arm keeps it")
+	arms.show_idle_left_arm = false
+	arms.set_held(DotViewGrip.two_hand(weapon, grip, fore))
+	arms.tick(0.0, 1.0 / 30.0)
+	_check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x > 0.5, "a two-hand grip shows the left arm")
 	arms.set_held(DotViewGrip.two_hand(weapon, grip, Vector3(0.0, 5.0, 0.0)))
 	arms.tick(0.0, 1.0 / 30.0)
 	_check(_bone_world(sk, "Middle1.L").distance_to(weapon.to_global(Vector3(0.0, 5.0, 0.0))) > 1.0, "a support point out of reach is not reached (the check can fail)")

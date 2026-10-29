@@ -36,6 +36,8 @@ var elbow_pole: Vector3 = Vector3(1.0, -1.2, 0.5)
 ## The held arms' size and how much wider apart the shoulders sit: slimmer arms leave the weapon visible.
 var held_scale: float = 1.0
 var held_spread: float = 1.25
+## Show the idle left arm in a one-hand grip. Off: it has no hand in view, only its sleeve at the screen edge.
+var show_idle_left_arm: bool = false
 ## The hand's size with a weapon (1 is the kit's own mitts).
 var hand_scale: float = 0.68
 ## Idle breathing and walk bob, metres: [method sway] is what the host adds to its weapon mount.
@@ -214,7 +216,21 @@ func tick(speed: float, delta: float) -> void:
 		for i in _fingers:
 			skeleton.set_bone_pose_scale(i, Vector3.ONE * (hand_scale if _holding() else 1.0))
 
+		_scale_left(skeleton)
 		_reach(skeleton)
+
+
+func _left_hidden() -> bool:
+	return _holding() and not show_idle_left_arm and not _grip.is_two_hand()
+
+
+func _scale_left(skeleton: Skeleton3D) -> void:
+	var hide := _left_hidden()
+
+	for bone in ["Shoulder.L", "UpperArm.L", "LowerArm.L"]:
+		var i := skeleton.find_bone(bone)
+		if i >= 0:
+			skeleton.set_bone_pose_scale(i, Vector3.ONE * (0.001 if hide else 1.0))
 
 
 ## Seats the posed head bone at this node's origin; the clip already lies the person head toward -Z.
@@ -264,7 +280,7 @@ func _reach(skeleton: Skeleton3D) -> void:
 	if not _right.is_empty():
 		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * _grip.grip_world(), out, 1.0)
 
-	if not _left.is_empty():
+	if not _left.is_empty() and not _left_hidden():
 		var rest := figure.global_transform * (_base + LEFT_REST)
 		var target := _grip.support_world() if _grip.is_two_hand() else rest
 		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, Vector3(-out.x, out.y, out.z), 1.0)

@@ -2,6 +2,7 @@ extends SceneTree
 
 ## The downed first-person arms as the player sees them: crawl, six moments, looking 15 and 80 degrees down, a camera at the eye.
 ##   xvfb-run -a godot --path . --script tools/view_arms_sheet.gd -- [--out=res://screenshots] [--off=x,y,z (the eye in the figure's frame)]
+##   --left: with --held, keep the idle left arm in the one-hand row (the old look).
 ##   --held: the held-weapon mode instead, rows one-hand / two-hand / two-hand from the side / two-hand looking 60 down, columns idle then walking.
 
 const CELL := Vector2i(400, 260)
@@ -11,6 +12,7 @@ var _out := "res://screenshots"
 var _off := Vector3.INF
 var _side := false
 var _held := false
+var _left := false
 
 
 func _initialize() -> void:
@@ -19,6 +21,8 @@ func _initialize() -> void:
 			_out = arg.trim_prefix("--out=")
 		elif arg == "--held":
 			_held = true
+		elif arg == "--left":
+			_left = true
 		elif arg == "--side":
 			_side = true
 		elif arg.begins_with("--off="):
@@ -139,6 +143,7 @@ func _held_sheet(sub: SubViewport, world: Node3D, cam: Camera3D) -> void:
 	var support_pt := Vector3(-0.03, -0.07, -0.1)
 	marks["grip"].position = grip_pt
 	marks["support"].position = support_pt
+	arms.show_idle_left_arm = _left
 	arms.build(DotHumanoidLook.stock(7), 1.8)
 	var side_cam := Camera3D.new()
 	side_cam.fov = 60
