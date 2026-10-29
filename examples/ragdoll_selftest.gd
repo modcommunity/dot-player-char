@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 102
+const CHECKS := 104
 
 var _passed := 0
 var _failed := 0
@@ -476,6 +476,27 @@ func _test_weight_and_weapon() -> void:
 		span = ((with_flash.get_child(0) as CollisionShape3D).shape as BoxShape3D).size.z
 	_check(with_flash != null and with_flash.get_child_count() == 2 and span < 2.0, "a muzzle flash under the gun is left out of the prop (collider %.2f m)" % span)
 	flash.queue_free()
+	var fx_root := Node3D.new()
+	fx_root.top_level = true
+	gun.add_child(fx_root)
+	var mark := MeshInstance3D.new()
+	mark.mesh = BoxMesh.new()
+	fx_root.add_child(mark)
+	mark.global_position = Vector3(20, 3, 40)
+	var with_marks := yard.drop_prop(gun)
+	span = 0.0
+	if with_marks != null:
+		span = ((with_marks.get_child(0) as CollisionShape3D).shape as BoxShape3D).size.x
+	_check(with_marks != null and with_marks.get_child_count() == 2 and span < 2.0, "shot marks in world space under the gun are left out of the prop (collider %.2f m)" % span)
+	var person := _figure(Vector3(-6, 0, 40))
+	var stray := MeshInstance3D.new()
+	stray.mesh = BoxMesh.new()
+	stray.top_level = true
+	person.add_child(stray)
+	stray.global_position = Vector3(-6, 9, 40)
+	_check(not DotPlayerRagdoll.meshes_of(person).has(stray), "a body copies no world-space effect hung under its figure")
+	person.queue_free()
+	fx_root.queue_free()
 	yard.rules.weapon_drop = false
 	_check(yard.drop_prop(gun) == null, "weapon_drop off drops nothing")
 	_check(not yard.shoot(Vector3(0, 1, 40), Vector3.FORWARD), "shooting a body does nothing by default")

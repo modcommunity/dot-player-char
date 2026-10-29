@@ -224,7 +224,8 @@ static func skinned_meshes(figure: Node) -> Array[MeshInstance3D]:
 
 
 ## Every visible mesh under [param figure], the figure itself counted visible: a game may have
-## hidden its dead player's figure already, and the copy is still wanted.
+## hidden its dead player's figure already, and the copy is still wanted. A [code]top_level[/code]
+## subtree (shot effects, marks, casings in world space) does not move with the figure and is left out.
 static func meshes_of(figure: Node) -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []
 	_collect(figure, out, true)
@@ -232,7 +233,7 @@ static func meshes_of(figure: Node) -> Array[MeshInstance3D]:
 
 
 static func _collect(node: Node, out: Array[MeshInstance3D], is_root: bool) -> void:
-	if not is_root and node is Node3D and not (node as Node3D).visible:
+	if not is_root and node is Node3D and (not (node as Node3D).visible or (node as Node3D).top_level):
 		return
 	if node is MeshInstance3D:
 		var mesh := node as MeshInstance3D

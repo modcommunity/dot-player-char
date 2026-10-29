@@ -12,7 +12,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 8
-const CHECKS := 107
+const CHECKS := 108
 
 var _passed := 0
 var _failed := 0
@@ -92,6 +92,12 @@ func _test_body_break() -> void:
 		DotPlayerBodyBreak.limbs_of(body, DotPlayerBodyBreak.visible_meshes(body), rules.limb_names).size() == 4,
 		"and four of them are limbs: the chest is not"
 	)
+	var stray := MeshInstance3D.new()
+	stray.mesh = BoxMesh.new()
+	stray.top_level = true
+	body.add_child(stray)
+	_check(not DotPlayerBodyBreak.visible_meshes(body).has(stray), "a world-space effect hung under the body is not a piece of it")
+	stray.free()
 
 	# Criticals only, by default: an ordinary death leaves the body whole.
 	_check(

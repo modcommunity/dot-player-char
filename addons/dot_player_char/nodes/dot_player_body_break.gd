@@ -315,7 +315,8 @@ static func _collect(node: Node, out: Array[MeshInstance3D]) -> void:
 			out.append(mesh)
 
 	for child in node.get_children():
-		if child is Node3D and not (child as Node3D).visible:
+		# A top_level child (shot effects in world space) does not move with the body.
+		if child is Node3D and (not (child as Node3D).visible or (child as Node3D).top_level):
 			continue
 		_collect(child, out)
 
