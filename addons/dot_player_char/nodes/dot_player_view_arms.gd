@@ -42,6 +42,8 @@ var mirror_support_forearm: bool = true
 var show_idle_left_arm: bool = false
 ## The hand's size with a weapon (1 is the kit's own mitts).
 var hand_scale: float = 0.5
+## The forearm's size with a weapon (1 is the kit's own); the hand keeps [member hand_scale]. A short grip close to the eye wants a slimmer, shorter forearm.
+var forearm_scale: float = 1.0
 ## Where the wrist sits from the grip point, in the arms' frame (x out to the hand's side, y up, -z forward): the grip
 ## points are on a gun's centreline, so a wrist left on them lays the whole hand over the gun and its sights.
 var palm_offset: Vector3 = Vector3(0.0, -0.04, 0.07)
@@ -316,10 +318,12 @@ func tick(speed: float, delta: float) -> void:
 		for i in _bones:
 			skeleton.set_bone_pose_scale(i, Vector3.ONE * 0.001)
 
-		for i in _fingers:
-			skeleton.set_bone_pose_scale(i, Vector3.ONE * (hand_scale if _holding() else 1.0))
+		var fore := clampf(forearm_scale, 0.2, 1.5) if _holding() else 1.0
 
-		_scale_left(skeleton)
+		for i in _fingers:
+			skeleton.set_bone_pose_scale(i, Vector3.ONE * ((hand_scale if _holding() else 1.0) / fore))
+
+		_scale_left(skeleton, fore)
 		_reach(skeleton)
 
 
@@ -327,13 +331,17 @@ func _left_hidden() -> bool:
 	return _holding() and not show_idle_left_arm and not _grip.is_two_hand()
 
 
-func _scale_left(skeleton: Skeleton3D) -> void:
+func _scale_left(skeleton: Skeleton3D, fore: float) -> void:
 	var hide := _left_hidden()
 
 	for bone in ["Shoulder.L", "UpperArm.L", "LowerArm.L"]:
 		var i := skeleton.find_bone(bone)
 		if i >= 0:
-			skeleton.set_bone_pose_scale(i, Vector3.ONE * (0.001 if hide else 1.0))
+			skeleton.set_bone_pose_scale(i, Vector3.ONE * (0.001 if hide else (fore if bone == "LowerArm.L" else 1.0)))
+
+	var right := skeleton.find_bone("LowerArm.R")
+	if right >= 0:
+		skeleton.set_bone_pose_scale(right, Vector3.ONE * fore)
 
 
 ## Seats the posed head bone at this node's origin; the clip already lies the person head toward -Z.
