@@ -13,7 +13,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 7
-const CHECKS := 106
+const CHECKS := 108
 
 var _passed := 0
 var _failed := 0
@@ -529,6 +529,12 @@ func _test_sinks() -> void:
 
 func _test_foot_plant() -> void:
 	_section("foot plant")
+
+	var drifted := Quaternion(Vector3.UP, 1.0)
+	drifted = Quaternion(drifted.x * 1.05, drifted.y * 1.05, drifted.z * 1.05, drifted.w * 1.05)
+	var gained := DotHumanoidBlend.toward(Quaternion.IDENTITY, drifted, 1.0, 1.5)
+	_check(absf(gained.length() - 1.0) < 0.001, "toward returns a unit rotation from a drifted target")
+	_check(absf(gained.get_angle() - 1.5) < 0.01, "toward still applies the gain from a drifted target")
 
 	var plant := DotFootPlant.new()
 	var velocity := Vector3(1.2, 0.0, 0.0)

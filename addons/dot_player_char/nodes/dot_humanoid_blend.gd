@@ -51,10 +51,10 @@ func step(skeleton: Skeleton3D, dt: float) -> void:
 static func toward(from: Quaternion, to: Quaternion, weight: float, gain: float) -> Quaternion:
 	if gain == 1.0:
 		return from.slerp(to, weight)
-	var d := from.inverse() * to
+	var d := (from.inverse() * to).normalized()
 	if d.w < 0.0:
 		d = -d
 	var angle := d.get_angle()
 	if angle < 0.0001:
 		return from
-	return from * Quaternion(d.get_axis(), angle * weight * gain)
+	return from * Quaternion(d.get_axis().normalized(), angle * weight * gain)
