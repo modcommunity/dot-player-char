@@ -45,6 +45,11 @@ var hand_scale: float = 0.5
 ## Where the wrist sits from the grip point, in the arms' frame (x out to the hand's side, y up, -z forward): the grip
 ## points are on a gun's centreline, so a wrist left on them lays the whole hand over the gun and its sights.
 var palm_offset: Vector3 = Vector3(0.0, -0.04, 0.07)
+## How far the shoulders may lean toward a firing-hand target out of the arm's reach, metres; past it the hand stays short.
+var max_lean: float = 0.2
+## Metres between the hand and its target after the last solve (firing hand, support hand); 0 when that hand is unused.
+var hand_gap_right: float = 0.0
+var hand_gap_left: float = 0.0
 ## Draws the grip sockets, hand targets and arm bone axes over the view ([DotViewArmsPoseDebug]).
 var debug_pose: bool = false:
 	set(value):
@@ -368,30 +373,86 @@ func _reach(skeleton: Skeleton3D) -> void:
 		return
 
 	var figure := _arms as DotHumanoidFigure
-	var to_skeleton := skeleton.global_transform.affine_inverse()
-	var out := to_skeleton.basis * (figure.global_transform.basis * elbow_pole)
 
 	if _right.is_empty():
 		_right = DotHumanoidIk.keyed_bones(skeleton, figure.body_node(), _clip_of(figure), ["UpperArm.R", "LowerArm.R", "Middle1.R"])
 		_left = DotHumanoidIk.keyed_bones(skeleton, figure.body_node(), _clip_of(figure), ["UpperArm.L", "LowerArm.L", "Middle1.L"])
 
+	var shift := global_transform.basis * palm_offset
+	var right_target := _grip.grip_world() + shift
+	_lean(skeleton, figure, right_target)
+
+	var to_skeleton := skeleton.global_transform.affine_inverse()
+	var out := to_skeleton.basis * (figure.global_transform.basis * elbow_pole)
 	var drawn: Array = []
+	hand_gap_right = 0.0
+	hand_gap_left = 0.0
+
 	if not _right.is_empty():
-		var shift := global_transform.basis * palm_offset
-		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * (_grip.grip_world() + shift), out, 1.0)
-		drawn.append([_grip.grip_world(), _grip.grip_world() + shift, "Middle1.R"])
+		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * right_target, out, 1.0)
+		drawn.append([_grip.grip_world(), right_target, "Middle1.R"])
+		hand_gap_right = _gap(skeleton, _right, right_target)
 
 	if not _left.is_empty() and not _left_hidden():
 		var rest := figure.global_transform * (_base + LEFT_REST)
-		var target := _grip.support_world() + global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z) if _grip.is_two_hand() else rest
+		var target := rest
+		if _grip.is_two_hand():
+			target = _slide_to_reach(skeleton, _left, _grip.support_world(), right_target) + global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)
 		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, Vector3(-out.x, out.y, out.z), 1.0)
 		drawn.append([_grip.support_world() if _grip.is_two_hand() else rest, target, "Middle1.L"])
+		hand_gap_left = _gap(skeleton, _left, target)
 
 	if debug_pose:
 		if _pose_debug == null:
 			_pose_debug = DotViewArmsPoseDebug.new()
 			add_child(_pose_debug)
 		_pose_debug.draw(skeleton, drawn)
+
+
+## Leans the arms toward a firing-hand target the arm cannot reach, by the shortfall up to [member max_lean].
+func _lean(skeleton: Skeleton3D, figure: DotHumanoidFigure, target: Vector3) -> void:
+	if _right.is_empty() or max_lean <= 0.0:
+		return
+
+	var shoulder := skeleton.global_transform * DotHumanoidIk.global_pose(skeleton, _right[0]).origin
+	var far := (target - shoulder).length() - _reach_world(skeleton, _right)
+
+	if far > 0.0:
+		figure.global_position += (target - shoulder).normalized() * minf(far, max_lean)
+
+
+## The point on the segment from [param from] to [param to] nearest [param from] that the arm can reach (or [param to]).
+func _slide_to_reach(skeleton: Skeleton3D, bones: Array[int], from: Vector3, to: Vector3) -> Vector3:
+	if bones.is_empty():
+		return from
+
+	var shoulder := skeleton.global_transform * DotHumanoidIk.global_pose(skeleton, bones[0]).origin
+	var radius := _reach_world(skeleton, bones)
+	var d := to - from
+	var f := from - shoulder
+
+	if f.length() <= radius or d.length_squared() < 0.000001:
+		return from
+
+	var a := d.length_squared()
+	var b := 2.0 * f.dot(d)
+	var disc := b * b - 4.0 * a * (f.length_squared() - radius * radius)
+
+	if disc < 0.0:
+		return to
+
+	return from + d * clampf((-b - sqrt(disc)) / (2.0 * a), 0.0, 1.0)
+
+
+func _reach_world(skeleton: Skeleton3D, bones: Array[int]) -> float:
+	var upper := DotHumanoidIk.global_pose(skeleton, bones[0]).origin
+	var lower := DotHumanoidIk.global_pose(skeleton, bones[1]).origin
+	var wrist := DotHumanoidIk.global_pose(skeleton, bones[2]).origin
+	return ((lower - upper).length() + (wrist - lower).length() - 0.01) * skeleton.global_transform.basis.get_scale().x
+
+
+func _gap(skeleton: Skeleton3D, bones: Array[int], target: Vector3) -> float:
+	return (skeleton.global_transform * DotHumanoidIk.global_pose(skeleton, bones[2]).origin).distance_to(target)
 
 
 func _clip_of(figure: DotHumanoidFigure) -> Animation:
