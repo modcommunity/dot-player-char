@@ -177,7 +177,16 @@ var anim_step: int = 1
 var hide_head: bool = false:
 	set(value):
 		hide_head = value
-		_apply_head()
+		_own.hide_head = value
+		_own.apply(_skeleton, _mesh)
+
+## Seen by its own player from inside the head ([DotHumanoidOwnView]: THIRD, LEGS or BODY): what
+## is shrunk away, with the whole person's shadow kept by a shadow-only copy.
+var first_person: int = DotHumanoidOwnView.THIRD:
+	set(value):
+		first_person = value
+		_own.mode = value
+		_own.apply(_skeleton, _mesh)
 
 var _model: Node3D = null
 var _skeleton: Skeleton3D = null
@@ -213,7 +222,8 @@ var _upper: Dictionary = {}
 var _ease := DotHumanoidBlend.new()
 var _swim_pitch: float = 0.0
 var _prop_pitch: float = 0.0
-var _head_hidden: bool = false
+var _own := DotHumanoidOwnView.new()
+var legs := DotHumanoidLegs.new()
 var _auto_last: Vector3 = Vector3.INF
 var _model_basis: Basis = Basis.IDENTITY
 var _strides: Dictionary = {}
@@ -361,7 +371,9 @@ func animate(speed: float, delta: float) -> void:
 
 	if _anim == null:
 		return
-
+	legs.restore(_skeleton)
+	var facing := global_basis if is_inside_tree() else basis
+	legs.update(facing, _motion.get("velocity", Vector3.ZERO), delta)
 	var wanted := _clip_for(state, speed)
 	_play(wanted[0], wanted[1])
 
@@ -375,9 +387,10 @@ func animate(speed: float, delta: float) -> void:
 	_frame += 1
 	anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
 	if _frame % anim_step != 0:
+		legs.apply(_skeleton, _skeleton_up())
 		return
-	var matched := _matched_rate(speed, _owed)
-	if matched >= 0.0:
+	var matched := _matched_rate(legs.along_speed if _motion.has("velocity") else speed, _owed)
+	if not is_nan(matched):
 		_anim.speed_scale = matched
 	_anim.advance(_owed)
 	var advanced := _owed
@@ -385,11 +398,17 @@ func animate(speed: float, delta: float) -> void:
 	_apply_overlays()
 	_apply_aim()
 	_ease.step(_skeleton, advanced)
+	legs.apply(_skeleton, _skeleton_up())
 	_apply_support()
-	_apply_head()
 	_apply_swim(delta * anim_step)
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, advanced)
+	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
+	_own.apply(_skeleton, _mesh)
+
+
+func _skeleton_up() -> Vector3:
+	return (_to_figure().basis.inverse() * Vector3.UP).normalized()
 
 
 func _apply_crawl_feet(speed: float, dt: float) -> void:
@@ -397,37 +416,15 @@ func _apply_crawl_feet(speed: float, dt: float) -> void:
 	_crawl.step(self, _skeleton, downed and not propped and clip == id and _anim.current_animation == String(id), speed, dt)
 
 
-func _apply_head() -> void:
-	if _skeleton == null:
-		return
-	var head := _skeleton.find_bone("Head")
-	if head < 0:
-		return
-	# A pose scale carries to every child (the eyes, the hair), so the one bone is enough. Written
-	# while hidden (a clip may key the scale) and once when shown again, not every frame: a head
-	# a critical took off (DotPlayerBodyBreak) stays off until [method mend].
-	if hide_head:
-		_skeleton.set_bone_pose_scale(head, Vector3.ONE * 0.001)
-		_head_hidden = true
-	elif _head_hidden:
-		_skeleton.set_bone_pose_scale(head, Vector3.ONE)
-		_head_hidden = false
-
-
 ## Puts back whatever a death took off: every bone at its own size again. For a respawn.
 func mend() -> void:
-	if _skeleton == null:
-		return
-	for i in _skeleton.get_bone_count():
-		_skeleton.set_bone_pose_scale(i, Vector3.ONE)
-	_head_hidden = false
-	if hide_head:
-		_apply_head()
+	_own.mend(_skeleton, _mesh)
 
 
 ## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it:
 ## `on_floor`, `vertical`, `crouched`, `swimming`, `climbing`, `alive`; plus `downed` here, and
-## `wall_running` (the run clip plays in the air).
+## `wall_running` (the run clip plays in the air). `velocity` (world) turns the legs toward the way it
+## moves and walks them backward ([member legs]); `wall` (a world [Plane]) puts the feet on it in a wall run.
 ## `seated` draws the person sitting ([method seat_height] says where their hips are), `driving`
 ## (with `seated`) puts the hands on a wheel, and `aim`
 ## (radians, up positive) is [method aim]; left out, the aim stays where it was.
@@ -730,23 +727,24 @@ func _sprint_clip_for(speed: float) -> bool:
 	return _sprint_clip
 
 
-## The rate that moves the lower foot back exactly as far as the body goes this step, or -1 when the
+## The rate that moves the lower foot back exactly as far as the body goes this step (negative walking backward), or NAN when the
 ## clip is not a stride. The clips have no root motion and sweep the planted foot back unevenly, so
 ## any constant rate skates it; the rate is read off the clip's distance table instead.
 func _matched_rate(speed: float, dt: float) -> float:
 	if dt <= 0.0 or not state in [DotPlayerAnimState.WALK, DotPlayerAnimState.RUN, DotPlayerAnimState.CROUCH_WALK]:
-		return -1.0
+		return NAN
 	if not clip in STRIDE_CLIPS or _anim.current_animation != String(clip):
-		return -1.0
+		return NAN
 	var table := _stride_for(clip)
 	if table.size() < 2 or table[-1] <= 0.0:
-		return -1.0
+		return NAN
 	var length := _anim.current_animation_length
 	var phase := fposmod(_anim.current_animation_position, length) / length
-	var want := DotHumanoidStride.distance_at(table, phase) + speed * dt
+	var back := -1.0 if legs.backward else 1.0
+	var want := DotHumanoidStride.distance_at(table, phase) + back * speed * dt
 	var laps := floorf(want / table[-1])
 	var to := DotHumanoidStride.phase_at(table, want - laps * table[-1]) + laps
-	return clampf((to - phase) * length / dt, 0.0, STRIDE_MAX_RATE)
+	return clampf((to - phase) * length / dt * back, 0.0, STRIDE_MAX_RATE) * back
 
 
 func _stride_for(clip_id: StringName) -> PackedFloat32Array:

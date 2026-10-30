@@ -2,16 +2,15 @@ extends Node
 
 ## Exercises the family's people: the look (stock, the site's avatar, a side's colour), the clip
 ## set on every body (carried over by retargeting, the made crouch, the grounded air clips), and
-## the figure choosing clips from how it moves, holding, swinging and sharing materials.
-##
-## What a person LOOKS like is not here: that is `tools/people_sheet.gd`'s contact sheets.
+## the figure choosing clips from how it moves, holding, swinging and sharing materials. What a
+## person LOOKS like is not here: that is `tools/people_sheet.gd`'s contact sheets.
 ##
 ## [codeblock]
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 13
-const CHECKS := 131
+const SECTIONS := 15
+const CHECKS := 148
 
 var _passed := 0
 var _failed := 0
@@ -35,6 +34,7 @@ func _run() -> void:
 	await _test_break()
 	_test_unimported()
 	await DotPeopleViewChecks.new(self).run()
+	await DotPeopleLegsChecks.new(self).run()
 	await _test_held_arms()
 	await _test_held_gun_steady()
 	await _test_pose_record()

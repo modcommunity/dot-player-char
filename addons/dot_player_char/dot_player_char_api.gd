@@ -23,5 +23,7 @@ extends RefCounted
 # 10: DotFootPlant (feet planted over a gait phase) and DotHumanoidIk.two_bone_to.
 # 11: DotHumanoidFigure.frame_delta: the game-time step pose() animates by, for a figure that wraps it.
 # 12: DotHumanoidFigure.pose_record / pose_apply: a drawn pose kept and put back (a killcam replay).
-const LEVEL := 12
+# 13: DotHumanoidLegs (legs.twist, backward walk, wall feet; the `velocity` and `wall` motion keys),
+#     DotHumanoidOwnView and DotHumanoidFigure.first_person (your own legs or body, shadow kept).
+const LEVEL := 13
 const OLDEST := 1

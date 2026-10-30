@@ -49,9 +49,10 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `core/dot_humanoid_actions.gd` | the 13 starter emotes, poses and gestures as clips (made, CC0 wave/nod/sit), and `rename_humanoid` for an uploaded clip |
 | `core/dot_foot_plant.gd` | feet held still on the ground over a gait phase, swung in an arc to the next step; bend the leg to it with `DotHumanoidIk.two_bone_to` |
 | `nodes/dot_humanoid_figure.gd` | a person drawn: palette material per look, clip from motion, overlays, the hand, LOD stepping |
+| `nodes/dot_humanoid_legs.gd`, `dot_humanoid_own_view.gd` | the legs turned toward the way it moves, walked backward, feet on a wall; what is shrunk away when its own player looks down at it (`first_person`), and the shadow-only copy |
 | `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py`; `people_ual.res`, the real sit (Universal Animation Library, CC0) |
 | `tools/` | `build_people.py` (Blender), `ual_retarget.gd` (library clips onto the rig: `people_ual.res`), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`, `--compare`), `survivor_compare.gd` (made vs real clip strips), `crowd_bench.tscn` (a browser crowd measurement) |
-| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 12 since `pose_record` / `pose_apply` (11: `frame_delta`) (10: `DotFootPlant`) (9: `sprint_speed`) (8: `DotViewGrip`) (7: `DotPlayerViewArms`) (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
+| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 13 since `DotHumanoidLegs` and `first_person` (12: `pose_record` / `pose_apply`) (11: `frame_delta`) (10: `DotFootPlant`) (9: `sprint_speed`) (8: `DotViewGrip`) (7: `DotPlayerViewArms`) (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
 | `examples/` | six suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
 Paths under `core/`, `nodes/` and `people/` are in `addons/dot_player_char/`; `tools/` is at the repository root and does not ship.
