@@ -16,6 +16,9 @@ const FINGER_ROOTS: Array[String] = ["Pinky1", "Middle1", "Index1", "Thumb1"]
 
 ## Extension point: `func(look: DotHumanoidLook, height: float) -> Node3D`. The node it returns is parented here and
 ## drawn as is, in place of the person; if it has `set_motion` and `animate` (a [DotHumanoidFigure]) they are driven.
+## Fraction of the arm the lean aims to need, so the slide to reach never trims a hand the lean just brought in.
+const LEAN_SLACK := 0.97
+
 var arms_factory: Callable = Callable()
 ## Extension point: `func(bone: StringName, rest_position: Vector3) -> bool`, true for a vertex that is carried gear
 ## (a backpack) and must not show; triangles touching one are dropped. The default is the stock kit's pack.
@@ -48,7 +51,7 @@ var forearm_scale: float = 1.0
 ## points are on a gun's centreline, so a wrist left on them lays the whole hand over the gun and its sights.
 var palm_offset: Vector3 = Vector3(0.0, -0.04, 0.07)
 ## How far the shoulders may lean toward a firing-hand target out of the arm's reach, metres; past it the hand stays short.
-var max_lean: float = 0.2
+var max_lean: float = 0.4
 ## Metres between the hand and its target after the last solve (firing hand, support hand); 0 when that hand is unused.
 var hand_gap_right: float = 0.0
 var hand_gap_left: float = 0.0
@@ -405,7 +408,8 @@ func _reach(skeleton: Skeleton3D) -> void:
 		var rest := figure.global_transform * (_base + LEFT_REST)
 		var target := rest
 		if _grip.is_two_hand():
-			target = _slide_to_reach(skeleton, _left, _grip.support_world(), right_target) + global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)
+			var mirrored := global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)
+			target = _slide_to_reach(skeleton, _left, _grip.support_world() + mirrored, right_target + mirrored)
 		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, Vector3(-out.x, out.y, out.z), 1.0)
 		drawn.append([_grip.support_world() if _grip.is_two_hand() else rest, target, "Middle1.L"])
 		hand_gap_left = _gap(skeleton, _left, target)
@@ -417,16 +421,50 @@ func _reach(skeleton: Skeleton3D) -> void:
 		_pose_debug.draw(skeleton, drawn)
 
 
-## Leans the arms toward a firing-hand target the arm cannot reach, by the shortfall up to [member max_lean].
+## Leans the arms toward whichever hand target (firing or support) is furthest out of its arm's reach, a step at a time, by up to [member max_lean] in all.
 func _lean(skeleton: Skeleton3D, figure: DotHumanoidFigure, target: Vector3) -> void:
 	if _right.is_empty() or max_lean <= 0.0:
 		return
 
-	var shoulder := skeleton.global_transform * DotHumanoidIk.global_pose(skeleton, _right[0]).origin
-	var far := (target - shoulder).length() - _reach_world(skeleton, _right)
+	var goals: Array = [[_right, target]]
 
-	if far > 0.0:
-		figure.global_position += (target - shoulder).normalized() * minf(far, max_lean)
+	if not _left.is_empty() and _grip.is_two_hand() and not _left_hidden():
+		goals.append([_left, _grip.support_world() + global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)])
+
+	var shoulders: Array[Vector3] = []
+	var reaches: Array[float] = []
+	var to_local := skeleton.global_transform.basis.inverse()
+
+	for goal: Array in goals:
+		var bones: Array[int] = goal[0]
+		shoulders.append(skeleton.global_transform * DotHumanoidIk.global_pose(skeleton, bones[0]).origin)
+		reaches.append(_reach_local(skeleton, bones))
+
+	var lean := Vector3.ZERO
+
+	for step in 8:
+		var worst := 0.0
+		var toward := Vector3.ZERO
+
+		for i in goals.size():
+			var to: Vector3 = (goals[i][1] as Vector3) - (shoulders[i] + lean)
+			var local := to_local * to
+			var far: float = (local.length() - reaches[i] * LEAN_SLACK) * to.length() / maxf(local.length(), 0.0001)
+
+			if far > worst:
+				worst = far
+				toward = to.normalized()
+
+		if worst <= 0.001:
+			break
+
+		lean += toward * worst * 0.6
+
+		if lean.length() > max_lean:
+			lean = lean.normalized() * max_lean
+			break
+
+	figure.global_position += lean
 
 
 ## The point on the segment from [param from] to [param to] nearest [param from] that the arm can reach (or [param to]).
@@ -434,10 +472,11 @@ func _slide_to_reach(skeleton: Skeleton3D, bones: Array[int], from: Vector3, to:
 	if bones.is_empty():
 		return from
 
-	var shoulder := skeleton.global_transform * DotHumanoidIk.global_pose(skeleton, bones[0]).origin
-	var radius := _reach_world(skeleton, bones)
-	var d := to - from
-	var f := from - shoulder
+	var inverse := skeleton.global_transform.affine_inverse()
+	var shoulder := DotHumanoidIk.global_pose(skeleton, bones[0]).origin
+	var radius := _reach_local(skeleton, bones)
+	var d := inverse * to - inverse * from
+	var f := inverse * from - shoulder
 
 	if f.length() <= radius or d.length_squared() < 0.000001:
 		return from
@@ -449,14 +488,14 @@ func _slide_to_reach(skeleton: Skeleton3D, bones: Array[int], from: Vector3, to:
 	if disc < 0.0:
 		return to
 
-	return from + d * clampf((-b - sqrt(disc)) / (2.0 * a), 0.0, 1.0)
+	return from + (to - from) * clampf((-b - sqrt(disc)) / (2.0 * a), 0.0, 1.0)
 
 
-func _reach_world(skeleton: Skeleton3D, bones: Array[int]) -> float:
+func _reach_local(skeleton: Skeleton3D, bones: Array[int]) -> float:
 	var upper := DotHumanoidIk.global_pose(skeleton, bones[0]).origin
 	var lower := DotHumanoidIk.global_pose(skeleton, bones[1]).origin
 	var wrist := DotHumanoidIk.global_pose(skeleton, bones[2]).origin
-	return ((lower - upper).length() + (wrist - lower).length() - 0.01) * skeleton.global_transform.basis.get_scale().x
+	return (lower - upper).length() + (wrist - lower).length() - 0.01
 
 
 func _gap(skeleton: Skeleton3D, bones: Array[int], target: Vector3) -> float:
