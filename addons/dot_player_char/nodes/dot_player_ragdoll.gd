@@ -142,7 +142,8 @@ static func build(
 		figure.visible = false
 		return null
 
-	var meshes := meshes_of(figure)
+	var hidden := meshes_of(figure).is_empty()
+	var meshes := meshes_of(figure, hidden)
 	if meshes.is_empty():
 		return null
 
@@ -156,7 +157,7 @@ static func build(
 
 	# A skinned figure: its skeleton is copied, and the parts carry bones rather than meshes. What
 	# else it holds (a gun on a hand bone) is copied as meshes and rides on the nearest part.
-	var skinned := skinned_meshes(figure)
+	var skinned := skinned_meshes(figure, hidden)
 	if not skinned.is_empty():
 		made._copy_skeleton(skinned)
 		meshes = meshes.filter(func(m: MeshInstance3D) -> bool: return not skinned.has(m))
@@ -209,10 +210,10 @@ static func build(
 
 ## The visible skinned meshes under [param figure] that are drawn by one skeleton (the first one
 ## found), or none. A skinned figure falls by its bones: see [method _copy_skeleton].
-static func skinned_meshes(figure: Node) -> Array[MeshInstance3D]:
+static func skinned_meshes(figure: Node, hidden := false) -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []
 	var skeleton: Skeleton3D = null
-	for mesh in meshes_of(figure):
+	for mesh in meshes_of(figure, hidden):
 		if mesh.skin == null or mesh.skeleton.is_empty():
 			continue
 		var bones := mesh.get_node_or_null(mesh.skeleton) as Skeleton3D
@@ -223,24 +224,23 @@ static func skinned_meshes(figure: Node) -> Array[MeshInstance3D]:
 	return out
 
 
-## Every visible mesh under [param figure], the figure itself counted visible: a game may have
-## hidden its dead player's figure already, and the copy is still wanted. A [code]top_level[/code]
-## subtree (shot effects, marks, casings in world space) does not move with the figure and is left out.
-static func meshes_of(figure: Node) -> Array[MeshInstance3D]:
+## Every visible mesh under [param figure], minus top_level subtrees (effects that do not move with it);
+## [param hidden] keeps hidden ones too, for a first-person body hidden by set_drawn that still leaves a corpse.
+static func meshes_of(figure: Node, hidden := false) -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []
-	_collect(figure, out, true)
+	_collect(figure, out, true, hidden)
 	return out
 
 
-static func _collect(node: Node, out: Array[MeshInstance3D], is_root: bool) -> void:
-	if not is_root and node is Node3D and (not (node as Node3D).visible or (node as Node3D).top_level):
+static func _collect(node: Node, out: Array[MeshInstance3D], is_root: bool, hidden: bool) -> void:
+	if not is_root and node is Node3D and ((not (node as Node3D).visible and not hidden) or (node as Node3D).top_level):
 		return
 	if node is MeshInstance3D:
 		var mesh := node as MeshInstance3D
 		if mesh.mesh != null and mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
 			out.append(mesh)
 	for child in node.get_children():
-		_collect(child, out, false)
+		_collect(child, out, false, hidden)
 
 
 ## The role a mesh plays, from its own name and its ancestors' up to [param figure].

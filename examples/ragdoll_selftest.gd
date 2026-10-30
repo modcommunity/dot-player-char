@@ -14,7 +14,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 11
-const CHECKS := 104
+const CHECKS := 105
 
 var _passed := 0
 var _failed := 0
@@ -395,6 +395,15 @@ func _test_styles() -> void:
 	var blob := _figure(Vector3(12, 0, 10), false)
 	var blob_body := yard.spawn(blob, _death(&"limp"))
 	_check(blob_body.style == DotPlayerRagdollRules.Style.STIFF, "a figure with no named torso falls as one piece")
+
+	# The local player's body is hidden in first person (set_drawn(false) on the model); dying then still leaves a corpse.
+	var first_person := _figure(Vector3(16, 0, 10))
+	var model := Node3D.new()
+	first_person.add_child(model)
+	for mesh in first_person.get_children().filter(func(n: Node) -> bool: return n is MeshInstance3D):
+		mesh.reparent(model, false)
+	model.visible = false
+	_check(yard.spawn(first_person, _death(&"limp")) != null, "a figure whose body is hidden for first person still falls")
 	yard.clear()
 
 
