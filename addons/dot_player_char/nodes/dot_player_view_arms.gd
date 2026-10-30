@@ -512,6 +512,27 @@ func arms() -> Node3D:
 	return _arms
 
 
+## Metres from each hand's middle-finger bone to its [param grip] point plus [member palm_offset], the worst of the two; -1 when the arms are not shown on that grip.
+func hand_error(grip: DotViewGrip) -> float:
+	if not shown or grip == null or not grip.is_valid() or not (_arms is DotHumanoidFigure):
+		return -1.0
+	var skeleton := (_arms as DotHumanoidFigure).skeleton()
+	if skeleton == null:
+		return -1.0
+	var basis := global_transform.basis
+	var pairs := [["Middle1.R", grip.grip_world() + basis * palm_offset]]
+	if grip.is_two_hand():
+		pairs.append(["Middle1.L", grip.support_world() + basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)])
+	var worst := 0.0
+	for pair: Array in pairs:
+		var bone := skeleton.find_bone(pair[0])
+		if bone < 0:
+			return -1.0
+		var at := skeleton.global_transform * skeleton.get_bone_global_pose(bone).origin
+		worst = maxf(worst, at.distance_to(pair[1]))
+	return worst
+
+
 func describe() -> Dictionary:
 	return {"built": _arms != null, "shown": shown, "held": _holding(), "custom": arms_factory.is_valid(), "hidden_bones": _bones.size()}
 

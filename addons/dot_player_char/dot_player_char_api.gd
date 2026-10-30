@@ -26,5 +26,6 @@ extends RefCounted
 # 13: DotHumanoidLegs (legs.twist, backward walk, wall feet; the `velocity` and `wall` motion keys),
 #     DotHumanoidOwnView and DotHumanoidFigure.first_person (your own legs or body, shadow kept).
 # 14: DotPlayerViewArms.debug_pose and DotViewArmsPoseDebug: sockets, hand targets and arm bone axes drawn over the view.
-const LEVEL := 14
+# 15: DotPlayerViewArms.hand_error(grip): how far the hands are from a grip, for a game's tests and tools.
+const LEVEL := 15
 const OLDEST := 1

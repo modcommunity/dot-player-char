@@ -10,7 +10,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 15
-const CHECKS := 148
+const CHECKS := 150
 
 var _passed := 0
 var _failed := 0
@@ -672,6 +672,11 @@ func _test_held_arms() -> void:
 	_check(arms.palm_offset != Vector3.ZERO and right.distance_to(weapon.to_global(grip)) > 0.05, "by default the wrist is off the gun's centreline so the hand does not cover it (%.3f m)" % right.distance_to(weapon.to_global(grip)))
 	var left := _bone_world(sk, "Middle1.L")
 	_check(left.distance_to(_palm(arms, weapon.to_global(fore), true)) < 0.05, "the support hand reaches the foregrip (%.3f m)" % left.distance_to(_palm(arms, weapon.to_global(fore), true)))
+	var held_grip := DotViewGrip.two_hand(weapon, grip, fore)
+	arms.set_held(held_grip)
+	arms.tick(0.0, 1.0 / 30.0)
+	_check(arms.hand_error(held_grip) >= 0.0 and arms.hand_error(held_grip) < 0.05, "hand_error is small on the grip it holds (%.3f m)" % arms.hand_error(held_grip))
+	_check(arms.hand_error(null) == -1.0, "hand_error is -1 with no grip")
 	_check(sk.get_bone_pose_scale(sk.find_bone("Head")).x < 0.01 and sk.get_bone_pose_scale(sk.find_bone("UpperLeg.L")).x < 0.01, "head and legs are shrunk away")
 	weapon.position += Vector3(0.1, 0.05, -0.05)
 	for i in 3:
