@@ -22,5 +22,6 @@ extends RefCounted
 # 9: DotHumanoidFigure.sprint_speed and DotHumanoidClips.SPRINT: a runner above it plays the real sprint clip.
 # 10: DotFootPlant (feet planted over a gait phase) and DotHumanoidIk.two_bone_to.
 # 11: DotHumanoidFigure.frame_delta: the game-time step pose() animates by, for a figure that wraps it.
-const LEVEL := 11
+# 12: DotHumanoidFigure.pose_record / pose_apply: a drawn pose kept and put back (a killcam replay).
+const LEVEL := 12
 const OLDEST := 1

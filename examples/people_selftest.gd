@@ -10,8 +10,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 12
-const CHECKS := 127
+const SECTIONS := 13
+const CHECKS := 131
 
 var _passed := 0
 var _failed := 0
@@ -37,6 +37,7 @@ func _run() -> void:
 	await DotPeopleViewChecks.new(self).run()
 	await _test_held_arms()
 	await _test_held_gun_steady()
+	await _test_pose_record()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -760,6 +761,70 @@ func _test_held_gun_steady() -> void:
 	_check(run[1] < 0.08 and sprint[1] < 0.08, "the hand moves under 8 cm a frame (%.3f / %.3f)" % [run[1], sprint[1]])
 	f.queue_free()
 	_check(true, "the flicker run finished")
+
+
+func _test_pose_record() -> void:
+	_section("a recorded pose replays as drawn")
+	var world := Node3D.new()
+	add_child(world)
+	var live := DotHumanoidFigure.new()
+	var copy := DotHumanoidFigure.new()
+	for f: DotHumanoidFigure in [live, copy]:
+		world.add_child(f)
+		f.build(DotHumanoidLook.stock(21), 1.8)
+		f.set_hold(DotHumanoidFigure.Hold.GUN)
+	var sk := live.skeleton()
+	var steps: Array = []
+	for i in 30:
+		steps.append([{"on_floor": true, "aim": 0.3}, 4.6])
+	for i in 30:
+		steps.append([{"on_floor": true, "crouched": true, "aim": -0.4}, 1.5])
+	for i in 30:
+		steps.append([{"on_floor": true, "aim": 0.6}, 0.0])
+	var worst := 0.0
+	var off_rest := INF
+	var applied := true
+	var last := PackedFloat32Array()
+	for step: Array in steps:
+		live.set_motion(step[0])
+		live.animate(step[1], 1.0 / 60.0)
+		var rec := live.pose_record()
+		applied = copy.pose_apply(rec, rec, 0.0) and applied
+		worst = maxf(worst, _pose_gap(sk, copy.skeleton(), true))
+		off_rest = minf(off_rest, _pose_gap(sk, sk, false))
+		last = rec
+	_check(applied and worst < 0.001, "each frame of run, crouch and aim applied to another figure is the live pose (worst %.5f rad)" % worst)
+	_check(off_rest > 0.5, "and none of them is the rest pose (least %.2f rad from it)" % off_rest)
+	var first := steps.size()
+	live.set_motion({"on_floor": true})
+	live.animate(0.0, 1.0 / 60.0)
+	var other := live.pose_record()
+	_check(copy.pose_apply(last, other, 0.5) and not copy.pose_apply(last, other.slice(0, other.size() - 3), 0.5),
+		"two records blend; records of different sizes are refused (%d floats a pose)" % last.size())
+	var still := DotHumanoidFigure.new()
+	world.add_child(still)
+	still.build(DotHumanoidLook.stock(21), 1.8)
+	still.set_hold(DotHumanoidFigure.Hold.GUN)
+	still.set_motion({"on_floor": true})
+	still.animate(4.6, 0.0)
+	var frozen := still.pose_record()
+	for i in 20:
+		still.animate(4.6, 0.0)
+	var gap := _pose_gap(still.skeleton(), still.skeleton(), false)
+	_check(gap > 0.0 and still.pose_record() == frozen and first > 0,
+		"a body posed by speed alone, with no time, stands frozen at a run (%.2f rad from rest): why a replay records the pose" % gap)
+	world.queue_free()
+	await get_tree().process_frame
+
+
+## Largest bone rotation gap, in radians: between two skeletons' poses, or (same=false) a pose and its rest.
+func _pose_gap(a: Skeleton3D, b: Skeleton3D, same: bool) -> float:
+	var gap := 0.0
+	for i in a.get_bone_count():
+		var qa := a.get_bone_pose_rotation(i)
+		var qb := b.get_bone_pose_rotation(i) if same else b.get_bone_rest(i).basis.get_rotation_quaternion()
+		gap = maxf(gap, qa.normalized().angle_to(qb.normalized()))
+	return gap
 
 
 func _section(title: String) -> void:

@@ -105,6 +105,10 @@ A swing, a flinch and a gesture are one-shots that would stop the legs if played
 
 A dead person falls by its bones through dot-player-char's own ragdoll, not a second one: see [ragdolls.md](ragdolls.md#a-skinned-body). A critical that takes a limb off bakes the limb out of the skin and shrinks its bones to the stump ([design.md](design.md#a-body-coming-apart-is-presentation-seeded-from-the-death)); `mend()` on respawn. `hide_head` shrinks the head bone for your own body in first person, where the camera is inside it.
 
+## A pose kept for a replay
+
+A replay that only knows where a body stood and how fast it moved cannot redraw it: animated by speed inside a replay frame, with no time passing, the body stands frozen in whatever clip it last held. `pose_record()` returns the pose as drawn (the bone count, the model's transform, every bone's rotation, the root and hip positions; overlays, aim and the swim tilt included) as a `PackedFloat32Array`, and `pose_apply(a, b, alpha)` draws the blend of two of them on a body of the same skeleton (false and nothing changed otherwise). It is 203 floats (812 bytes) for the people's 46-bone skeleton; dot-replay's `DotKillcamHost.pose_fn` keeps them at `mp_killview_pose_hz`. `people_selftest` checks a run, crouch and aim sequence recorded on one figure and applied to another is the live pose bone for bone.
+
 ## Looking at them
 
 `tools/people_sheet.gd` (under `xvfb-run`, not `--headless`) renders every clip of every body at six moments (default), a sheet of stock and site looks (`--looks`), a skinned body falling with each reaction (`--ragdoll`) and a critical taking a limb and everything off (`--break`); add `--rendering-method gl_compatibility` to see what a browser sees. Every made clip and every number above came from looking at those.

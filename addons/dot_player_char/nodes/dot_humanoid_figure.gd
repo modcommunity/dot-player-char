@@ -607,6 +607,61 @@ func mesh() -> MeshInstance3D:
 	return _mesh
 
 
+## The pose as drawn now, for a replay: bone count, the model's transform, every bone's rotation
+## and the root bones' positions. Includes overlays, aim, swim tilt; [method pose_apply] puts it back.
+func pose_record() -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	if _skeleton == null or _model == null:
+		return out
+	var n := _skeleton.get_bone_count()
+	var t := _model.transform
+	out.append(n)
+	for v: Vector3 in [t.basis.x, t.basis.y, t.basis.z, t.origin]:
+		out.append_array([v.x, v.y, v.z])
+	for i in n:
+		var q := _skeleton.get_bone_pose_rotation(i)
+		out.append_array([q.x, q.y, q.z, q.w])
+	for i in _root_bones():
+		var p := _skeleton.get_bone_pose_position(i)
+		out.append_array([p.x, p.y, p.z])
+	return out
+
+
+## Draws the pose between two [method pose_record]s, [param alpha] of the way to [param b]. False
+## (and nothing changed) when either is from another skeleton.
+func pose_apply(a: PackedFloat32Array, b: PackedFloat32Array, alpha: float) -> bool:
+	if _skeleton == null or _model == null or a.is_empty() or a.size() != b.size():
+		return false
+	var n := _skeleton.get_bone_count()
+	var roots := _root_bones()
+	if int(a[0]) != n or a.size() != 13 + n * 4 + roots.size() * 3:
+		return false
+	var at := func(r: PackedFloat32Array, i: int) -> Vector3: return Vector3(r[i], r[i + 1], r[i + 2])
+	var ta := Transform3D(Basis(at.call(a, 1), at.call(a, 4), at.call(a, 7)), at.call(a, 10))
+	var tb := Transform3D(Basis(at.call(b, 1), at.call(b, 4), at.call(b, 7)), at.call(b, 10))
+	_model.transform = ta.interpolate_with(tb, alpha)
+	for i in n:
+		var k := 13 + i * 4
+		var qa := Quaternion(a[k], a[k + 1], a[k + 2], a[k + 3])
+		var qb := Quaternion(b[k], b[k + 1], b[k + 2], b[k + 3])
+		_skeleton.set_bone_pose_rotation(i, qa.normalized().slerp(qb.normalized(), alpha))
+	var k := 13 + n * 4
+	for i in roots:
+		_skeleton.set_bone_pose_position(i, (at.call(a, k) as Vector3).lerp(at.call(b, k), alpha))
+		k += 3
+	return true
+
+
+## Bones whose position a clip moves: those without a parent and their children (the hips).
+func _root_bones() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for i in _skeleton.get_bone_count():
+		var parent := _skeleton.get_bone_parent(i)
+		if parent < 0 or _skeleton.get_bone_parent(parent) < 0:
+			out.append(i)
+	return out
+
+
 ## Shows or hides the body (the local player's own, in first person). The hand stays where it
 ## is: a weapon model hung there hides with it.
 func set_drawn(on: bool) -> void:
