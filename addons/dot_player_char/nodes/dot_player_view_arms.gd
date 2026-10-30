@@ -45,6 +45,14 @@ var hand_scale: float = 0.5
 ## Where the wrist sits from the grip point, in the arms' frame (x out to the hand's side, y up, -z forward): the grip
 ## points are on a gun's centreline, so a wrist left on them lays the whole hand over the gun and its sights.
 var palm_offset: Vector3 = Vector3(0.0, -0.04, 0.07)
+## Draws the grip sockets, hand targets and arm bone axes over the view ([DotViewArmsPoseDebug]).
+var debug_pose: bool = false:
+	set(value):
+		debug_pose = value
+		if not value and _pose_debug != null:
+			_pose_debug.queue_free()
+			_pose_debug = null
+var _pose_debug: DotViewArmsPoseDebug = null
 ## Idle breathing and walk bob, metres: [method sway] is what the host adds to its weapon mount.
 var breath_amplitude: float = 0.003
 var bob_amplitude: float = 0.012
@@ -367,14 +375,23 @@ func _reach(skeleton: Skeleton3D) -> void:
 		_right = DotHumanoidIk.keyed_bones(skeleton, figure.body_node(), _clip_of(figure), ["UpperArm.R", "LowerArm.R", "Middle1.R"])
 		_left = DotHumanoidIk.keyed_bones(skeleton, figure.body_node(), _clip_of(figure), ["UpperArm.L", "LowerArm.L", "Middle1.L"])
 
+	var drawn: Array = []
 	if not _right.is_empty():
 		var shift := global_transform.basis * palm_offset
 		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * (_grip.grip_world() + shift), out, 1.0)
+		drawn.append([_grip.grip_world(), _grip.grip_world() + shift, "Middle1.R"])
 
 	if not _left.is_empty() and not _left_hidden():
 		var rest := figure.global_transform * (_base + LEFT_REST)
 		var target := _grip.support_world() + global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z) if _grip.is_two_hand() else rest
 		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, Vector3(-out.x, out.y, out.z), 1.0)
+		drawn.append([_grip.support_world() if _grip.is_two_hand() else rest, target, "Middle1.L"])
+
+	if debug_pose:
+		if _pose_debug == null:
+			_pose_debug = DotViewArmsPoseDebug.new()
+			add_child(_pose_debug)
+		_pose_debug.draw(skeleton, drawn)
 
 
 func _clip_of(figure: DotHumanoidFigure) -> Animation:

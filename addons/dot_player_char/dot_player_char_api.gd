@@ -25,5 +25,6 @@ extends RefCounted
 # 12: DotHumanoidFigure.pose_record / pose_apply: a drawn pose kept and put back (a killcam replay).
 # 13: DotHumanoidLegs (legs.twist, backward walk, wall feet; the `velocity` and `wall` motion keys),
 #     DotHumanoidOwnView and DotHumanoidFigure.first_person (your own legs or body, shadow kept).
-const LEVEL := 13
+# 14: DotPlayerViewArms.debug_pose and DotViewArmsPoseDebug: sockets, hand targets and arm bone axes drawn over the view.
+const LEVEL := 14
 const OLDEST := 1
