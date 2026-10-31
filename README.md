@@ -148,7 +148,7 @@ The family's players, bots and NPCs are four animated people on one rig (the sam
 
 The people in `addons/dot_player_char/people/` are from the [Zombie Apocalypse Kit](https://quaternius.com/packs/zombieapocalypsekit.html) by [Quaternius](https://quaternius.com), CC0 1.0: the four survivors (Matt, Lis, Sam, Shaun) and their clips, with the zombie's crawl, rebuilt by `tools/build_people.py` (weapons removed, decimated, clips renamed); `people/CREDITS.md` has the details.
 
-The seated idle and the sprint (`Sprint_Loop`, played as `DotHumanoidClips.SPRINT`) in `addons/dot_player_char/people/people_ual.res` is `Sitting_Idle_Loop` from the [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html) (free Standard version, [itch.io](https://quaternius.itch.io/universal-animation-library)) by [Quaternius](https://quaternius.com), CC0 1.0, carried onto the people's rig by `tools/ual_retarget.gd`.
+The seated idle, the sprint (`Sprint_Loop`, played as `DotHumanoidClips.SPRINT`) and the slide (`Slide`, played as `DotHumanoidClips.SLIDE`) in `addons/dot_player_char/people/people_ual.res` is `Sitting_Idle_Loop` from the [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html) (free Standard version, [itch.io](https://quaternius.itch.io/universal-animation-library)) by [Quaternius](https://quaternius.com), CC0 1.0, carried onto the people's rig by `tools/ual_retarget.gd`.
 
 The emotes, poses and gestures (`DotHumanoidActions`) use the kit's own `wave` and `yes` clips (Quaternius, above) and the seated idle above for `sit`; the other ten are made in code from bone directions, so nothing further is vendored.
 
