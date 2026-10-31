@@ -411,6 +411,7 @@ func animate(speed: float, delta: float) -> void:
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, advanced)
 	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
+	_own.cap_colour = look.top
 	_own.apply(_skeleton, _mesh)
 
 
