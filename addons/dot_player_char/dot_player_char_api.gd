@@ -27,5 +27,6 @@ extends RefCounted
 #     DotHumanoidOwnView and DotHumanoidFigure.first_person (your own legs or body, shadow kept).
 # 14: DotPlayerViewArms.debug_pose and DotViewArmsPoseDebug: sockets, hand targets and arm bone axes drawn over the view.
 # 15: DotPlayerViewArms.hand_error(grip): how far the hands are from a grip, for a game's tests and tools.
-const LEVEL := 15
+# 16: DotPlayerHitboxes and DotPlayerHitboxPlan: optional config-driven hit zones (off by default).
+const LEVEL := 16
 const OLDEST := 1

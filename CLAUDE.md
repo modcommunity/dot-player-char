@@ -41,6 +41,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `core/dot_player_death_sounds.gd`, `death/sounds/` | the stock sound ids' files (Kenney CC0, credited in `death/sounds/CREDITS.md`) as data a game makes audio defs from |
 | `nodes/dot_player_ragdoll.gd` | one dead body: parts by name, joints, the push, settle and freeze, the fade |
 | `nodes/dot_player_ragdolls.gd` | where bodies lie: `spawn`, the cap, sounds out |
+| `core/dot_player_hitbox_plan.gd`, `nodes/dot_player_hitboxes.gd` | optional hit zones (head, neck, torso, arms, hands, legs, feet) as pure data scaled from the height, and the node (off by default) that builds them as dot-combat hitboxes whose `group` is the hit_group the resolver and `DotStatsHitzones` read; `config` (`disabled`, `groups`, `zones`), `hitbox_factory` / `set_factory`, override `zones()` |
 | `nodes/dot_player_first_person_body.gd` | your own body in first person: head shadow-only, body back |
 | `core/dot_view_grip.gd` | where the hands go on a first-person weapon: anchor, grip, support |
 | `nodes/dot_player_view_arms.gd` | your own crawling arms in first person while downed, under the yaw pivot; `arms_factory` swaps them and `set_held` poses them on a weapon (`DotViewGrip`); no game mounts it yet |
@@ -53,7 +54,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py`; `people_ual.res`, the real sit (Universal Animation Library, CC0) |
 | `tools/` | `build_people.py` (Blender), `ual_retarget.gd` (library clips onto the rig: `people_ual.res`), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`, `--compare`), `survivor_compare.gd` (made vs real clip strips), `crowd_bench.tscn` (a browser crowd measurement) |
 | `dot_player_char_api.gd` | the API level (`DotAddonApi`): 13 since `DotHumanoidLegs` and `first_person` (12: `pose_record` / `pose_apply`) (11: `frame_delta`) (10: `DotFootPlant`) (9: `sprint_speed`) (8: `DotViewGrip`) (7: `DotPlayerViewArms`) (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
-| `examples/` | six suites: `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
+| `examples/` | seven suites: `hitbox_selftest`, `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
 Paths under `core/`, `nodes/` and `people/` are in `addons/dot_player_char/`; `tools/` is at the repository root and does not ship.
 
