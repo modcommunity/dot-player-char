@@ -7,7 +7,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 4
-const CHECKS := 31
+const CHECKS := 35
 
 var _passed := 0
 var _failed := 0
