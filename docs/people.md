@@ -135,3 +135,5 @@ The legs follow the way the body moves rather than the way it faces (`DotHumanoi
 `DotPlayerViewArms.forearm_scale` (default 1) shortens or lengthens the forearms while a gun is held; the fingers are divided by it so the hand keeps its size. A weapon row sets it with the `forearm_scale` art key (`zee-dot-weapons`), and the game scales every weapon with a cvar.
 
 `DotPlayerViewArms.max_lean` (default 0.4, 0 is no lean) caps how far the arms lean toward a hand target out of their reach. A game sets it per weapon from the `max_lean` art key (`zee-dot-weapons`, below 0 keeps this default) and for all weapons with a cvar (`cl_fp_max_lean` in the reference game).
+
+`tools/clip_metrics.gd` measures foot skate, head pop and head jerk for idle, walk, run, crouch, crouch walk and slide, and prints FLAG over the limits (`godot --headless --fixed-fps 60 --path . --script res://tools/clip_metrics.gd`). The crouch is bent 1.4 times the kit's duck and the crouch walk 1.0 (`CROUCH_IDLE_BEND`, `CROUCH_WALK_BEND`), so it reads visibly lower than standing.

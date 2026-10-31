@@ -53,7 +53,10 @@ const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN
 
 ## How much of the duck's bend a crouch walk keeps (the full bend left no room for a stride), and
 ## how far the hips dip at each step, in the clip body's units.
-const CROUCH_WALK_BEND := 0.7
+const CROUCH_WALK_BEND := 1.0
+
+## The idle crouch goes past the kit's duck (1.0) so it reads lower than a crouch walk.
+const CROUCH_IDLE_BEND := 1.4
 const CROUCH_WALK_BOB := 0.03
 
 ## The bones a crouch bends: the body's height and the legs. The arms and head keep what the
@@ -226,7 +229,7 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 		if not library.has_animation(pair[0]):
 			continue
 		var walking: bool = pair[1] == CROUCH_WALK
-		var made := _bent(library.get_animation(pair[0]), idle, duck, low, CROUCH_WALK_BEND if walking else 1.0)
+		var made := _bent(library.get_animation(pair[0]), idle, duck, low, CROUCH_WALK_BEND if walking else CROUCH_IDLE_BEND)
 		# The bob goes in first so the lift to the feet takes its dip out too.
 		if walking:
 			_bob(made, CROUCH_WALK_BOB)
