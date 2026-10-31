@@ -10,7 +10,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 15
-const CHECKS := 150
+const CHECKS := 153
 
 var _passed := 0
 var _failed := 0
@@ -158,6 +158,19 @@ func _test_clips() -> void:
 	for i in range(11):
 		highest = maxf(highest, _body_y(fall, fall.length * i / 10.0))
 	_check(highest <= _body_y(idle, 0.0) + 0.001, "the fall does not lift the body above standing: the game lifts it")
+	_check(matt.has_animation(DotHumanoidClips.SLIDE), "the real slide clip is on the clip body")
+	var slider := DotHumanoidFigure.new()
+	add_child(slider)
+	slider.build(DotHumanoidLook.stock(1), 1.8)
+	for i in range(30):
+		slider.set_motion({"on_floor": true, "alive": true, "crouched": true, "sliding": true, "velocity": Vector3(0, 0, -6)})
+		slider.animate(6.0, 1.0 / 30.0)
+	_check(slider.clip == DotHumanoidClips.SLIDE, "a sliding motion plays the slide (%s)" % slider.clip)
+	for i in range(15):
+		slider.set_motion({"on_floor": false, "alive": true, "sliding": true, "vertical": -3.0, "velocity": Vector3(0, -3, -6)})
+		slider.animate(6.0, 1.0 / 30.0)
+	_check(slider.clip != DotHumanoidClips.SLIDE, "a slide in the air is a fall, not a slide (%s)" % slider.clip)
+	slider.free()
 
 
 func _test_figure() -> void:

@@ -52,6 +52,12 @@ const ACTION_BLEND_OUT := 0.3
 ## is drawn upright, and a front crawl is nearly flat with the head a little up.
 const SWIM_LEAN := 1.4
 
+## Metres the slide clip is raised: its hips sit below the floor otherwise (for a 1.8 m figure).
+const SLIDE_LIFT := 0.1
+
+## Seconds to fall into and rise out of a slide; the body goes nearly flat, so 0.15 reads as a snap.
+const SLIDE_BLEND := 0.35
+
 ## How far back a propped, downed body leans about the hips, in radians (about 70 degrees from upright).
 const PROP_LEAN := 1.2
 
@@ -197,6 +203,7 @@ var _hand: Node3D = null
 ## How far the sprint carry is blended in, 0 to 1: set by `sprinting` in [method set_motion], eased over
 ## [constant SPRINT_SECONDS]. A held weapon ([code]ZeeWorldModel[/code]) reads it to swing to the side.
 var sprint_blend: float = 0.0
+var _slide_lift := 0.0
 
 ## Where the support hand goes, in world space, while a long gun is held with two hands; INF for none.
 ## Set every frame by the weapon (see [method set_support_grip]).
@@ -423,7 +430,7 @@ func mend() -> void:
 
 ## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it:
 ## `on_floor`, `vertical`, `crouched`, `swimming`, `climbing`, `alive`; plus `downed` here, and
-## `wall_running` (the run clip plays in the air). `velocity` (world) turns the legs toward the way it
+## `wall_running` (the run clip plays in the air), `sliding` (the slide clip; set `crouched` with it). `velocity` (world) turns the legs toward the way it
 ## moves and walks them backward ([member legs]); `wall` (a world [Plane]) puts the feet on it in a wall run.
 ## `seated` draws the person sitting ([method seat_height] says where their hips are), `driving`
 ## (with `seated`) puts the hands on a wheel, and `aim`
@@ -686,6 +693,11 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 	if bool(_motion.get("wall_running", false)) and p_state in [
 			DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL, DotPlayerAnimState.LAND]:
 		return [DotHumanoidClips.RUN_GUN if gun else DotHumanoidClips.RUN, clampf(speed / 5.0, 0.7, 1.5)]
+	# A slide on the ground: leant back, legs forward. The game's `sliding` key; in the air it is a fall.
+	if bool(_motion.get("sliding", false)) and p_state in [
+			DotPlayerAnimState.CROUCH_IDLE, DotPlayerAnimState.CROUCH_WALK, DotPlayerAnimState.RUN,
+			DotPlayerAnimState.WALK, DotPlayerAnimState.IDLE] and _anim != null and _anim.has_animation(DotHumanoidClips.SLIDE):
+		return [DotHumanoidClips.SLIDE, 1.0]
 	match p_state:
 		DotPlayerAnimState.DEAD:
 			return [DotHumanoidClips.DEATH, 1.0]
@@ -764,13 +776,14 @@ func _play(wanted: StringName, rate: float) -> void:
 	if clip == wanted:
 		return
 	var from := _stride_fraction()
+	var blend := SLIDE_BLEND if wanted == DotHumanoidClips.SLIDE or clip == DotHumanoidClips.SLIDE else 0.15
 	clip = wanted
 	var cross := from >= 0.0 and wanted in STRIDE_CLIPS
 	# A stride cut keeps the feet planted but would snap the arms, and the gun in the hand with them.
 	if cross:
 		_ease.begin(_skeleton, _upper, HAND_BONE)
 	var feet := DotHumanoidStride.feet_now(_skeleton, _to_figure()) if cross else PackedVector3Array()
-	_anim.play(wanted, 0.0 if cross else 0.15)
+	_anim.play(wanted, 0.0 if cross else blend)
 	if cross and not feet.is_empty():
 		_anim.seek(DotHumanoidStride.matching_time(_anim.get_animation(wanted), _skeleton, _model, _to_figure(), feet), true)
 
@@ -906,16 +919,18 @@ func _apply_swim(delta: float) -> void:
 	if _model == null:
 		return
 	var wanted := SWIM_LEAN if state == DotPlayerAnimState.SWIM and not downed else 0.0
-	var before := _swim_pitch + _prop_pitch
+	var before := _swim_pitch + _prop_pitch + _slide_lift
+	var sliding := state != DotPlayerAnimState.SWIM and clip == DotHumanoidClips.SLIDE
+	_slide_lift = move_toward(_slide_lift, SLIDE_LIFT * height / 1.8 if sliding else 0.0, delta * 0.6)
 	_swim_pitch = move_toward(_swim_pitch, wanted, delta * 3.0)
 	_prop_pitch = move_toward(_prop_pitch, -PROP_LEAN if downed and propped else 0.0, delta * 3.0)
 	var total := _swim_pitch + _prop_pitch
-	if is_equal_approx(before, total) and total == 0.0:
+	if is_equal_approx(before, total + _slide_lift) and total == 0.0 and _slide_lift == 0.0:
 		return
 	var hips := Vector3(0.0, height * 0.55, 0.0)
 	var tilt := Transform3D(Basis(Vector3.RIGHT, -total), Vector3.ZERO)
 	var about := Transform3D(Basis.IDENTITY, hips) * tilt * Transform3D(Basis.IDENTITY, -hips)
-	_model.transform = about * Transform3D(_model_basis, _model_origin)
+	_model.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, _slide_lift, 0.0)) * about * Transform3D(_model_basis, _model_origin)
 
 
 ## The directory the people's files are in.

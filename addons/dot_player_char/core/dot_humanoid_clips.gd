@@ -41,6 +41,8 @@ const CLIMB := &"climb"
 const SWIM := &"swim"
 ## A real sprint, only from `people/people_ual.res` (the library's `Sprint_Loop`); a figure without it runs.
 const SPRINT := &"ual_sprint"
+## The slide, baked from the Universal Animation Library (CC0); a figure without it crouches through a slide.
+const SLIDE := &"ual_slide"
 
 ## Every clip a figure is expected to have, for a suite and a contact sheet.
 const ALL: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK,
