@@ -28,7 +28,7 @@ func _ready() -> void:
 	_check(r.ok, "build succeeds with the real classes")
 	var set_node: Node = hb.hitbox_set()
 	_check(set_node != null and set_node.get_class() != "", "a set exists")
-	_check(set_node != null and set_node.get_child_count() == 11, "one DotHitbox per zone")
+	_check(set_node != null and set_node.get_child_count() == 14, "one DotHitbox per zone")
 	var first: Node = set_node.get_child(0) if set_node != null and set_node.get_child_count() > 0 else null
 	_check(first != null and first.get_script() == DotPlayerHitboxes.class_script("DotHitbox"), "children are DotHitbox")
 	_check(first != null and first.get("group") == &"head", "first zone is the head group")

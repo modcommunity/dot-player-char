@@ -7,7 +7,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 5
-const CHECKS := 43
+const CHECKS := 44
 
 var _passed := 0
 var _failed := 0
@@ -54,7 +54,8 @@ func _groups(zs: Array[Dictionary]) -> Array:
 func _test_stock() -> void:
 	_section_count += 1
 	var zs := DotPlayerHitboxPlan.stock(1.8)
-	_check(zs.size() == 11, "eleven stock zones")
+	_check(zs.size() == 14, "fourteen stock zones")
+	_check(_groups(zs).has(&"stomach") and _groups(zs).has(&"knee"), "stomach and knee zones exist")
 	var g := _groups(zs)
 	for name in [&"head", &"neck", &"chest", &"arm", &"hand", &"leg", &"foot"]:
 		_check(name in g, "group %s present" % name)
@@ -73,12 +74,12 @@ func _test_config() -> void:
 	_section_count += 1
 	var base := DotPlayerHitboxPlan.stock()
 	var r := DotPlayerHitboxPlan.from_config(base, {"disabled": ["hand_l", "hand_r"]})
-	_check(r.ok and (r.value as Array).size() == 9, "disabled drops zones")
-	_check(base.size() == 11, "base is not modified")
+	_check(r.ok and (r.value as Array).size() == 12, "disabled drops zones")
+	_check(base.size() == 14, "base is not modified")
 	r = DotPlayerHitboxPlan.from_config(base, {"groups": {"torso": "stomach"}})
 	_check(r.ok and r.value[2]["group"] == &"stomach", "groups remaps a zone")
 	r = DotPlayerHitboxPlan.from_config(base, {"zones": {"core": {"group": "core", "shape": "sphere", "radius": 0.2, "position": [0, 1.0, 0]}}})
-	_check(r.ok and (r.value as Array).size() == 12 and r.value[11]["group"] == &"core", "a new zone is added")
+	_check(r.ok and (r.value as Array).size() == 15 and r.value[14]["group"] == &"core", "a new zone is added")
 	r = DotPlayerHitboxPlan.from_config(base, {"zones": {"head": {"radius": 0.5}}})
 	_check(r.ok and is_equal_approx(float(r.value[0]["radius"]), 0.5) and r.value[0]["group"] == &"head", "a zone is overridden in part")
 	r = DotPlayerHitboxPlan.from_config(base, {"groups": {"nope": "head"}})
@@ -110,13 +111,13 @@ func _test_node() -> void:
 	host.add_child(hb)
 	var r := hb.build()
 	_check(r.ok, "build succeeds with factories")
-	_check(r.ok and r.value.get_child_count() == 11, "one node per zone")
+	_check(r.ok and r.value.get_child_count() == 14, "one node per zone")
 	_check(r.ok and (r.value.get_child(0) as StubBox).zone["group"] == &"head", "the factory sees the group")
 	_check(hb.describe()["built"] == true, "describe reports built")
 	var again := hb.build()
 	_check(again.ok and hb.get_child_count() == 1, "rebuild leaves one set")
 	hb.config = {"disabled": ["foot_l"]}
-	_check(hb.build().ok and hb.hitbox_set().get_child_count() == 10, "config reaches the build")
+	_check(hb.build().ok and hb.hitbox_set().get_child_count() == 13, "config reaches the build")
 	hb.config = {"groups": {"x": "y"}}
 	_check(not hb.build().ok, "a bad config fails")
 	hb.clear()
@@ -156,6 +157,6 @@ func _test_wall_clamp() -> void:
 			worst = maxf(worst, _reach(z))
 		_check(worst <= 0.35 + 0.0001, "scale %.2f clamped within the capsule (%.3f m)" % [hs, worst])
 	var cl := DotPlayerHitboxPlan.stock(1.8, 1.0, 0.35)
-	_check(cl.size() == 11 and cl[3]["id"] == &"arm_l" and float((cl[3]["position"] as Vector3).x) < 0.0, "arm keeps its side")
+	_check(cl.size() == 14 and cl[3]["id"] == &"arm_l" and float((cl[3]["position"] as Vector3).x) < 0.0, "arm keeps its side")
 	_check(is_equal_approx(float(cl[0]["radius"]), 0.15), "a zone already inside is unchanged")
 	_check(DotPlayerHitboxPlan.stock(1.8)[3]["position"] == Vector3(-0.37, 1.12, 0), "no half_width leaves stock as it was")

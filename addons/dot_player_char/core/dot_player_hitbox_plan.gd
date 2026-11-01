@@ -9,8 +9,8 @@ const BOX := &"box"
 
 ## Zone ids a config may name; the group is the hit_group dot-combat's resolver and DotStatsHitzones read.
 const STOCK_IDS: Array[StringName] = [
-	&"head", &"neck", &"torso", &"arm_l", &"arm_r", &"hand_l", &"hand_r",
-	&"leg_l", &"leg_r", &"foot_l", &"foot_r",
+	&"head", &"neck", &"torso", &"stomach", &"arm_l", &"arm_r", &"hand_l", &"hand_r",
+	&"leg_l", &"leg_r", &"knee_l", &"knee_r", &"foot_l", &"foot_r",
 ]
 
 ## Proportions of a 1.8 m body (y, x and sizes are metres at that height, scaled by height / 1.8).
@@ -42,7 +42,9 @@ static func stock(height: float = REFERENCE_HEIGHT, scale: float = 1.0, half_wid
 		out.append(zone(StringName("arm" + sfx), &"arm", CAPSULE, Vector3(x * 0.37 * k, 1.12 * k, 0), 0.07 * r, 0.55 * k * r, 3))
 		out.append(zone(StringName("hand" + sfx), &"hand", SPHERE, Vector3(x * 0.38 * k, 0.80 * k, 0), 0.07 * r, 0.0, 4))
 		out.append(zone(StringName("leg" + sfx), &"leg", CAPSULE, Vector3(x * 0.11 * k, 0.46 * k, 0), 0.10 * r, 0.82 * k * r, 1))
+		out.append(zone(StringName("knee" + sfx), &"knee", SPHERE, Vector3(x * 0.11 * k, 0.48 * k, 0), 0.09 * r, 0.0, 2))
 		out.append(zone(StringName("foot" + sfx), &"foot", SPHERE, Vector3(x * 0.11 * k, 0.07 * k, 0), 0.10 * r, 0.0, 5))
+	out.append(zone(&"stomach", &"stomach", CAPSULE, Vector3(0, 0.86 * k, 0), 0.24 * r, 0.52 * k * r, 2))
 	if half_width > 0.0:
 		for z in out:
 			clamp_inside(z, half_width)
