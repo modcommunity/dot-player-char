@@ -6,11 +6,13 @@ const CHANNEL := "player.humanoid"
 
 ## The atlas colours each body wears, by role, measured by `tools/people_palette.gd`; the shader
 ## swaps them for the look's colours. Several swatches of one role all take its colour.
+## The forearm and finger swatches are listed too: left out, they kept their painted brown and
+## showed beside a pale skin as brown arms ending in white fingers.
 const WEARS := {
-	&"matt": {"skin": ["7c4e26"], "hair": ["312515"], "top": ["af6c1c"], "bottom": ["4e694b"]},
-	&"lis": {"skin": ["c09264"], "hair": ["225385"], "top": ["bd8e30"], "bottom": ["466469"]},
+	&"matt": {"skin": ["7c4e26", "af8d68"], "hair": ["312515"], "top": ["af6c1c"], "bottom": ["4e694b"]},
+	&"lis": {"skin": ["c09264", "4c3a21"], "hair": ["225385"], "top": ["bd8e30"], "bottom": ["466469"]},
 	&"sam": {"skin": ["7c4e26"], "hair": ["4c3a21"], "top": ["504c43"], "bottom": ["333333"]},
-	&"shaun": {"skin": ["c09264"], "hair": ["923c12"], "top": ["5f4009"], "bottom": ["466469"]},
+	&"shaun": {"skin": ["c09264", "4c3a21"], "hair": ["923c12"], "top": ["5f4009", "b5b999"], "bottom": ["466469"]},
 }
 
 ## The body whose file carries the clip set.
