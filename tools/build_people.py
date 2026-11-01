@@ -16,6 +16,8 @@ both (docs/people.md). What this does, and why:
 - Keeps the clips on `matt` only, renamed to the family's names, plus the zombie's crawl (same
   bone names, so the action binds as it is) for a downed player. Every other body plays matt's
   clips through `DotHumanoidClips.retarget`, so four bodies carry one clip set.
+- Run `tools/split_people_atlas.py` on the output afterwards: it gives the parts that share a swatch
+  with another role (sam's shoes and his top) their own atlas pixel.
 - Writes the atlas the survivors share once, as `atlas_people.png`, and exports without images:
   `DotHumanoidPalette` draws every body through one shader that swaps the atlas colours for a
   look's colours.

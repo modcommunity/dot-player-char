@@ -6,13 +6,15 @@ const CHANNEL := "player.humanoid"
 
 ## The atlas colours each body wears, by role, measured by `tools/people_palette.gd`; the shader
 ## swaps them for the look's colours. Several swatches of one role all take its colour.
+## A swatch painted on two parts (sam's b2b2b2 on top and shoes) is split in the atlas by
+## `tools/split_people_atlas.py`: legs and feet get their own pixel, listed here only when a role takes it.
 ## The forearm and finger swatches are listed too: left out, they kept their painted brown and
 ## showed beside a pale skin as brown arms ending in white fingers.
 const WEARS := {
 	&"matt": {"skin": ["7c4e26", "af8d68"], "hair": ["312515"], "top": ["af6c1c", "99a38b", "b5b999"], "bottom": ["4e694b"]},
-	&"lis": {"skin": ["c09264", "4c3a21"], "hair": ["225385"], "top": ["bd8e30"], "bottom": ["466469"]},
+	&"lis": {"skin": ["c09264", "4c3a21"], "hair": ["225385"], "top": ["bd8e30"], "bottom": ["466469", "b5b999"]},
 	&"sam": {"skin": ["7c4e26", "923c12"], "hair": ["4c3a21"], "top": ["504c43", "b2b2b2"], "bottom": ["333333"]},
-	&"shaun": {"skin": ["c09264", "4c3a21"], "hair": ["923c12"], "top": ["5f4009", "b5b999", "4e694b", "a58a3b", "c0c0c0"], "bottom": ["466469"]},
+	&"shaun": {"skin": ["c09264", "4c3a21"], "hair": ["923c12"], "top": ["5f4009", "b5b999", "4e694b", "a58a3b", "c0c0c0"], "bottom": ["466469", "5a8a5a", "b59a4b"]},
 }
 
 ## The body whose file carries the clip set.
