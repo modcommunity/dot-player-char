@@ -337,14 +337,19 @@ func _left_hidden() -> bool:
 func _scale_left(skeleton: Skeleton3D, fore: float) -> void:
 	var hide := _left_hidden()
 
+	# The upper arm carries the scale (its child, the forearm, inherits it) so the sleeve shrinks about the shoulder joint.
 	for bone in ["Shoulder.L", "UpperArm.L", "LowerArm.L"]:
 		var i := skeleton.find_bone(bone)
 		if i >= 0:
-			skeleton.set_bone_pose_scale(i, Vector3.ONE * (0.001 if hide else (fore if bone == "LowerArm.L" else 1.0)))
+			skeleton.set_bone_pose_scale(i, Vector3.ONE * (0.001 if hide else (fore if bone == "UpperArm.L" else 1.0)))
+
+	var upper := skeleton.find_bone("UpperArm.R")
+	if upper >= 0:
+		skeleton.set_bone_pose_scale(upper, Vector3.ONE * fore)
 
 	var right := skeleton.find_bone("LowerArm.R")
 	if right >= 0:
-		skeleton.set_bone_pose_scale(right, Vector3.ONE * fore)
+		skeleton.set_bone_pose_scale(right, Vector3.ONE)
 
 
 ## Seats the posed head bone at this node's origin; the clip already lies the person head toward -Z.
