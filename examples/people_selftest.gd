@@ -9,8 +9,8 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 15
-const CHECKS := 153
+const SECTIONS := 16
+const CHECKS := 157
 
 var _passed := 0
 var _failed := 0
@@ -31,6 +31,7 @@ func _run() -> void:
 	await _test_hand_and_aim()
 	_test_actions()
 	_test_materials()
+	_test_arm_swatches()
 	await _test_break()
 	_test_unimported()
 	await DotPeopleViewChecks.new(self).run()
@@ -477,13 +478,55 @@ func _test_materials() -> void:
 	var m2 := DotHumanoidFigure.material_for(look.copy())
 	_check(m1 == m2, "two people dressed alike share a material")
 	_check(DotHumanoidFigure.material_count() == before + 1, "and it was made once")
-	_check(int(m1.get_shader_parameter(&"swaps")) == 4, "skin, hair, top and bottom are swapped (%d)" % int(m1.get_shader_parameter(&"swaps")))
+	var expected := 0
+	for hexes: Array in DotHumanoidAssets.WEARS[look.body].values():
+		expected += hexes.size()
+	_check(int(m1.get_shader_parameter(&"swaps")) == mini(expected, DotHumanoidAssets.SWAPS), "every mapped swatch of the body is swapped (%d)" % int(m1.get_shader_parameter(&"swaps")))
 	var paths := DotHumanoidFigure.content_paths()
 	_check(paths.size() == 6 and Array(paths).all(func(p: String) -> bool: return ResourceLoader.exists(p)), "every file a figure loads is listed, and exists")
 	DotHumanoidFigure.clear_cache()
 	_check(DotHumanoidFigure.material_count() == 0, "clear_cache() empties the shared materials")
 	DotHumanoidFigure.material_for(look)
 	_check(DotHumanoidFigure.material_count() == 1, "and a material refills it")
+
+## An arm or hand painted a colour no WEARS role covers keeps its painted colour whatever the
+## person wears: brown forearms, white fingers. Dark neutrals (shadows, cuffs) may stay.
+func _test_arm_swatches() -> void:
+	_section("no unmapped arm or hand swatch")
+	var image := (load("res://addons/dot_player_char/people/atlas_people.png") as Texture2D).get_image()
+	var neutral := ["2a2927", "2a2929", "141414"]
+	for id: StringName in [&"matt", &"lis", &"sam", &"shaun"]:
+		var mapped := []
+		for hexes: Array in DotHumanoidAssets.WEARS[id].values():
+			mapped.append_array(hexes)
+		var model := (load("res://addons/dot_player_char/people/people_%s.glb" % id) as PackedScene).instantiate()
+		var mesh: MeshInstance3D = model.find_children("*", "MeshInstance3D", true, false).front()
+		var skeleton: Skeleton3D = model.find_children("*", "Skeleton3D", true, false).front()
+		var arrays := mesh.mesh.surface_get_arrays(0)
+		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+		var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+		var per := bones.size() / uvs.size()
+		var total := 0
+		var loose := {}
+		for i in uvs.size():
+			var best := 0
+			for k in per:
+				if weights[i * per + k] > weights[i * per + best]:
+					best = k
+			var bind := bones[i * per + best]
+			var bone_name := String(mesh.skin.get_bind_name(bind)) if mesh.skin != null and mesh.skin.get_bind_name(bind) != &"" else skeleton.get_bone_name(bind)
+			if not ["Shoulder", "UpperArm", "LowerArm", "Pinky", "Middle", "Index", "Thumb", "Fist"].any(func(r: String) -> bool: return bone_name.contains(r)):
+				continue
+			total += 1
+			var hex := image.get_pixel(clampi(int(uvs[i].x * image.get_width()), 0, image.get_width() - 1), clampi(int(uvs[i].y * image.get_height()), 0, image.get_height() - 1)).to_html(false)
+			if not mapped.has(hex) and not neutral.has(hex):
+				loose[hex] = int(loose.get(hex, 0)) + 1
+		model.free()
+		var worst := 0
+		for hex: String in loose:
+			worst = maxi(worst, int(loose[hex]))
+		_check(total > 0 and worst * 100 <= total * 3, "%s: arm and hand swatches all mapped (%s)" % [id, loose])
 
 
 ## A critical on a skinned person: a limb is baked out of the skin as a piece of its own, and its
