@@ -19,6 +19,7 @@ SPLITS = [
 	("shaun", "5f4009", ("Foot", "LowerLeg", "UpperLeg"), "6f4f19"),
 	("shaun", "4e694b", ("Foot", "LowerLeg", "UpperLeg", "Hips"), "5a8a5a"),
 	("shaun", "a58a3b", ("Foot", "LowerLeg", "UpperLeg", "Hips"), "b59a4b"),
+	("matt", "af6c1c", ("UpperLeg",), "bf7c2c"),
 ]
 X0, Y = 480, 509  # the pixel row, top-origin; no body's UVs reach below row 50
 
