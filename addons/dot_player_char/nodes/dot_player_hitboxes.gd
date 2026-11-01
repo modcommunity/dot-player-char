@@ -14,6 +14,9 @@ const CHANNEL := "player.hitboxes"
 ## Used when no [DotPlayerChar] is a sibling.
 @export_range(0.5, 10.0, 0.01, "or_greater") var height: float = 1.8
 
+## Keep every zone inside the character's collision capsule radius, so no hit zone reaches through a wall the body stands against.
+@export var clamp_to_capsule: bool = true
+
 ## Config layered over the stock zones, see [method DotPlayerHitboxPlan.from_config].
 @export var config: Dictionary = {}
 
@@ -38,11 +41,14 @@ func _ready() -> void:
 func zones() -> DotResult:
 	var h := height
 	var s := 1.0
+	var w := 0.0
 	var pc := _char()
 	if pc != null:
 		h = pc.height()
 		s = pc.hitbox_scale()
-	return DotPlayerHitboxPlan.from_config(DotPlayerHitboxPlan.stock(h, s), config)
+		if clamp_to_capsule:
+			w = pc.radius()
+	return DotPlayerHitboxPlan.from_config(DotPlayerHitboxPlan.stock(h, s, w), config)
 
 
 ## Builds (or rebuilds) the hitboxes under this node; the container is returned.

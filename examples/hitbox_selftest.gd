@@ -6,8 +6,8 @@ extends Node
 ## godot --headless --path . res://examples/hitbox_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 4
-const CHECKS := 35
+const SECTIONS := 5
+const CHECKS := 43
 
 var _passed := 0
 var _failed := 0
@@ -25,6 +25,7 @@ func _run() -> void:
 	_test_config()
 	_test_node()
 	_test_off_by_default()
+	_test_wall_clamp()
 
 	print("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
 	if _section_count != SECTIONS or _passed + _failed != CHECKS:
@@ -136,3 +137,25 @@ func _test_off_by_default() -> void:
 		_check(true, "dot-combat present, fallback exercised by the game")
 	_check(DotPlayerHitboxes.class_script("NoSuchClassAnywhere") == null, "unknown class is null")
 	hb.queue_free()
+
+
+func _reach(z: Dictionary) -> float:
+	var p: Vector3 = z["position"]
+	return Vector2(p.x, p.z).length() + float(z["radius"])
+
+
+func _test_wall_clamp() -> void:
+	_section_count += 1
+	var widest := 0.0
+	for z in DotPlayerHitboxPlan.stock(1.8):
+		widest = maxf(widest, _reach(z))
+	_check(widest > 0.35, "unclamped stock reaches past the 0.35 m capsule (%.2f m)" % widest)
+	for hs in [0.92, 1.0, 1.1, 2.0]:
+		var worst := 0.0
+		for z in DotPlayerHitboxPlan.stock(1.8, hs, 0.35):
+			worst = maxf(worst, _reach(z))
+		_check(worst <= 0.35 + 0.0001, "scale %.2f clamped within the capsule (%.3f m)" % [hs, worst])
+	var cl := DotPlayerHitboxPlan.stock(1.8, 1.0, 0.35)
+	_check(cl.size() == 11 and cl[3]["id"] == &"arm_l" and float((cl[3]["position"] as Vector3).x) < 0.0, "arm keeps its side")
+	_check(is_equal_approx(float(cl[0]["radius"]), 0.15), "a zone already inside is unchanged")
+	_check(DotPlayerHitboxPlan.stock(1.8)[3]["position"] == Vector3(-0.37, 1.12, 0), "no half_width leaves stock as it was")

@@ -26,7 +26,9 @@ static func zone(id: StringName, group: StringName, shape: StringName, position:
 
 
 ## The stock set for a body of [param height] metres; [param scale] is DotPlayerCharDef.hitbox_scale.
-static func stock(height: float = REFERENCE_HEIGHT, scale: float = 1.0) -> Array[Dictionary]:
+## [param half_width] above 0 keeps every zone inside that horizontal distance of the body axis (the collision
+## capsule's radius), so a player flush against a wall has no hit zone on the far side of it.
+static func stock(height: float = REFERENCE_HEIGHT, scale: float = 1.0, half_width: float = 0.0) -> Array[Dictionary]:
 	var k := maxf(height, 0.1) / REFERENCE_HEIGHT
 	var r := k * maxf(scale, 0.1)
 	var out: Array[Dictionary] = []
@@ -41,7 +43,22 @@ static func stock(height: float = REFERENCE_HEIGHT, scale: float = 1.0) -> Array
 		out.append(zone(StringName("hand" + sfx), &"hand", SPHERE, Vector3(x * 0.38 * k, 0.80 * k, 0), 0.07 * r, 0.0, 4))
 		out.append(zone(StringName("leg" + sfx), &"leg", CAPSULE, Vector3(x * 0.11 * k, 0.46 * k, 0), 0.10 * r, 0.82 * k * r, 1))
 		out.append(zone(StringName("foot" + sfx), &"foot", SPHERE, Vector3(x * 0.11 * k, 0.07 * k, 0), 0.10 * r, 0.0, 5))
+	if half_width > 0.0:
+		for z in out:
+			clamp_inside(z, half_width)
 	return out
+
+
+## Shrinks and moves [param z] in place so its horizontal reach (centre distance plus radius) is within [param half_width].
+static func clamp_inside(z: Dictionary, half_width: float) -> void:
+	var rad := minf(float(z["radius"]), half_width)
+	z["radius"] = rad
+	var p: Vector3 = z["position"]
+	var flat := Vector2(p.x, p.z)
+	var room := half_width - rad
+	if flat.length() > room:
+		flat = flat.normalized() * room
+		z["position"] = Vector3(flat.x, p.y, flat.y)
 
 
 ## [param base] with a config applied. Keys: `disabled` (ids dropped), `groups` ({id: group}), `zones` (extra or replacing
