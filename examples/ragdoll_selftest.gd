@@ -13,8 +13,8 @@ extends Node
 ## godot --headless --path . res://examples/ragdoll_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 11
-const CHECKS := 105
+const SECTIONS := 12
+const CHECKS := 110
 
 var _passed := 0
 var _failed := 0
@@ -43,6 +43,7 @@ func _run() -> void:
 	await _test_skinned()
 	await _test_faceplant_sweep()
 	await _test_weight_and_weapon()
+	await _test_against_wall()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -732,3 +733,60 @@ class _FlashStub extends Node3D:
 
 	func is_showing() -> bool:
 		return true
+
+
+## How far past the plane [param normal].dot(p) = [param offset] any part's box reaches (m, 0 when none does).
+func _past_plane(body: DotPlayerRagdoll, normal: Vector3, offset: float) -> float:
+	var deepest := 0.0
+	for node in body.part_nodes():
+		for child in node.get_children():
+			var shape := child as CollisionShape3D
+			if shape == null or not shape.shape is BoxShape3D:
+				continue
+			var half := (shape.shape as BoxShape3D).size * 0.5
+			for sx in [-1.0, 1.0]:
+				for sy in [-1.0, 1.0]:
+					for sz in [-1.0, 1.0]:
+						var p := node.global_transform * (shape.position + Vector3(sx * half.x, sy * half.y, sz * half.z))
+						deepest = maxf(deepest, normal.dot(p) - offset)
+	return deepest
+
+
+const FACE := 0.2
+
+
+func _test_against_wall() -> void:
+	_section("a body that dies against a wall stays on its own side")
+	var wall := StaticBody3D.new()
+	var wshape := CollisionShape3D.new()
+	# One-sided quad like map collision: a part that starts behind its face is not pushed back.
+	var wmesh := ConcavePolygonShape3D.new()
+	var qa := Vector3(FACE, 0, -10)
+	var qb := Vector3(FACE, 0, 10)
+	var qc := Vector3(FACE, 6, 10)
+	var qd := Vector3(FACE, 6, -10)
+	wmesh.set_faces(PackedVector3Array([qa, qb, qc, qa, qc, qd]))
+	wshape.shape = wmesh
+	wall.add_child(wshape)
+	_world.add_child(wall)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var yard := DotPlayerRagdolls.new()
+	yard.rules.lifetime = 60.0
+	_world.add_child(yard)
+	for reaction: StringName in [&"limp", &"faceplant", &"stiff"]:
+		var fig := _figure(Vector3(0.0, 0, 0))
+		var body := yard.spawn(fig, _death(reaction, Vector3.RIGHT))
+		if body == null:
+			_check(false, "%s: a body was built" % reaction)
+			continue
+		await _settle(body, 8.0)
+		var past := _past_plane(body, Vector3.RIGHT, FACE)
+		_check(past < 0.03, "%s: no part reaches into the wall (%.3f m past its face, torso at x %.2f)" % [reaction, past, body.centre().x])
+	yard.rules.shootable = true
+	var lying: DotPlayerRagdoll = yard.live()[-1]
+	var at := lying.centre()
+	_check(not yard.shoot(at, Vector3.LEFT, 4.0, 0.6, Vector3(3, at.y, at.z)), "a shot from behind the wall does not move the body")
+	_check(yard.shoot(at, Vector3.RIGHT, 4.0, 0.6, Vector3(-3, at.y, at.z)), "a shot from the open side still does")
+	yard.queue_free()
+	wall.queue_free()

@@ -178,7 +178,9 @@ func _expire_prop(prop) -> void:
 
 ## Applies a shot's impulse to the lying body part nearest [param point] (within
 ## [param radius]). Does nothing, and returns false, unless [member DotPlayerRagdollRules.shootable].
-func shoot(point: Vector3, direction: Vector3, impulse: float = 4.0, radius: float = 0.6) -> bool:
+## With [param from] (the shot's origin) a part behind world geometry on the way from there is not
+## hit: the impact point sits on the wall a body lies against, inside [param radius] of its parts.
+func shoot(point: Vector3, direction: Vector3, impulse: float = 4.0, radius: float = 0.6, from: Vector3 = Vector3.INF) -> bool:
 	if rules == null or not rules.shootable:
 		return false
 	_reap()
@@ -191,7 +193,7 @@ func shoot(point: Vector3, direction: Vector3, impulse: float = 4.0, radius: flo
 			if rb == null:
 				continue
 			var d := rb.global_position.distance_to(point)
-			if d < best_d:
+			if d < best_d and not _covered(from, rb.global_position):
 				best_d = d
 				best = rb
 				hit_body = body
@@ -201,6 +203,13 @@ func shoot(point: Vector3, direction: Vector3, impulse: float = 4.0, radius: flo
 	best.freeze = false
 	best.apply_impulse(direction.normalized() * impulse * rules.force_scale, point - best.global_position)
 	return true
+
+
+## True when world geometry lies between [param from] and [param target]; false without an origin.
+func _covered(from: Vector3, target: Vector3) -> bool:
+	if from == Vector3.INF or not is_inside_tree():
+		return false
+	return not DotPlayerRagdoll.crossing(get_world_3d().direct_space_state, from, target, rules.collision_mask).is_empty()
 
 
 ## Bodies not yet fading, oldest first.

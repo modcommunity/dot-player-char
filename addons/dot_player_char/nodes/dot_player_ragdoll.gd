@@ -97,6 +97,8 @@ var _still_for: float = 0.0
 var _fastest: float = 0.0
 var _fade_pivot: Vector3 = Vector3.ZERO
 var _last_speed: Dictionary = {}
+var _last_pos: Dictionary = {}
+var _anchor: Vector3 = Vector3.ZERO
 var _jointed_on_land: bool = false
 ## A face plant's push, kept up until the plank is past tipping: the axis it turns about (ZERO when
 ## not pushing), the toe edge it turns round, and how long it has been pushed.
@@ -153,6 +155,7 @@ static func build(
 	made.reaction = p_reaction if p_reaction != null else DotPlayerDeathReactions.stock().find(DotPlayerDeathReactions.LIMP)
 	made.death = p_death if p_death != null else DotPlayerDeath.new()
 	made._rng.seed = made.death.roll_seed
+	made._anchor = figure.global_position + Vector3.UP * 0.9
 	world.add_child(made)
 
 	# A skinned figure: its skeleton is copied, and the parts carry bones rather than meshes. What
@@ -1005,6 +1008,7 @@ func advance(delta: float) -> void:
 		_advance_topple(delta)
 	elif not settled:
 		_keep_tipping(delta)
+		_hold_walls()
 		_watch_motion(delta)
 	if not was_settled:
 		_pose_bones()
@@ -1036,6 +1040,50 @@ func advance(delta: float) -> void:
 				copy.transparency = 1.0 - left
 		if left <= 0.0:
 			queue_free()
+
+
+## What lies between [param a] and [param b], found from either end. Map collision is one-sided
+## triangles and a ray that meets the back of one reports nothing, so one cast misses a wall
+## crossed the wrong way.
+static func crossing(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vector3, mask: int) -> Dictionary:
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(a, b, mask))
+	if hit.is_empty():
+		hit = space.intersect_ray(PhysicsRayQueryParameters3D.create(b, a, mask))
+	return hit
+
+
+## Puts back any part that got through world collision since the last tick. Map collision is
+## one-sided triangles: a part that starts behind a face, or crosses one at death speed, is not
+## pushed out by the engine, so it ends up lying (and being shot) on the other side of the wall.
+## A ray from where it was (the torso's centre on the first tick) finds the face from either side.
+func _hold_walls() -> void:
+	if rules == null or not is_inside_tree():
+		return
+	var space := get_world_3d().direct_space_state
+	for part in _parts:
+		var body := part.body as RigidBody3D
+		if body == null:
+			continue
+		var now := body.global_position
+		var known := _last_pos.has(body)
+		var before: Vector3 = _last_pos[body] if known else _anchor
+		if before.distance_squared_to(now) < 0.0001:
+			if not known:
+				_last_pos[body] = now
+			continue
+		_last_pos[body] = now
+		var hit := crossing(space, before, now, rules.collision_mask)
+		if hit.is_empty():
+			continue
+		var normal: Vector3 = hit.normal
+		if normal.dot(before - now) < 0.0:
+			normal = -normal
+		var back: Vector3 = (hit.position as Vector3) + normal * 0.08
+		body.global_position = back
+		_last_pos[body] = back
+		var v := body.linear_velocity
+		if v.dot(normal) < 0.0:
+			body.linear_velocity = v - normal * v.dot(normal)
 
 
 func _watch_motion(delta: float) -> void:
