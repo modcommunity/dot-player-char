@@ -148,8 +148,20 @@ func _test_body_break() -> void:
 		"mode NONE breaks nothing"
 	)
 
-	# First person: the head stops drawing but keeps its shadow; the body moves back; restore
-	# undoes both.
+	_check_first_person_body(world)
+
+	# Pieces shrink away after lifetime + fade and free themselves.
+	blast.advance(rules.lifetime + rules.fade + 0.1)
+	await get_tree().process_frame
+	_check(not is_instance_valid(blast), "the pieces free themselves once faded")
+
+	world.queue_free()
+	await get_tree().process_frame
+
+
+
+## First person: the head stops drawing but keeps its shadow; the body moves back; restore undoes both.
+func _check_first_person_body(world: Node3D) -> void:
 	var mine := _break_body()
 	world.add_child(mine)
 	var fp := DotPlayerFirstPersonBody.new()
@@ -171,14 +183,6 @@ func _test_body_break() -> void:
 	_check((mine.get_node("Rig/Chest/Mesh") as MeshInstance3D).cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY,
 		"with shown_names set, the chest only casts its shadow")
 	legs_only.restore()
-
-	# Pieces shrink away after lifetime + fade and free themselves.
-	blast.advance(rules.lifetime + rules.fade + 0.1)
-	await get_tree().process_frame
-	_check(not is_instance_valid(blast), "the pieces free themselves once faded")
-
-	world.queue_free()
-	await get_tree().process_frame
 
 
 func _model() -> DotPlayerModelDef:

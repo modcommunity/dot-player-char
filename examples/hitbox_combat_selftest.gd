@@ -1,10 +1,7 @@
 extends Node
 
 ## The real DotHitbox / DotHitboxSet path. Needs dot-combat linked (ln -s ../../dot-combat/addons/dot_combat addons/dot_combat).
-##
-## [codeblock]
-## godot --headless --path . res://examples/hitbox_combat_selftest.tscn
-## [/codeblock]
+## Run: godot --headless --path . res://examples/hitbox_combat_selftest.tscn
 
 const CHECKS := 11
 

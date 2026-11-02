@@ -2,16 +2,8 @@ extends Node
 
 ## Exercises dead bodies: the reaction rule, the server's cvars, the death that travels, and real
 ## ragdolls falling onto a real floor in a physics world (headless; no renderer needed).
-##
-## [b]The rule is checked by counting[/b], over a thousand seeds, because a weighted draw that is
-## wrong by a factor of two still "picks a reaction" every time. [b]The bodies are checked where
-## they end up[/b] (lying down, not through the floor, frozen), because a body that is built
-## correctly and then stands there, or falls through the world, passes every check that only
-## asks what was built. What a fall LOOKS like is not here: that is the contact sheets.
-##
-## [codeblock]
-## godot --headless --path . res://examples/ragdoll_selftest.tscn
-## [/codeblock]
+## The rule is checked by counting over a thousand seeds; bodies where they end up (lying, not
+## through the floor, frozen). Run: godot --headless --path . res://examples/ragdoll_selftest.tscn
 
 const SECTIONS := 12
 const CHECKS := 111
@@ -42,7 +34,7 @@ func _run() -> void:
 	await _test_cap_and_life()
 	await _test_skinned()
 	await _test_faceplant_sweep()
-	await _test_weight_and_weapon()
+	await DotRagdollWeaponChecks.new(self).run()
 	await _test_against_wall()
 
 	_line("")
@@ -61,7 +53,7 @@ func _run() -> void:
 	get_tree().quit(1 if _failed > 0 else 0)
 
 
-# --- The rule ----------------------------------------------------------------
+# The rule
 
 func _count(reactions: DotPlayerDeathReactions, headshot: bool, power: float, damage: float, named: StringName, n: int) -> Dictionary:
 	var out := {}
@@ -180,7 +172,7 @@ class _FakeWire:
 	func read_direction(_bits: int) -> Vector3: return _q.pop_front()
 
 
-# --- Rules and cvars -------------------------------------------------------------
+# Rules and cvars
 
 class _FakeCvar:
 	extends RefCounted
@@ -241,7 +233,7 @@ func _test_rules() -> void:
 	_check(not client.follow_cvars(RefCounted.new()), "a link that cannot replicate is refused")
 
 
-# --- Roles -------------------------------------------------------------------
+# Roles
 
 func _test_roles() -> void:
 	_section("which part is which")
@@ -255,7 +247,7 @@ func _test_roles() -> void:
 		"an arm with no side, and a crest, are not a limb")
 
 
-# --- Bodies --------------------------------------------------------------------
+# Bodies
 
 func _build_world() -> void:
 	_world = Node3D.new()
@@ -438,94 +430,6 @@ func _test_cap_and_life() -> void:
 	_check(fps >= 4, "a machine's own cap is never below four (%d)" % fps)
 
 
-func _test_weight_and_weapon() -> void:
-	_section("the heavy drop, the cvar defaults and the dropped weapon")
-	var r := DotPlayerRagdollRules.new()
-	_check(not r.exaggerate and not r.shootable, "exaggerate and shootable are off by default")
-	_check(is_equal_approx(r.torque_scale, 1.0) and r.weapon_drop, "torque 1, weapon drop on by default")
-	_check(r.reactions().find(&"headshot_launch").weight == 0.0, "launch reactions are not drawn by default")
-	_check(r.reactions().pick(true, 1.0, 100.0, &"power_launch", 7) != &"power_launch", "a weapon naming a launch falls through")
-	var specs := r.cvar_specs().map(func(d: Dictionary) -> String: return String(d["name"]))
-	for name in ["sv_ragdoll_torque", "sv_ragdoll_exaggerate", "sv_ragdoll_shootable", "sv_ragdoll_weapon_drop", "sv_ragdoll_weapon_time"]:
-		_check(specs.has(name), "%s is a cvar" % name)
-	_check(r.set_cvar("sv_ragdoll_exaggerate", "1") and r.reactions().find(&"headshot_launch").weight > 0.0, "exaggerate brings the launches back")
-	_check(r.set_cvar("sv_ragdoll_max", "200") and r.max_count == 200, "the body cap goes past 64")
-
-	var yard := DotPlayerRagdolls.new()
-	yard.local_cap = 64
-	_world.add_child(yard)
-	var launch := DotPlayerDeathReactions.stock().find(&"headshot_launch")
-	var made := DotPlayerRagdoll.build(_figure(Vector3(0, 0, 40)), yard, yard.rules, launch, _death(&"headshot_launch", Vector3(0, 0, 1), true), Vector3.ZERO)
-	var top := 0.0
-	for node in made.part_nodes():
-		top = maxf(top, (node as RigidBody3D).linear_velocity.y)
-	_check(top < 1.0, "a launch reaction does not throw the body up by default (%.2f m/s)" % top)
-	_check((made.part_nodes()[0] as RigidBody3D).gravity_scale > 1.0, "a falling body is heavier than gravity alone")
-
-	var gun := Node3D.new()
-	var gun_mesh := MeshInstance3D.new()
-	gun_mesh.mesh = BoxMesh.new()
-	gun.add_child(gun_mesh)
-	_world.add_child(gun)
-	gun.global_position = Vector3(0, 3, 40)
-	var dropped := yard.drop_prop(gun)
-	_check(dropped != null and dropped.get_child_count() >= 2, "the weapon drops as a physics prop with its mesh")
-	for i in range(90):
-		await get_tree().physics_frame
-	_check(dropped != null and dropped.global_position.y < 3.0, "and falls (y %.2f)" % (dropped.global_position.y if dropped != null else 0.0))
-	var flash := _FlashStub.new()
-	var flash_mesh := MeshInstance3D.new()
-	var big := BoxMesh.new()
-	big.size = Vector3(1, 1, 6)
-	flash_mesh.mesh = big
-	flash.add_child(flash_mesh)
-	gun.add_child(flash)
-	var with_flash := yard.drop_prop(gun)
-	var span := 0.0
-	if with_flash != null:
-		span = ((with_flash.get_child(0) as CollisionShape3D).shape as BoxShape3D).size.z
-	_check(with_flash != null and with_flash.get_child_count() == 2 and span < 2.0, "a muzzle flash under the gun is left out of the prop (collider %.2f m)" % span)
-	flash.queue_free()
-	var fx_root := Node3D.new()
-	fx_root.top_level = true
-	gun.add_child(fx_root)
-	var mark := MeshInstance3D.new()
-	mark.mesh = BoxMesh.new()
-	fx_root.add_child(mark)
-	mark.global_position = Vector3(20, 3, 40)
-	var with_marks := yard.drop_prop(gun)
-	span = 0.0
-	if with_marks != null:
-		span = ((with_marks.get_child(0) as CollisionShape3D).shape as BoxShape3D).size.x
-	_check(with_marks != null and with_marks.get_child_count() == 2 and span < 2.0, "shot marks in world space under the gun are left out of the prop (collider %.2f m)" % span)
-	var person := _figure(Vector3(-6, 0, 40))
-	var stray := MeshInstance3D.new()
-	stray.mesh = BoxMesh.new()
-	stray.top_level = true
-	person.add_child(stray)
-	stray.global_position = Vector3(-6, 9, 40)
-	_check(not DotPlayerRagdoll.meshes_of(person).has(stray), "a body copies no world-space effect hung under its figure")
-	person.queue_free()
-	fx_root.queue_free()
-	yard.rules.weapon_drop = false
-	_check(yard.drop_prop(gun) == null, "weapon_drop off drops nothing")
-	_check(not yard.shoot(Vector3(0, 1, 40), Vector3.FORWARD), "shooting a body does nothing by default")
-	yard.rules.shootable = true
-	var lying := yard.spawn(_figure(Vector3(6, 0, 40)), _death(&"limp"))
-	var shot := yard.shoot(lying.centre(), Vector3.FORWARD)
-	_check(shot, "with shootable on, a shot finds a part")
-	yard.clear()
-	# A dropped weapon freed by clear() before its timer fires must not raise on the timeout.
-	yard.rules.weapon_drop = true
-	yard.rules.weapon_lifetime = 0.5
-	var fleeting := yard.drop_prop(gun)
-	yard.clear()
-	if is_instance_valid(fleeting):
-		fleeting.queue_free()
-	await get_tree().create_timer(0.8).timeout
-	_check(true, "a weapon freed before its timer fires expires without an error")
-
-
 func _person(at: Vector3) -> DotHumanoidFigure:
 	var person := DotHumanoidFigure.new()
 	_world.add_child(person)
@@ -634,11 +538,9 @@ func _test_skinned() -> void:
 	yard.clear()
 
 
-## A face plant onto open floor always ends lying down. The skinned figure's one piece is a flush
-## box (about 0.42 x 1.59 x 0.8 m) on the floor, and at the games' 20 m/s2 gravity (the default 9.8
-## never showed it) floor contact ate the 1.6 rad/s spin before the top passed the toes, so a third
-## of the falls (12 of 36 here) stood back up, by pose and not by seed (nightly
-## ragdoll-faceplant-upright-1). Without the fix this check fails listing those falls.
+## A face plant onto open floor always ends lying down. At the games' 20 m/s2 gravity floor contact
+## ate the spin before the flush skinned box passed the toes, so a third of falls stood back up
+## (the default 9.8 never showed it).
 func _test_faceplant_sweep() -> void:
 	_section("a skinned face plant onto open floor always lies down")
 	var yard := DotPlayerRagdolls.new()
@@ -649,6 +551,28 @@ func _test_faceplant_sweep() -> void:
 	var gravity_before: float = PhysicsServer3D.area_get_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY)
 	PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY, 20.0)
 	var upright: Array[String] = []
+	var falls := await _sweep_open_floor(yard, upright)
+	var table := StaticBody3D.new()
+	var slab := CollisionShape3D.new()
+	var slab_box := BoxShape3D.new()
+	slab_box.size = Vector3(1.6, 0.05, 0.8)
+	slab.shape = slab_box
+	table.add_child(slab)
+	_world.add_child(table)
+	var leaning: Array[String] = []
+	var tried := await _sweep_table_edge(yard, table, leaning)
+	var jostled: Array[String] = []
+	await _sweep_jostled(yard, table, jostled)
+	_check(jostled.is_empty(), "a plank leaning on its feet that never keeps still still lets go: %s" % str(jostled))
+	table.queue_free()
+	PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY, gravity_before)
+	_check(falls == 36 and tried == 8, "36 falls onto open floor and 8 onto a table edge ran")
+	_check(upright.is_empty(), "none stayed up or fell backward: %s" % str(upright))
+	_check(leaning.is_empty(), "a plank stopped by a table edge lets go and slumps, never left leaning on its feet: %s" % str(leaning))
+
+
+## Thirty-six face plants from varied stances; returns how many ran.
+func _sweep_open_floor(yard: DotPlayerRagdolls, upright: Array[String]) -> int:
 	var falls := 0
 	for s in range(36):
 		var person := _person(Vector3(0, [0.0, -0.05, -0.1, 0.03][s % 4], 80))
@@ -668,19 +592,12 @@ func _test_faceplant_sweep() -> void:
 		elif (c - Vector3(0, 0, 80)).dot(forward) < 0.3:
 			upright.append("%d: not forward (%.2f)" % [s, (c - Vector3(0, 0, 80)).dot(forward)])
 		yard.clear()
-	# A table edge just ahead, at the height of a person's hips: the plank tips onto it and stops
-	# at about 30 degrees with its weight on the edge, still on its feet. Seen against a house
-	# map's furniture on game-murder-mystery's CI (nightly ragdoll-faceplant-upright-1, second half): the
-	# spin is not the problem there, so no amount of pushing fixes it, and a frozen plank leaning
-	# on furniture is a dead body standing. It has to let go and slump.
-	var table := StaticBody3D.new()
-	var slab := CollisionShape3D.new()
-	var slab_box := BoxShape3D.new()
-	slab_box.size = Vector3(1.6, 0.05, 0.8)
-	slab.shape = slab_box
-	table.add_child(slab)
-	_world.add_child(table)
-	var leaning: Array[String] = []
+	return falls
+
+
+## A table edge ahead at hip height: the plank tips onto it and stops at about 30 degrees, still
+## on its feet. Pushing harder does not help; a frozen plank on furniture must let go and slump.
+func _sweep_table_edge(yard: DotPlayerRagdolls, table: StaticBody3D, leaning: Array[String]) -> int:
 	var tried := 0
 	for s in range(8):
 		var gap: float = [0.3, 0.38, 0.45, 0.55][s % 4]
@@ -699,9 +616,12 @@ func _test_faceplant_sweep() -> void:
 		if pieces == 1 or standing:
 			leaning.append("%d (gap %.2f, top %.2f): %d piece(s), centre.y=%.2f" % [s, gap, top, pieces, body.centre().y])
 		yard.clear()
-	# The same lean with something always jostling the plank (never still for the stall timer): it
-	# used to be frozen standing at max_sim_time (game-murder-mystery headless_run, 1 run in 5).
-	var jostled: Array[String] = []
+	return tried
+
+
+## The same lean with something always jostling the plank (never still for the stall timer): it
+## must not be frozen standing at max_sim_time.
+func _sweep_jostled(yard: DotPlayerRagdolls, table: StaticBody3D, jostled: Array[String]) -> void:
 	for s in range(4):
 		table.global_position = Vector3(40, 0.8 - 0.025, 80 - [0.3, 0.38, 0.45, 0.55][s] - 0.4)
 		var person := _person(Vector3(40, 0, 80))
@@ -720,15 +640,9 @@ func _test_faceplant_sweep() -> void:
 		if body.part_count() == 1 or tilted:
 			jostled.append("%d: %d piece(s), centre.y=%.2f" % [s, body.part_count(), body.centre().y])
 		yard.clear()
-	_check(jostled.is_empty(), "a plank leaning on its feet that never keeps still still lets go: %s" % str(jostled))
-	table.queue_free()
-	PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY, gravity_before)
-	_check(falls == 36 and tried == 8, "36 falls onto open floor and 8 onto a table edge ran")
-	_check(upright.is_empty(), "none stayed up or fell backward: %s" % str(upright))
-	_check(leaning.is_empty(), "a plank stopped by a table edge lets go and slumps, never left leaning on its feet: %s" % str(leaning))
 
 
-# --- Plumbing --------------------------------------------------------------------
+# Plumbing
 
 func _section(title: String) -> void:
 	_section_count += 1
@@ -747,14 +661,6 @@ func _check(condition: bool, what: String) -> void:
 
 func _line(text: String) -> void:
 	print(text)
-
-
-class _FlashStub extends Node3D:
-	func fire() -> bool:
-		return true
-
-	func is_showing() -> bool:
-		return true
 
 
 ## How far past the plane [param normal].dot(p) = [param offset] any part's box reaches (m, 0 when none does).

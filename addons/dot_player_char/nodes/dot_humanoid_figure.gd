@@ -5,21 +5,18 @@ extends Node3D
 ## colours, playing the family clip set ([DotHumanoidClips]) from how it moves, holding a weapon
 ## in its hand, and handing its skeleton to [DotPlayerRagdoll] when it dies. Client side only.
 ##
-## [b]The game places it and says how it moves; this picks the clip.[/b] [method pose] takes where
-## the player is drawn this frame, the yaw and the ground speed; [method set_motion] the rest (on
-## the floor, vertical speed, crouched, swimming, downed, alive). A [DotPlayerAnimState] turns that
-## into a state with hysteresis, so a player at the run threshold does not flicker.
+## [b]The game places it and says how it moves; this picks the clip.[/b] [method pose] takes the
+## drawn position, yaw and ground speed; [method set_motion] the rest. A [DotPlayerAnimState] turns
+## that into a state with hysteresis, so a player at the run threshold does not flicker.
 ##
-## [b]Legs from the locomotion clip, arms from an overlay.[/b] Holding a gun while crouched or in
-## the air, a melee swing while running, a flinch: the upper body ([constant DotHumanoidClips.UPPER_BONES])
-## is written over the locomotion pose after the clip is applied, blended in and out, so the legs
-## never stop for a swing. The clip is advanced here, manually, for that reason: left to the
-## engine, the overlay and the clip run in an order nothing controls.
+## [b]Legs from the locomotion clip, arms from an overlay.[/b] The upper body
+## ([constant DotHumanoidClips.UPPER_BONES]) is written over the locomotion pose after the clip is
+## applied, so the legs never stop for a swing. The clip is advanced here, manually, because left
+## to the engine the overlay and the clip run in an order nothing controls.
 ##
-## [b]Cheap enough for a browser crowd:[/b] one surface and one material per look (a palette
-## shader shared by everybody dressed alike, no per-instance uniforms), the import's LODs,
-## and the clip advanced every frame within [constant ANIM_NEAR] of the camera, every second frame
-## to [constant ANIM_FAR] and every fourth beyond (docs/people.md has the numbers).
+## [b]Cheap enough for a browser crowd:[/b] one surface and material per look, the import's LODs,
+## and the clip advanced every frame within [constant ANIM_NEAR], every second to [constant ANIM_FAR]
+## and every fourth beyond (docs/people.md has the numbers).
 
 const CHANNEL := "player.humanoid"
 
@@ -28,13 +25,10 @@ const CHANNEL := "player.humanoid"
 const ANIM_NEAR := 22.0
 const ANIM_FAR := 45.0
 
-## Below 1, the mesh switches to its simpler levels sooner. A person is small on screen past a
-## few metres; 0.4 is game-zombie-zone's crowd number too.
+## Below 1, the mesh switches to its simpler levels sooner; a person is small on screen past a few metres.
 const LOD_BIAS := 0.4
 
-## Past this distance from the camera a person casts no shadow. The shadow pass drew every person
-## at full detail and was more than half of a crowd's triangles (docs/people.md), for shadows too
-## far away to read.
+## Past this distance from the camera a person casts no shadow: the shadow pass was over half of a crowd's triangles.
 const SHADOW_RANGE := 28.0
 
 ## Nothing drawn past this.
@@ -48,27 +42,25 @@ const BLEND_OUT := 0.14
 const ACTION_BLEND_IN := 0.25
 const ACTION_BLEND_OUT := 0.3
 
-## How far a swimmer is laid forward about the hips, in radians (about 80 degrees): the swim clip
-## is drawn upright, and a front crawl is nearly flat with the head a little up.
+## How far a swimmer is laid forward about the hips, in radians: the swim clip is drawn upright.
 const SWIM_LEAN := 1.4
 
 ## Metres the slide clip is raised: its hips sit below the floor otherwise (for a 1.8 m figure).
 const SLIDE_LIFT := 0.1
 
-## Seconds to fall into and rise out of a slide; the body goes nearly flat, so 0.15 reads as a snap.
+## Seconds to fall into and rise out of a slide.
 const SLIDE_BLEND := 0.35
 
-## How far back a propped, downed body leans about the hips, in radians (about 70 degrees from upright).
+## How far back a propped, downed body leans about the hips, in radians.
 const PROP_LEAN := 1.2
 
 ## The clip a downed pose plays; a game with better clips assigns its own names.
 var downed_clips: Dictionary = {&"propped": &"", &"crawl": DotHumanoidClips.CRAWL}
 
-## Whether the person is sprinting (from [method set_motion]; a game that never sends the key gets the run state instead); the carry eases in and out in [member sprint_blend].
+## Whether the person is sprinting (from [method set_motion]); the carry eases via [member sprint_blend].
 var sprinting: bool = false
 
-## What the hand holds, which decides the arms: nothing, a gun (the kit's gun clips and the
-## held-gun overlay), or a melee weapon (ordinary arms, a slash to swing).
+## What the hand holds, which decides the arms: nothing, a gun (gun clips and overlay) or a melee weapon.
 enum Hold { NONE, GUN, MELEE }
 
 ## The body whose file carries the clip set; the others play it through [method DotHumanoidClips.retarget].
@@ -77,22 +69,18 @@ const CLIP_BODY := DotHumanoidAssets.CLIP_BODY
 const FLINCH_GAIN := 1.4
 var _overlay_gain := 1.0
 
-## The bone a weapon is held in: the right hand. The kit's people are left-handed (every weapon
-## in it hangs off `Middle1.L`), so the clip set is mirrored once when it is loaded
-## ([method DotHumanoidClips.mirror]) and a player seen by anybody else holds the gun in the
-## hand their own first-person view holds it in.
+## The bone a weapon is held in. The kit's people are left-handed, so the clip set is mirrored once
+## on load ([method DotHumanoidClips.mirror]) and others see the gun in the hand first person holds it in.
 const HAND_BONE := "Middle1.R"
 
-## Where a hat or a crest sits: on the crown, from the head bone, so it nods and bobs with the
-## head. "head_top", "crest" and "hat" are all this mount.
+## "head_top", "crest" and "hat" are all the crown mount, from the head bone.
 const HEAD_BONE := "Head"
 const HEAD_MOUNTS: Array[StringName] = [&"head_top", &"crest", &"hat"]
 
-## How far up and down the upper body follows the view, in radians: past this a person would
-## fold in half at the waist.
+## How far up and down the upper body follows the view, in radians.
 const AIM_LIMIT := 1.15
 
-## Where a weapon's grip sits from that bone at the held-gun pose, in metres in the figure's frame.
+## Where a weapon's grip sits from that bone at the held-gun pose, in metres.
 const HAND_OFFSET := Vector3(0.0, 0.03, -0.02)
 
 ## Seconds to ease the sprint carry in or out.
@@ -124,8 +112,7 @@ var hold: int = Hold.NONE
 ## Down: crawling on the floor, whatever the legs would otherwise do.
 var downed: bool = false
 
-## While [member downed]: true lies on the back, propped, weapon out; false crawls on the stomach.
-## Set from the `propped` motion key ([DotDownedRules]).
+## While [member downed]: true lies propped on the back, weapon out; false crawls (`propped` key, [DotDownedRules]).
 var propped: bool = false
 
 ## The overlay playing on the upper body, or empty.
@@ -134,8 +121,7 @@ var overlay: StringName = &""
 ## The avatar action (emote, pose or gesture id) playing, or empty. See [method play_action].
 var action: StringName = &""
 
-## Where the player looks, up (+) or down (-), in radians: the upper body, the arms and the gun
-## in the hand follow it. See [method aim].
+## Where the player looks, up (+) or down (-), in radians; the upper body follows ([method aim]).
 var aim_pitch: float = 0.0
 
 ## Sitting ([constant DotHumanoidClips.SIT]): set by `seated` in [method set_motion].
@@ -144,9 +130,8 @@ var seated: bool = false
 ## Seated with the hands on a wheel ([constant DotHumanoidClips.DRIVE]): set by `driving` in [method set_motion]. Needs `seated` too; a figure without the clip just sits.
 var driving: bool = false
 
-## Moves itself: every frame the figure measures how far it moved and animates from that, for a
-## body something else carries (an NPC on a physics body, a prop with a person on it) where no
-## code knows its speed. Off for a player, whose game says how it moves ([method pose]).
+## Measures its own movement every frame and animates from that, for a body something else
+## carries where no code knows its speed. Off for a player ([method pose]).
 var auto_animate: bool = false:
 	set(value):
 		auto_animate = value
@@ -178,16 +163,14 @@ func set_run_speeds(run_speed: float, run_exit_speed: float) -> void:
 ## Frames per advance of the clip: 1, 2 or 4, by distance from the camera.
 var anim_step: int = 1
 
-## The head (and the neck under it) shrunk to nothing after the clip: your own body seen in first
-## person, where the camera is inside the head. The rest still draws and casts its shadow.
+## The head (and neck) shrunk to nothing after the clip, for your own body in first person.
 var hide_head: bool = false:
 	set(value):
 		hide_head = value
 		_own.hide_head = value
 		_own.apply(_skeleton, _mesh)
 
-## Seen by its own player from inside the head ([DotHumanoidOwnView]: THIRD, LEGS or BODY): what
-## is shrunk away, with the whole person's shadow kept by a shadow-only copy.
+## Seen by its own player from inside the head ([DotHumanoidOwnView]: THIRD, LEGS or BODY).
 var first_person: int = DotHumanoidOwnView.THIRD:
 	set(value):
 		first_person = value
@@ -212,8 +195,7 @@ var _hand: Node3D = null
 var sprint_blend: float = 0.0
 var _slide_lift := 0.0
 
-## Where the support hand goes, in world space, while a long gun is held with two hands; INF for none.
-## Set every frame by the weapon (see [method set_support_grip]).
+## Where the support hand goes, in world space, with a two-handed gun; INF for none ([method set_support_grip]).
 var support_point := Vector3.INF
 var _support_weight: float = 0.0
 var _support_cache: Dictionary = {}
@@ -351,18 +333,16 @@ func recolour(p_look: DotHumanoidLook) -> void:
 	_mesh.material_override = material_for(look)
 
 
-## Puts the figure where this frame draws its player, facing [param yaw_radians], moving at
-## [param speed] metres a second over the ground, and advances its animation by the time since
-## the last call (clamped, so a figure hidden for a minute picks up where it was).
+## Puts the figure where its player is drawn, facing [param yaw_radians] at ground [param speed],
+## and advances the animation by the time since the last call.
 func pose(at: Vector3, yaw_radians: float, speed: float) -> void:
 	global_position = at
 	rotation = Vector3(0.0, yaw_radians, 0.0)
 	animate(speed, frame_delta())
 
 
-## Game seconds since the last call, once per drawn frame (0 on a second call in the same frame),
-## clamped to 0.1. Game time, not the wall clock: the body moves by it, so the feet must too
-## (a slowed, fixed-rate or recorded frame otherwise skates them).
+## Game seconds since the last call (0 on a second call in a frame), clamped to 0.1. Game time,
+## not wall clock, or a slowed or recorded frame skates the feet.
 func frame_delta() -> float:
 	var now := Engine.get_process_frames()
 	var frames := 0 if _posed_frame < 0 else now - _posed_frame
@@ -495,11 +475,9 @@ func emote(which: StringName) -> void:
 	_start_overlay(which, 1.0)
 
 
-## Plays the avatar action [param id] (a [DotHumanoidActions] id) that began [param elapsed]
-## seconds ago, so a late joiner or a replicated start lands in step. Upper body over the legs,
-## except [constant DotHumanoidActions.FULL_BODY] ids, which take the legs while standing still.
-## A looping action holds until [method stop_action] or the player moves off. False when this
-## body has no clip for it.
+## Plays the avatar action [param id] that began [param elapsed] seconds ago, so a late joiner lands
+## in step. Upper body over the legs, except [constant DotHumanoidActions.FULL_BODY] ids. A looping
+## action holds until [method stop_action] or the player moves. False when the body has no clip.
 func play_action(id: StringName, loop: bool = false, elapsed: float = 0.0) -> bool:
 	var wanted := DotHumanoidActions.clip_name(id)
 	if _anim == null or not _anim.has_animation(wanted):
@@ -520,10 +498,8 @@ func play_action(id: StringName, loop: bool = false, elapsed: float = 0.0) -> bo
 	return true
 
 
-## Adds the uploaded action [param id] (a content id) from [param scene], an uploaded clip's
-## built GLB, so [method play_action] can play it. Its clip [param clip] is moved onto this body
-## ([method DotHumanoidActions.from_upload]); the body's library is shared, so every figure of the
-## same body gets it. Success is false when it was already there.
+## Adds the uploaded action [param id] from [param scene] (a built GLB) so [method play_action] can
+## play it; the library is shared by every figure of the body. Success is false when already there.
 func add_action_scene(id: StringName, scene: Node, clip: String, loop: bool = false) -> DotResult:
 	if _anim == null or _skeleton == null or not _anim.has_animation(DotHumanoidClips.IDLE):
 		return DotResult.fail(DotError.CODE_STATE, "this figure has no skinned body to play a clip on")
@@ -549,13 +525,9 @@ func stop_action() -> void:
 	action = &""
 
 
-## The node a held weapon hangs from, by the name [code]ZeeWorldModel[/code] asks for:
-## "right_hand" or "hand" (see [constant HAND_BONE] for which hand that is). Turned so its -Z is
-## the way the figure faces when holding a gun, its +Y up, and at metre scale whatever the body's.
-##
-## "head_top" (or "crest", "hat") is the crown of the head, upright, at metre scale, and it
-## follows the head bone, so a hat nods with the head and goes with it in first person
-## ([member hide_head]).
+## The node a held weapon hangs from: "right_hand" or "hand" ([constant HAND_BONE]), turned so its
+## -Z is the way the figure faces holding a gun, +Y up, at metre scale. "head_top", "crest" or
+## "hat" is the crown of the head, upright, following the head bone (hidden by [member hide_head]).
 func attachment(point: StringName) -> Node3D:
 	if HEAD_MOUNTS.has(point):
 		return _crown_mount()
@@ -563,40 +535,35 @@ func attachment(point: StringName) -> Node3D:
 		return null
 	if _hand != null and is_instance_valid(_hand):
 		return _hand
-	_hand = Node3D.new()
-	_hand.name = "Hand"
-	if _skeleton == null or _skeleton.find_bone(HAND_BONE) < 0:
-		_hand.position = Vector3(0.26, height * 0.62, -0.34)
-		add_child(_hand)
-		return _hand
-
-	var bone := BoneAttachment3D.new()
-	bone.name = "HandBone"
-	bone.bone_name = HAND_BONE
-	_skeleton.add_child(bone)
-	bone.add_child(_hand)
-	_hand.transform = DotHumanoidFrames.hand_frame(_skeleton, _anim, _model, _to_figure()) * Transform3D(Basis.from_scale(Vector3.ONE * held_scale), Vector3.ZERO)
+	_hand = _bone_mount("Hand", HAND_BONE, Vector3(0.26, height * 0.62, -0.34))
+	if _hand.get_parent() != self:
+		_hand.transform = DotHumanoidFrames.hand_frame(_skeleton, _anim, _model, _to_figure()) * Transform3D(Basis.from_scale(Vector3.ONE * held_scale), Vector3.ZERO)
 	return _hand
 
 
 func _crown_mount() -> Node3D:
 	if _crown != null and is_instance_valid(_crown):
 		return _crown
-	_crown = Node3D.new()
-	_crown.name = "Crown"
-	if _skeleton == null or _skeleton.find_bone(HEAD_BONE) < 0:
-		_crown.position = Vector3(0.0, height, 0.0)
-		add_child(_crown)
-		return _crown
-	var bone := BoneAttachment3D.new()
-	bone.name = "HeadBone"
-	bone.bone_name = HEAD_BONE
-	_skeleton.add_child(bone)
-	bone.add_child(_crown)
-	# The crown is the mesh's top, straight over the head bone at rest; upright and metre scale
-	# in the figure's frame, as the hand is.
-	_crown.transform = DotHumanoidFrames.crown_local(_skeleton, _to_figure(), height)
+	_crown = _bone_mount("Crown", HEAD_BONE, Vector3(0.0, height, 0.0))
+	if _crown.get_parent() != self:
+		_crown.transform = DotHumanoidFrames.crown_local(_skeleton, _to_figure(), height)
 	return _crown
+
+
+## A node under a bone attachment, or under the figure at [param fallback] when there is no such bone.
+func _bone_mount(node_name: String, bone_name: String, fallback: Vector3) -> Node3D:
+	var node := Node3D.new()
+	node.name = node_name
+	if _skeleton == null or _skeleton.find_bone(bone_name) < 0:
+		node.position = fallback
+		add_child(node)
+		return node
+	var bone := BoneAttachment3D.new()
+	bone.name = node_name + "Bone"
+	bone.bone_name = bone_name
+	_skeleton.add_child(bone)
+	bone.add_child(node)
+	return node
 
 
 ## Skeleton space to the figure's frame: the skeleton's own transform under the model, then the
@@ -619,59 +586,16 @@ func mesh() -> MeshInstance3D:
 	return _mesh
 
 
-## The pose as drawn now, for a replay: bone count, the model's transform, every bone's rotation
-## and the root bones' positions. Includes overlays, aim, swim tilt; [method pose_apply] puts it back.
+## The pose as drawn now, for a replay (overlays, aim and swim tilt included); [method pose_apply]
+## puts it back. See [DotHumanoidPoseRecord] for the layout.
 func pose_record() -> PackedFloat32Array:
-	var out := PackedFloat32Array()
-	if _skeleton == null or _model == null:
-		return out
-	var n := _skeleton.get_bone_count()
-	var t := _model.transform
-	out.append(n)
-	for v: Vector3 in [t.basis.x, t.basis.y, t.basis.z, t.origin]:
-		out.append_array([v.x, v.y, v.z])
-	for i in n:
-		var q := _skeleton.get_bone_pose_rotation(i)
-		out.append_array([q.x, q.y, q.z, q.w])
-	for i in _root_bones():
-		var p := _skeleton.get_bone_pose_position(i)
-		out.append_array([p.x, p.y, p.z])
-	return out
+	return DotHumanoidPoseRecord.record(_skeleton, _model)
 
 
 ## Draws the pose between two [method pose_record]s, [param alpha] of the way to [param b]. False
 ## (and nothing changed) when either is from another skeleton.
 func pose_apply(a: PackedFloat32Array, b: PackedFloat32Array, alpha: float) -> bool:
-	if _skeleton == null or _model == null or a.is_empty() or a.size() != b.size():
-		return false
-	var n := _skeleton.get_bone_count()
-	var roots := _root_bones()
-	if int(a[0]) != n or a.size() != 13 + n * 4 + roots.size() * 3:
-		return false
-	var at := func(r: PackedFloat32Array, i: int) -> Vector3: return Vector3(r[i], r[i + 1], r[i + 2])
-	var ta := Transform3D(Basis(at.call(a, 1), at.call(a, 4), at.call(a, 7)), at.call(a, 10))
-	var tb := Transform3D(Basis(at.call(b, 1), at.call(b, 4), at.call(b, 7)), at.call(b, 10))
-	_model.transform = ta.interpolate_with(tb, alpha)
-	for i in n:
-		var k := 13 + i * 4
-		var qa := Quaternion(a[k], a[k + 1], a[k + 2], a[k + 3])
-		var qb := Quaternion(b[k], b[k + 1], b[k + 2], b[k + 3])
-		_skeleton.set_bone_pose_rotation(i, qa.normalized().slerp(qb.normalized(), alpha))
-	var k := 13 + n * 4
-	for i in roots:
-		_skeleton.set_bone_pose_position(i, (at.call(a, k) as Vector3).lerp(at.call(b, k), alpha))
-		k += 3
-	return true
-
-
-## Bones whose position a clip moves: those without a parent and their children (the hips).
-func _root_bones() -> PackedInt32Array:
-	var out := PackedInt32Array()
-	for i in _skeleton.get_bone_count():
-		var parent := _skeleton.get_bone_parent(i)
-		if parent < 0 or _skeleton.get_bone_parent(parent) < 0:
-			out.append(i)
-	return out
+	return DotHumanoidPoseRecord.apply(_skeleton, _model, a, b, alpha)
 
 
 ## Shows or hides the body (the local player's own, in first person). The hand stays where it

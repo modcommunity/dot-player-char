@@ -1,33 +1,22 @@
 extends SceneTree
 
-## Bakes clips from Quaternius' Universal Animation Library (CC0) onto the people's rig and saves
-## them as one small [AnimationLibrary] the figure adds over its made clips
-## (`people/people_ual.res`, see docs/people.md#real-clips-from-the-universal-animation-library).
+## Bakes clips from Quaternius' Universal Animation Library (CC0) onto the people's rig into one
+## small [AnimationLibrary] (`people/people_ual.res`, see docs/people.md). Run:
+## godot --headless --path . --script tools/ual_retarget.gd -- --ual=/path/UAL1_Standard.glb --ual2=/path/UAL2_Standard.glb [--out=res://...people_ual.res] [--clips=sit=Sitting_Idle_Loop]
 ##
-## [codeblock]
-## godot --headless --path . --script tools/ual_retarget.gd -- --ual=/path/UAL1_Standard.glb --ual2=/path/UAL2_Standard.glb [--out=res://addons/dot_player_char/people/people_ual.res] [--clips=sit=Sitting_Idle_Loop]
-## [/codeblock]
-##
-## The library is a different skeleton (65 bones, a hand and five three-joint fingers, the feet
-## under the shins) from the kit's (43 bones, the feet hanging off the root for its leg IK), and
-## a different size (1.8 against 1.1). Both rest in a T pose facing +Z, so a clip is carried by
-## how far each bone turned from rest in skeleton space, not by its local rotation: for each
-## mapped bone `turn = ual_global * ual_rest_global^-1`, and the kit's bone is `turn * its own
-## rest_global`. Bone lengths stay the kit's (a key's position is its rest offset under the new
-## parent), the hips' travel is scaled by the leg-length ratio, and a foot is put where its shin
-## now ends. Grounded clips are then moved down (or up) until the lower foot is where the rest
-## pose's feet are.
-##
-## The output is authored on the kit's skeleton as the library has it, right-handed: it is added
-## after [method DotHumanoidClips.mirror], not before.
+## The skeletons and sizes differ but both rest in a T pose facing +Z, so a clip is carried by how
+## far each bone turned from rest in skeleton space: `turn = ual_global * ual_rest_global^-1`, and
+## the kit's bone is `turn * its own rest_global`. Bone lengths stay the kit's, hips' travel is
+## scaled by the leg-length ratio, a foot is put where its shin ends, and grounded clips are moved
+## until the lower foot is at the rest pose's feet.
+## Authored right-handed: added after [method DotHumanoidClips.mirror], not before.
 
 const MATT := "res://addons/dot_player_char/people/people_matt.glb"
 const OUT := "res://addons/dot_player_char/people/people_ual.res"
 
-## The family's clip name, the library's clip name, and what is done with the body: `grounded`
-## (the lower foot put back on the floor), `lifted` (moved once so the loop's lowest foot is on
-## it: a run keeps its flight), `free` (left where the clip has it) or `upright` (a prone clip
-## stood up about the hips, for one the figure lays down itself, like the swim).
+## Family clip name, library clip name, and the body treatment: `grounded` (lower foot on the floor),
+## `lifted` (moved once so the loop's lowest foot is on it; a run keeps its flight), `free`, or
+## `upright` (a prone clip stood up about the hips, like the swim).
 const CLIPS := {
 	&"sit": ["Sitting_Idle_Loop", "grounded"],
 	&"drive": ["Driving_Loop", "grounded"],

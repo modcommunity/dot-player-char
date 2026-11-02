@@ -9,10 +9,9 @@ const SAMPLES := 48
 const AIRBORNE_M := 0.06
 
 
-## Metres over the ground at each of [constant SAMPLES] steps through [param animation]: the
-## lower foot's backward travel in the figure's frame, never under a third of the mean so the
-## clip does not race through a moment the foot stands still in it, and in flight no less than
-## a stance step, so a run's swing plays at the clip's own pace.
+## Metres over the ground at each of [constant SAMPLES] steps through [param animation]: the lower
+## foot's backward travel in the figure's frame. Floored at a third of the mean (and in flight at a
+## stance step) so the clip does not race through a moment the foot stands still.
 static func table_for(animation: Animation, skeleton: Skeleton3D, model: Node3D, to_figure: Transform3D) -> PackedFloat32Array:
 	var table := PackedFloat32Array()
 	var feet := [skeleton.find_bone("Foot.L"), skeleton.find_bone("Foot.R")]

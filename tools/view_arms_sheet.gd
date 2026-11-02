@@ -1,10 +1,8 @@
 extends SceneTree
 
-## The downed first-person arms as the player sees them: crawl, six moments, looking 15 and 80 degrees down, a camera at the eye.
+## The downed first-person arms as the player sees them: crawl, six moments, looking 15 and 80 degrees down.
 ##   xvfb-run -a godot --path . --script tools/view_arms_sheet.gd -- [--out=res://screenshots] [--off=x,y,z (the eye in the figure's frame)]
-##   --left: with --held, keep the idle left arm in the one-hand row (the old look).
-##   --look=body,skin,hair,top,bottom: the look to draw (hex colours); solid colours show every swatch no role claims.
-##   --held: the held-weapon mode instead, rows one-hand / two-hand / two-hand from the side / two-hand looking 60 down, columns idle then walking.
+##   --look=body,skin,hair,top,bottom (hex colours; solid colours show unclaimed swatches). --held (with --left to keep the idle left arm): held-weapon mode: rows one-hand / two-hand / side / looking 60 down, columns idle then walking.
 
 const CELL := Vector2i(400, 260)
 const MOMENTS := 6

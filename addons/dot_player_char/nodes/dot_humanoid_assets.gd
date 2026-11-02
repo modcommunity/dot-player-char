@@ -4,12 +4,9 @@ extends RefCounted
 
 const CHANNEL := "player.humanoid"
 
-## The atlas colours each body wears, by role, measured by `tools/people_palette.gd`; the shader
-## swaps them for the look's colours. Several swatches of one role all take its colour.
-## A swatch painted on two parts (sam's b2b2b2 on top and shoes) is split in the atlas by
-## `tools/split_people_atlas.py`: legs and feet get their own pixel, listed here only when a role takes it.
-## The forearm and finger swatches are listed too: left out, they kept their painted brown and
-## showed beside a pale skin as brown arms ending in white fingers.
+## The atlas colours each body wears, by role (`tools/people_palette.gd`); the shader swaps them for
+## the look's. A swatch shared by two parts is split by `tools/split_people_atlas.py`. Forearm and
+## finger swatches are listed too, or they keep their painted brown beside a pale skin.
 const WEARS := {
 	&"matt": {"skin": ["7c4e26", "af8d68"], "hair": ["312515"], "top": ["af6c1c", "99a38b", "b5b999"], "bottom": ["4e694b"]},
 	&"lis": {"skin": ["c09264", "4c3a21"], "hair": ["225385"], "top": ["bd8e30"], "bottom": ["466469", "b5b999"]},

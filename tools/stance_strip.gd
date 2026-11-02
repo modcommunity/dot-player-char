@@ -64,9 +64,9 @@ func _process(delta: float) -> bool:
 				_worst_pop = maxf(_worst_pop, head.distance_to(_last_head))
 			_last_head = head
 			if int(_t * 30.0) % 10 == 0:
-				print("STANCE %.2f %s clip=%s hip=%.3f" % [_t, p[0], _fig.clip, hip])
+				print("STANCE ", snappedf(_t, 0.01), " ", p[0], " clip=", _fig.clip, " hip=", snappedf(hip, 0.001))
 			return false
 		at -= float(p[1])
-	print("STANCE worst head step per frame %.3f m" % _worst_pop)
+	print("STANCE worst head step per frame ", snappedf(_worst_pop, 0.001), " m")
 	quit(0)
 	return false

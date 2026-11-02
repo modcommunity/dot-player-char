@@ -1,10 +1,8 @@
 extends SceneTree
 
-## Foot skate and pop/jerk for the figure's stances, headless: prints one line per scenario and
-## FLAG for those over the limits.  godot --headless --fixed-fps 60 --path . --script res://tools/clip_metrics.gd
-## Skate: a planted foot (near the lowest it gets) should move back at the ground speed; the ratio is
-## how far its speed is off that. Pop: the biggest one-frame head step. Jerk: peak third difference
-## of the head height (m/s^3), which a blend that snaps shows as a spike.
+## Foot skate and pop/jerk per stance, headless; FLAG marks lines over the limits.
+## godot --headless --fixed-fps 60 --path . --script res://tools/clip_metrics.gd
+## Skate: speed ratio of a planted foot against the ground. Pop: biggest one-frame head step. Jerk: peak third difference of head height.
 
 const SCENARIOS := [
 	[&"idle", 0.0, 0.0, false],
@@ -95,4 +93,4 @@ func _report(s: Array) -> void:
 	var moving: bool = speed > 0.5 and s[0] != &"slide"
 	var flag := skate > MAX_SKATE or pop > (MAX_POP_MOVING if moving else MAX_POP) or jerk > (MAX_JERK_MOVING if moving else MAX_JERK)
 	_failed = _failed or flag
-	print("CLIPMETRICS %-12s skate=%.2f pop=%.3f jerk=%.0f%s" % [s[0], skate, pop, jerk, "  FLAG" if flag else ""])
+	print("CLIPMETRICS ", s[0], " skate=", snappedf(skate, 0.01), " pop=", snappedf(pop, 0.001), " jerk=", roundi(jerk), "  FLAG" if flag else "")

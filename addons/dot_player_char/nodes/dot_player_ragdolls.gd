@@ -14,11 +14,9 @@ extends Node3D
 ## yard.spawn(victim_figure, DotPlayerDeath.from_dict(info), victim_velocity)
 ## [/codeblock]
 ##
-## [b]The cap is the server's ([member DotPlayerRagdollRules.max_count]) and this machine's
-## ([member local_cap]), whichever is lower.[/b] A browser tab simulates on the one thread it
-## has, so a machine without threads keeps fewer by default; the oldest body fades out quickly
-## to make room rather than the new one not appearing, because the new one is the death
-## somebody is looking at.
+## [b]The cap is the lower of the server's ([member DotPlayerRagdollRules.max_count]) and this
+## machine's ([member local_cap]).[/b] The oldest body fades quickly to make room: the new one is
+## the death somebody is looking at.
 
 const CHANNEL := "player.ragdoll"
 
@@ -88,10 +86,9 @@ func spawn(figure: Node3D, death: DotPlayerDeath, velocity: Vector3 = Vector3.ZE
 	return made
 
 
-## Drops a copy of [param model] (a weapon's world model, usually the held node) as a physics
-## prop at its current pose, which crashes onto the ground and fades after
-## [member DotPlayerRagdollRules.weapon_lifetime]. Null when the rules turn it off or the model
-## has no mesh. Presentation only: it collides with the world and nothing collides with it.
+## Drops a copy of [param model] (a weapon's world model) as a physics prop that fades after
+## [member DotPlayerRagdollRules.weapon_lifetime]. Null when off or the model has no mesh.
+## Presentation only: nothing collides with it.
 func drop_prop(model: Node3D, velocity: Vector3 = Vector3.ZERO) -> RigidBody3D:
 	if model == null or rules == null or not rules.weapon_drop or not model.is_inside_tree():
 		return null
@@ -176,10 +173,9 @@ func _expire_prop(prop) -> void:
 	tween.tween_callback(body.queue_free)
 
 
-## Applies a shot's impulse to the lying body part nearest [param point] (within
-## [param radius]). Does nothing, and returns false, unless [member DotPlayerRagdollRules.shootable].
-## With [param from] (the shot's origin) a part behind world geometry on the way from there is not
-## hit: the impact point sits on the wall a body lies against, inside [param radius] of its parts.
+## Applies a shot's impulse to the lying part nearest [param point] (within [param radius]); false
+## unless [member DotPlayerRagdollRules.shootable]. With [param from], a part behind world
+## geometry is skipped: the impact point sits on the wall a body lies against.
 func shoot(point: Vector3, direction: Vector3, impulse: float = 4.0, radius: float = 0.6, from: Vector3 = Vector3.INF) -> bool:
 	if rules == null or not rules.shootable:
 		return false

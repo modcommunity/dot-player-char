@@ -1,10 +1,9 @@
 class_name DotPlayerHitboxes
 extends Node3D
 
-## Optional hit zones (head, neck, torso, arms, hands, legs, feet) for a player, built as dot-combat hitboxes.
-##
-## Off by default. dot-player-char does not depend on dot-combat, so the hitbox classes are looked up by name
-## at build time; without them, or without a [member hitbox_factory], [method build] fails and builds nothing.
+## Optional hit zones (head to feet) for a player, built as dot-combat hitboxes. Off by default.
+## There is no dependency on dot-combat: classes are looked up by name, and without them or a
+## [member hitbox_factory], [method build] fails and builds nothing.
 
 const CHANNEL := "player.hitboxes"
 

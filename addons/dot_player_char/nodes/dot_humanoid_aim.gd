@@ -4,25 +4,21 @@ extends RefCounted
 ## The view pitch bent into a figure's waist and chest, and its arms when it holds a gun.
 
 
-## Bends the waist and chest by [member pitch] about the figure's own left-to-right axis,
-## after the clip and the overlays, so whatever the arms are doing points up or down with the
-## view. Not while down, dead, swimming or climbing (the body is not upright to bend), and only
-## on a bone the playing clip keys: a bone no track writes keeps last frame's pose, and the bend
-## would add up frame after frame.
+## Bends the waist and chest by [member pitch] about the figure's left-to-right axis, after the clip
+## and overlays. Not while down, dead, swimming or climbing, and only on bones the clip keys: an
+## unkeyed bone keeps last frame's pose and the bend would accumulate.
 static func apply(skeleton: Skeleton3D, model: Node3D, animation: Animation, to_figure: Transform3D, arm: bool, pitch: float, sprint_blend: float) -> void:
-	# Figure right, in skeleton space: the axis a nod turns about.
-	# A collapsed basis (a figure scaled to nothing while it pops in or out) has no inverse and so no
-	# axis: keep the clip's pose rather than hand Quaternion a zero or NaN axis.
+	# Figure right in skeleton space. A collapsed basis (a figure popping in or out) has no inverse:
+	# keep the clip's pose rather than hand Quaternion a zero or NaN axis.
 	var axis := Vector3.ZERO
 	if absf(to_figure.basis.determinant()) > 1e-9:
 		axis = (to_figure.basis.inverse() * Vector3.RIGHT).normalized()
 	if not axis.is_finite() or axis.length_squared() < 0.5:
 		return
 	var prefix := String(model.get_path_to(skeleton))
-	# Every parent's pose is read before any bone is turned. Turns about one axis commute, so each
-	# bone's share goes on through its parent's unturned frame: local' = P^-1 * turn * P * local.
-	# Read from the local poses up the chain, not get_bone_global_pose: the skeleton updates its
-	# global poses later in the frame, so that is last frame's (with last frame's bend in it).
+	# Parents are read before any bone turns; turns about one axis commute, so each share goes on
+	# through the parent's unturned frame: local' = P^-1 * turn * P * local. Use local poses up the
+	# chain, not get_bone_global_pose, which is last frame's (with last frame's bend in it).
 	var shares: Dictionary = DotHumanoidClips.AIM_BONES
 	if arm:
 		shares = shares.merged(DotHumanoidClips.AIM_ARM)

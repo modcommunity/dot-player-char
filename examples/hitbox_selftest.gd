@@ -1,10 +1,7 @@
 extends Node
 
 ## Hit zones: the plan as data, the config layer, and the node built through stub factories (no dot-combat needed).
-##
-## [codeblock]
-## godot --headless --path . res://examples/hitbox_selftest.tscn
-## [/codeblock]
+## Run: godot --headless --path . res://examples/hitbox_selftest.tscn
 
 const SECTIONS := 5
 const CHECKS := 44
