@@ -499,6 +499,8 @@ func _test_rig() -> void:
 	var no_eyes := _model()
 	no_eyes.eye_mount = &""
 	opinionless.adopt(_rig_scene(), no_eyes)
+	# An adopted instance is not parented for you; unparented it is never freed.
+	opinionless.add_child(opinionless.instance)
 	_check(
 		opinionless.eye_height() < 0.0,
 		"and a rig with no eye mount answers 'no opinion' rather than zero, which "
