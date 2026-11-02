@@ -5,7 +5,6 @@ extends Node3D
 ## [method set_downed] plays the crawl; [method set_held] poses the arms on a weapon mesh the host supplies ([DotViewGrip]).
 ## The head, neck and legs are shrunk away so only the arms and a little torso show; a game's own arms come from [member arms_factory].
 
-const CHANNEL := "player.view_arms"
 ## Bones shrunk to nothing; the arms hang off the chest, so they stay.
 const HIDDEN_BONES: Array[String] = ["Head", "Neck", "UpperLeg.L", "UpperLeg.R"]
 ## The pack is part of the one skinned mesh, bound to the hips: its vertices are the hip-bound ones this far behind the body.
