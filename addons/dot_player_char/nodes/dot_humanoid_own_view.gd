@@ -15,6 +15,8 @@ const HIDDEN_BONES := {LEGS: ["Abdomen"], BODY: ["Neck", "Shoulder.L", "Shoulder
 const GONE := Vector3.ONE * 0.001
 
 var mode: int = THIRD
+## False (the `cl_legs` setting off): in first person nothing of the body is drawn, only its shadow, with no shrunk bones, cap or shadow copy.
+var shown: bool = true
 var hide_head: bool = false
 ## Colour of the disc that closes the cut waist in LEGS mode (the look's top: the hem left at the waist); set before [method apply].
 var cap_colour := Color("2f3a4f")
@@ -28,8 +30,9 @@ func apply(skeleton: Skeleton3D, mesh: MeshInstance3D) -> void:
 	if skeleton == null:
 		return
 	var want: Array[int] = []
-	var names: Array = HIDDEN_BONES.get(mode, []).duplicate()
-	if hide_head or mode != THIRD:
+	var live := effective()
+	var names: Array = HIDDEN_BONES.get(live, []).duplicate()
+	if hide_head or live != THIRD:
 		names.append("Head")
 	for bone_name: String in names:
 		var bone := skeleton.find_bone(bone_name)
@@ -44,6 +47,8 @@ func apply(skeleton: Skeleton3D, mesh: MeshInstance3D) -> void:
 	_shrunk = want
 	_sync_cap(skeleton)
 	_sync_shadow(skeleton, mesh)
+	if mesh != null and mode != THIRD and not shown:
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 
 
 ## Every bone at its own size again, for a respawn, then what this view hides.
@@ -54,6 +59,11 @@ func mend(skeleton: Skeleton3D, mesh: MeshInstance3D) -> void:
 		skeleton.set_bone_pose_scale(i, Vector3.ONE)
 	_shrunk.clear()
 	apply(skeleton, mesh)
+
+
+## The mode that is drawn: [member mode], or [constant THIRD] while [member shown] is off.
+func effective() -> int:
+	return mode if shown else THIRD
 
 
 ## The shadow copy's skeleton, or null outside first person.
@@ -67,7 +77,7 @@ func _sync_cap(skeleton: Skeleton3D) -> void:
 	var abdomen := skeleton.find_bone("Abdomen")
 	var left := skeleton.find_bone("UpperLeg.L")
 	var right := skeleton.find_bone("UpperLeg.R")
-	if mode != LEGS or hips < 0 or abdomen < 0 or left < 0 or right < 0:
+	if effective() != LEGS or hips < 0 or abdomen < 0 or left < 0 or right < 0:
 		if is_instance_valid(_cap):
 			_cap.get_parent().queue_free()
 		_cap = null
@@ -98,7 +108,7 @@ func _sync_cap(skeleton: Skeleton3D) -> void:
 
 
 func _sync_shadow(skeleton: Skeleton3D, mesh: MeshInstance3D) -> void:
-	var wanted := mode != THIRD and mesh != null
+	var wanted := effective() != THIRD and mesh != null
 	if mesh != null:
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if wanted else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	if not wanted:
@@ -136,4 +146,4 @@ static func _shadow_of(skeleton: Skeleton3D, mesh: MeshInstance3D) -> Skeleton3D
 
 
 func describe() -> Dictionary:
-	return {"mode": mode, "hide_head": hide_head, "shrunk": _shrunk.size(), "shadow": shadow() != null}
+	return {"mode": mode, "shown": shown, "hide_head": hide_head, "shrunk": _shrunk.size(), "shadow": shadow() != null}

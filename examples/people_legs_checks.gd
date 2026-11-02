@@ -135,4 +135,37 @@ func _check_own_view() -> void:
 		"third person: whole again, its own shadow, no copy")
 	g.hide_head = true
 	suite._check(scale_of.call("Head") < 0.01 and scale_of.call("Neck") > 0.9, "hide_head alone still takes only the head")
+	g.hide_head = false
+	await _check_cl_legs(g)
 	g.queue_free()
+
+
+## `cl_legs` off: first person draws nothing of the body (no shrunk bones, cap or shadow copy), only a shadow; on again brings the legs back.
+func _check_cl_legs(g: DotHumanoidFigure) -> void:
+	var sk := g.skeleton()
+	var store := DotCLegsFake.new()
+	DotOwnBodySetting.follow(g, store)
+	g.first_person = DotHumanoidOwnView.LEGS
+	g.animate(0.0, DT)
+	suite._check(g.own_body_shown and sk.get_bone_pose_scale(sk.find_bone("Abdomen")).x < 0.01 and g._own.shadow() != null, "cl_legs on (default): the legs view is built")
+	store.set_value(false)
+	g.animate(0.0, DT)
+	suite._check(not g.own_body_shown and sk.get_bone_pose_scale(sk.find_bone("Abdomen")).x > 0.9 and g._own.shadow() == null and g.mesh().cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY,
+		"cl_legs off: nothing drawn, no shrunk bones or shadow copy, the shadow stays")
+	store.set_value(true)
+	g.animate(0.0, DT)
+	suite._check(sk.get_bone_pose_scale(sk.find_bone("Abdomen")).x < 0.01 and g._own.shadow() != null, "cl_legs on again: the legs are back")
+	g.first_person = DotHumanoidOwnView.THIRD
+	g.animate(0.0, DT)
+
+
+class DotCLegsFake extends RefCounted:
+	signal changed(key: StringName, value: Variant, reason: StringName)
+	var value := true
+
+	func get_bool(_key: StringName, _fallback: bool = false) -> bool:
+		return value
+
+	func set_value(v: bool) -> void:
+		value = v
+		changed.emit(DotOwnBodySetting.KEY, v, &"user")

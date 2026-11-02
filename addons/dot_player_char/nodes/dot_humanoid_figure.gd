@@ -194,6 +194,13 @@ var first_person: int = DotHumanoidOwnView.THIRD:
 		_own.mode = value
 		_own.apply(_skeleton, _mesh)
 
+## False hides your own legs and body in first person (the `cl_legs` setting, see [DotOwnBodySetting]); the shadow stays.
+var own_body_shown: bool = true:
+	set(value):
+		own_body_shown = value
+		_own.shown = value
+		_own.apply(_skeleton, _mesh)
+
 var _model: Node3D = null
 var _skeleton: Skeleton3D = null
 var _mesh: MeshInstance3D = null
