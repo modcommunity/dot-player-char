@@ -1057,7 +1057,7 @@ static func crossing(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vector3, m
 ## pushed out by the engine, so it ends up lying (and being shot) on the other side of the wall.
 ## A ray from where it was (the torso's centre on the first tick) finds the face from either side.
 func _hold_walls() -> void:
-	if rules == null or not is_inside_tree():
+	if rules == null or not rules.hold_walls or not is_inside_tree():
 		return
 	var space := get_world_3d().direct_space_state
 	for part in _parts:

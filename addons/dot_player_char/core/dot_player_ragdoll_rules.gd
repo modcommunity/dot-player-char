@@ -94,6 +94,9 @@ const CVAR_WEAPON_TIME := "sv_ragdoll_weapon_time"
 ## Physics layers a body lands on. Not players: see the class note.
 @export_flags_3d_physics var collision_mask: int = 1
 
+## Puts back a part that got through a wall. Map collision is one-sided, so off lets a body clip.
+@export var hold_walls: bool = true
+
 ## A body slower than this (m/s) on every part, for [member settle_time], has settled and is
 ## frozen, which is what makes eight bodies on a floor cost nothing.
 @export_range(0.0, 2.0, 0.01) var settle_speed: float = 0.25
