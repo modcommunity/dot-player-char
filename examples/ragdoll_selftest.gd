@@ -699,6 +699,28 @@ func _test_faceplant_sweep() -> void:
 		if pieces == 1 or standing:
 			leaning.append("%d (gap %.2f, top %.2f): %d piece(s), centre.y=%.2f" % [s, gap, top, pieces, body.centre().y])
 		yard.clear()
+	# The same lean with something always jostling the plank (never still for the stall timer): it
+	# used to be frozen standing at max_sim_time (game-murder-mystery headless_run, 1 run in 5).
+	var jostled: Array[String] = []
+	for s in range(4):
+		table.global_position = Vector3(40, 0.8 - 0.025, 80 - [0.3, 0.38, 0.45, 0.55][s] - 0.4)
+		var person := _person(Vector3(40, 0, 80))
+		await get_tree().physics_frame
+		var body := yard.spawn(person, _death(&"face_plant"))
+		var sign := 1.0
+		while not body.settled and body.age < 6.0 and is_instance_valid(body):
+			await get_tree().physics_frame
+			if body.part_count() == 1:
+				var rb := body.part_nodes()[0] as RigidBody3D
+				sign = -sign
+				rb.linear_velocity += Vector3(sign * 0.6, 0, 0)
+		var tilted := false
+		for node in body.part_nodes():
+			tilted = tilted or (body.part_count() == 1 and node.global_basis.y.dot(Vector3.UP) > 0.55)
+		if body.part_count() == 1 or tilted:
+			jostled.append("%d: %d piece(s), centre.y=%.2f" % [s, body.part_count(), body.centre().y])
+		yard.clear()
+	_check(jostled.is_empty(), "a plank leaning on its feet that never keeps still still lets go: %s" % str(jostled))
 	table.queue_free()
 	PhysicsServer3D.area_set_param(space, PhysicsServer3D.AREA_PARAM_GRAVITY, gravity_before)
 	_check(falls == 36 and tried == 8, "36 falls onto open floor and 8 onto a table edge ran")
