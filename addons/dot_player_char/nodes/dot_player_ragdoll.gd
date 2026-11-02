@@ -1052,9 +1052,7 @@ static func crossing(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vector3, m
 	return hit
 
 
-## Puts back any part that got through world collision since the last tick. Map collision is
-## one-sided triangles: a part that starts behind a face, or crosses one at death speed, is not
-## pushed out by the engine, so it ends up lying (and being shot) on the other side of the wall.
+## Puts back any part that got through world collision since the last tick: map collision is one-sided triangles, so a part starting behind a face or crossing one at death speed is not pushed out.
 ## A ray from where it was (the torso's centre on the first tick) finds the face from either side.
 func _hold_walls() -> void:
 	if rules == null or not rules.hold_walls or not is_inside_tree():
