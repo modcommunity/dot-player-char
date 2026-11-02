@@ -34,6 +34,17 @@ var shown_names: PackedStringArray = PackedStringArray()
 ## Metres the body is pulled back behind the eye, along the body's own facing.
 var back_offset: float = 0.22
 
+## False (the `cl_legs` setting, see [DotOwnBodySetting]): nothing of the body is drawn, only its shadow, and it is not pulled back.
+var own_body_shown: bool = true:
+	set(value):
+		if value == own_body_shown:
+			return
+		own_body_shown = value
+		var body := _body
+		if body != null and is_instance_valid(body):
+			restore()
+			apply(body)
+
 var _hidden: Array[MeshInstance3D] = []
 var _was: Array[int] = []
 var _body: Node3D = null
@@ -52,11 +63,13 @@ func apply(body: Node3D) -> void:
 	_body = body
 
 	for mesh in DotPlayerBodyBreak.visible_meshes(body):
-		if _is_head(body, mesh) or not _is_shown(body, mesh):
+		if not own_body_shown or _is_head(body, mesh) or not _is_shown(body, mesh):
 			_hidden.append(mesh)
 			_was.append(mesh.cast_shadow)
 			mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 
+	if not own_body_shown:
+		return
 	# Godot's forward is -Z, so "behind" is +Z in the body's own frame.
 	_moved = Vector3(0.0, 0.0, back_offset)
 	body.position += body.basis * _moved

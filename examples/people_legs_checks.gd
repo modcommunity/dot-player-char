@@ -157,6 +157,46 @@ func _check_cl_legs(g: DotHumanoidFigure) -> void:
 	suite._check(sk.get_bone_pose_scale(sk.find_bone("Abdomen")).x < 0.01 and g._own.shadow() != null, "cl_legs on again: the legs are back")
 	g.first_person = DotHumanoidOwnView.THIRD
 	g.animate(0.0, DT)
+	DotOwnBodySetting.follow(g, store)
+	suite._check(store.changed.get_connections().size() == 1, "following the same figure and settings twice connects once")
+	var plain := DotCLegsPlain.new()
+	plain.value = false
+	DotOwnBodySetting.follow(g, plain)
+	suite._check(not g.own_body_shown, "a settings object without a changed signal still applies")
+	g.own_body_shown = true
+	_check_first_person_body()
+
+
+## The older first-person path (head shadow-only, body pulled back) obeys the same setting.
+func _check_first_person_body() -> void:
+	var body := Node3D.new()
+	var chest := MeshInstance3D.new()
+	chest.name = "Chest"
+	chest.mesh = BoxMesh.new()
+	body.add_child(chest)
+	var head := MeshInstance3D.new()
+	head.name = "Head"
+	head.mesh = BoxMesh.new()
+	body.add_child(head)
+	suite.add_child(body)
+	var fp := DotPlayerFirstPersonBody.new()
+	var store := DotCLegsFake.new()
+	DotOwnBodySetting.follow(fp, store)
+	fp.apply(body)
+	suite._check(chest.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON and is_equal_approx(body.position.z, fp.back_offset), "first-person body, cl_legs on: body drawn and pulled back")
+	store.set_value(false)
+	suite._check(chest.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY and body.position == Vector3.ZERO, "first-person body, cl_legs off: shadow only, not pulled back")
+	store.set_value(true)
+	suite._check(chest.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON and is_equal_approx(body.position.z, fp.back_offset), "first-person body, cl_legs on again: drawn")
+	fp.restore()
+	body.free()
+
+
+class DotCLegsPlain extends RefCounted:
+	var value := true
+
+	func get_bool(_key: StringName, _fallback: bool = false) -> bool:
+		return value
 
 
 class DotCLegsFake extends RefCounted:
