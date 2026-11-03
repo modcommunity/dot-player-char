@@ -1,11 +1,9 @@
 class_name DotHumanoidFigure
 extends Node3D
 
-## One of the family's people, drawn: a skinned body from `people/`, wearing a [DotHumanoidLook]'s
-## colours, playing the family clip set ([DotHumanoidClips]) from how it moves, holding a weapon,
-## and handing its skeleton to [DotPlayerRagdoll] when it dies. Client side only.
-## The upper body is written over the locomotion pose after the clip, advanced manually
-## (LOD rates [constant ANIM_NEAR], [constant ANIM_FAR]; docs/people.md has the numbers).
+## One of the family's people, drawn: a skinned body from `people/` wearing a [DotHumanoidLook]'s colours, playing
+## [DotHumanoidClips] from how it moves, holding a weapon, and handing its skeleton to [DotPlayerRagdoll] on death.
+## Client side only. The upper body is written over the locomotion pose after the clip (LOD rates in docs/people.md).
 
 const CHANNEL := "player.humanoid"
 
@@ -405,10 +403,9 @@ func mend() -> void:
 	_own.mend(_skeleton, _mesh)
 
 
-## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it,
-## plus `downed`, `wall_running`, `sliding`, `velocity` (world; turns the legs, see [member legs]),
-## `wall` (a world [Plane]), `seated` ([method seat_height]), `driving` (hands on a wheel) and
-## `aim` (radians, up positive; left out, it stays).
+## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it, plus `downed`,
+## `wall_running`, `sliding`, `velocity` (world; turns the legs), `wall` (a world [Plane]), `seated`
+## ([method seat_height]), `driving` and `aim` (radians, up positive; left out, it stays).
 func set_motion(motion: Dictionary) -> void:
 	_motion = motion
 	sprinting = bool(motion.get("sprinting", false))

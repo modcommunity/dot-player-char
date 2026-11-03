@@ -1,14 +1,9 @@
 class_name DotPlayerDeathSounds
 extends RefCounted
 
-## The files behind the stock death reactions' sound ids, as plain data a game turns into its
-## own audio definitions. Kenney's CC0 impact and foley sounds, shipped in
-## [code]death/sounds/[/code] beside this addon (credited in its CREDITS.md).
-##
-## [b]Data, not dot-audio definitions[/b], because this addon does not depend on dot-audio: a
-## game that uses it makes one [code]DotAudioDef[/code] per row (path, variants, pitch range,
-## gain), positional, and the ids in [DotPlayerDeathReactions] then play. A game with its own
-## sounds for these ids ignores this file.
+## The files behind the stock death reactions' sound ids, as plain data a game turns into its own audio definitions.
+## Kenney's CC0 sounds in [code]death/sounds/[/code] (credited in CREDITS.md).
+## Data, not dot-audio definitions, because this addon does not depend on dot-audio; a game with its own sounds ignores it.
 
 ## The directory the files are in, found from this script so a delivered pack mounted under
 ## another root still finds them.

@@ -105,9 +105,8 @@ static func library_of(scene: PackedScene) -> AnimationLibrary:
 
 
 ## [param library]'s clips, moved from a skeleton with rests [param from] onto [param to].
-## A clip stores where each bone is, not how far it moved, and two bodies on one rig differ in rest
-## pose, so a clip played as-is bends the other body at the waist. Each key is taken off the old rest
-## and put on the new: rotation `to * from^-1 * key`, a position by the same turn about the new rest.
+## Two bodies on one rig differ in rest pose, so a clip played as-is bends the other at the waist:
+## each key is taken off the old rest and put on the new (`to * from^-1 * key`).
 static func retarget(library: AnimationLibrary, from: Dictionary, to: Skeleton3D) -> AnimationLibrary:
 	if library == null or to == null:
 		return library
@@ -143,11 +142,9 @@ static func retarget(library: AnimationLibrary, from: Dictionary, to: Skeleton3D
 	return out
 
 
-## [param library] (in place) turned left for right: every `.L` track becomes the `.R` bone's and
-## every key is reflected across the body's middle. Returns it.
-## The kit's people are left-handed and the first-person view models right-handed, so mirroring the
-## whole set keeps every clip one person. The rig is symmetric, so a local pose mirrors on its own:
-## `L'(b) = M L(mirror b) M`, a rotation's y and z negated and a position's x.
+## [param library] (in place) turned left for right: every `.L` track becomes the `.R` bone's, keys reflected.
+## The kit's people are left-handed and the view models right-handed, so mirroring keeps one person.
+## The rig is symmetric: `L'(b) = M L(mirror b) M`, a rotation's y and z negated and a position's x.
 static func mirror(library: AnimationLibrary) -> AnimationLibrary:
 	if library == null:
 		return library
@@ -180,12 +177,9 @@ static func mirrored_bone(bone: String) -> String:
 	return bone
 
 
-## Adds the made clips to [param library] (in place) and returns it: [constant CROUCH] and
-## [constant CROUCH_WALK] (idle and walk with the kit's duck added to body and legs), and the air
-## clips with the body's own rise taken out. With [param skeleton], also [constant SIT],
-## [constant CLIMB] and [constant SWIM], which need the hierarchy to pose.
-## Made, not drawn: the kit's duck is a cowering dodge. The jump and fall lift the body in the clip,
-## and the game already lifts a player in the air, so height is held at the idle's and only lowered.
+## Adds the made clips to [param library] (in place): [constant CROUCH], [constant CROUCH_WALK], and the air
+## clips with the body's own rise removed. With [param skeleton], also [constant SIT], [constant CLIMB], [constant SWIM].
+## Made, not drawn; the game already lifts a player in the air, so height is held at the idle's and only lowered.
 static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -> AnimationLibrary:
 	if library == null or not library.has_animation(DUCK) or not library.has_animation(IDLE):
 		return library
@@ -228,10 +222,9 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 	return library
 
 
-## [param library] (in place) with each clip of [param real] put in place of the one of the same
-## name, loop mode from [constant LOOPING]. Returns it.
-## [param real] is `people/people_ual.res`, baked by `tools/ual_retarget.gd` and already right-handed,
-## so this runs after [method mirror] and [method synthesise] (docs/people.md, "Real clips").
+## [param library] (in place) with each clip of [param real] replacing the same-named one, loop from [constant LOOPING].
+## [param real] is `people/people_ual.res` (baked by `tools/ual_retarget.gd`, already right-handed), so this
+## runs after [method mirror] and [method synthesise].
 static func adopt(library: AnimationLibrary, real: AnimationLibrary) -> AnimationLibrary:
 	if library == null or real == null:
 		return library
@@ -257,10 +250,8 @@ static func sit_height(library: AnimationLibrary, skeleton: Skeleton3D) -> float
 	return globals[hips].origin.y - globals[foot].origin.y
 
 
-## Sitting, made from the idle's first frame: thighs level, shins straight down with feet flat
-## under the knees, body dropped until they are. The kit has no seat.
-## The feet hang off the root on this rig, so each is put where its shin ends, and the knee pole
-## targets move with the knees.
+## Sitting, made from the idle's first frame: thighs level, shins straight down, body dropped until they are.
+## The feet hang off the root on this rig, so each is put where its shin ends and the knee poles follow.
 static func _sat(idle: Animation, skeleton: Skeleton3D) -> Animation:
 	var g := _globals(_locals(idle, 0.0, skeleton), skeleton)
 	var body := skeleton.find_bone("Body")
@@ -350,10 +341,9 @@ static func _climbing(idle: Animation, skeleton: Skeleton3D) -> Animation:
 const SWIM_CYCLE := 1.6
 
 
-## A front crawl, made from the idle and drawn UPRIGHT: [DotHumanoidFigure] lays the figure forward
-## ([constant DotHumanoidFigure.SWIM_LEAN]), so this clip's "up" is ahead of the swimmer and its
-## "front" is down into the water. In that frame each arm windmills (reach, catch, finish, recovery),
-## the body rolls to breathe, and the legs flutter. One cycle is [constant SWIM_CYCLE] seconds.
+## A front crawl made from the idle, drawn UPRIGHT: [DotHumanoidFigure] lays the figure forward
+## ([constant DotHumanoidFigure.SWIM_LEAN]), so this clip's "up" is ahead of the swimmer.
+## Arms windmill, the body rolls to breathe, the legs flutter; one cycle is [constant SWIM_CYCLE] seconds.
 static func _swimming(idle: Animation, skeleton: Skeleton3D) -> Animation:
 	var made := Animation.new()
 	made.length = SWIM_CYCLE

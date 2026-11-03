@@ -1,34 +1,18 @@
 class_name DotPlayerFirstPersonBody
 extends RefCounted
 
-## Lets a first-person player see their own body when they look down: the head is not
-## drawn (it still casts its shadow), and the body sits a little behind the eye.
-##
-## [b]The head stops drawing, it does not disappear[/b] — [code]SHADOW_CASTING_SETTING_SHADOWS_ONLY[/code]
-## — because the camera is inside it, and a head drawn from the inside is a wall of
-## back-faces across the screen; but a player's shadow with no head on it is a stranger.
-##
-## [b]Behind the eye, by a few centimetres[/b]: a body whose chest is level with the camera
-## puts the camera inside the chest, and looking down shows its inside. [member back_offset]
-## pulls it back far enough that looking down shows the torso and the legs and the feet
-## land where the player's own feet are, give or take.
-##
-## [b]A game's choice per server[/b] (the game exposes it as a setting); off, the game hides
-## its own body in first person exactly as it did before. Presentation only, local player
-## only: everybody else always sees the whole body.
+## Lets a first-person player see their own body when they look down. Local player only; presentation only.
+## The head casts its shadow but is not drawn (the camera is inside it and would see back-faces), and the body
+## sits [member back_offset] behind the eye, else the camera is in the chest.
 
 ## Name fragments that make a mesh part of the head, matched like
 ## [member DotPlayerBreakRules.limb_names] against the mesh and its ancestors. Hats and
 ## faces hang off the head mount, so they go with it.
 var head_names: PackedStringArray = PackedStringArray(["head", "face", "hat", "hair", "eye"])
 
-## When not empty, only meshes whose names (or an ancestor's) contain one of these stay drawn;
-## every other one casts its shadow and is not drawn, like the head.
-##
-## [b]Empty by default, which is the old behaviour (everything but the head).[/b] Set it to
-## the legs ([code]["leg", "foot", "shoe", "boot"][/code]) for a body built of boxes: a camera
-## at eye height inside a box torso looks down into the torso, and the first render of the
-## arena's showed a grey slab filling half the screen.
+## When not empty, only meshes whose names (or an ancestor's) contain one of these stay drawn; the rest cast
+## their shadow only, like the head. Empty is the old behaviour (everything but the head).
+## Set the legs (["leg", "foot", "shoe", "boot"]) for a box body, whose torso an eye-height camera looks into.
 var shown_names: PackedStringArray = PackedStringArray()
 
 ## Metres the body is pulled back behind the eye, along the body's own facing.

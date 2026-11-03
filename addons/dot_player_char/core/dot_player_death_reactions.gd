@@ -2,21 +2,8 @@ class_name DotPlayerDeathReactions
 extends RefCounted
 
 ## The set of ways a body may go down, and the one rule that picks among them.
-##
-## [b]The pick is pure.[/b] [method pick] reads the facts of the kill (headshot, how powerful
-## the weapon is, the damage, a reaction the weapon named) and a seed, and nothing else: no
-## global generator, no clock, no node. The server calls it, sends the id and the seed with the
-## kill, and a client never picks — so every screen shows the same fall, and a suite can
-## assert the rule by counting picks over a thousand seeds.
-##
-## [b]The rule.[/b] A reaction the weapon names (its def's [code]params.death_reaction[/code])
-## wins outright when it is enabled. Otherwise every enabled reaction whose conditions the kill
-## meets ([method DotPlayerDeathReaction.qualifies]) goes into a weighted draw. Nothing
-## qualifying is [constant LIMP], the plain ragdoll, which always exists.
-##
-## [b]Weights are a server's to set[/b] ([method apply_weights], from
-## [code]sv_ragdoll_reactions[/code]); a game adds its own reactions with [method add], and the
-## stock four plus the plain one cover what most deaths want.
+## [method pick] is pure (the kill's facts and a seed), so the server sends id and seed and every screen shows the same fall.
+## A named reaction wins when enabled; else a weighted draw over those the kill qualifies for; else [constant LIMP].
 
 const CHANNEL := "player.death"
 
@@ -148,12 +135,9 @@ func size() -> int:
 	return _list.size()
 
 
-## Sets weights from text like [code]"headshot_launch=6,face_plant=0"[/code]: the server's
-## [code]sv_ragdoll_reactions[/code]. Ids it does not name keep their weight; an unknown id or a
-## value that is not a number is skipped and reported. Returns how many it set.
-##
-## [b]Zero turns one off[/b], which is the whole "which are enabled" setting: a reaction with no
-## weight is never drawn and a weapon naming it falls through to the draw.
+## Sets weights from text like [code]"headshot_launch=6,face_plant=0"[/code] ([code]sv_ragdoll_reactions[/code]).
+## Unnamed ids keep their weight; an unknown id or a non-number is skipped and reported. Returns how many it set.
+## Zero turns one off: it is never drawn and a weapon naming it falls through to the draw.
 func apply_weights(text: String) -> int:
 	var set_count := 0
 	for item in text.split(",", false):
@@ -189,7 +173,6 @@ func weights_text() -> String:
 
 
 ## The reaction for one death. Pure in its arguments; see the class note for the rule.
-##
 ## [param weapon_named] is the id a weapon asked for (see [method weapon_reaction]), or empty.
 ## [param power] is 0 to 1 (see [method weapon_power]).
 func pick(

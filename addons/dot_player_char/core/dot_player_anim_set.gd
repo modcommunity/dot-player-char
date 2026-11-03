@@ -11,10 +11,8 @@ const CHANNEL := "player.anim"
 @export var clips: Array[DotPlayerAnimClip] = []
 
 ## The clip used for a state the table has none for.
-##
-## Empty means "show nothing", which is visible and debuggable. The alternative — the
-## first clip in the list — silently plays an idle for every unmapped state, and the
-## symptom is a character that never animates for one of its actions.
+## Empty means "show nothing", which is debuggable; falling back to the first clip would play an idle
+## for every unmapped state and the character would silently never animate.
 @export var fallback: StringName = &""
 
 var _by_id: Dictionary = {}
@@ -84,10 +82,8 @@ func ids() -> Array[StringName]:
 
 
 ## Which states this set has no clip for, out of a list.
-##
-## What a content check asks. A state with no clip is invisible at runtime — the
-## character simply keeps playing whatever it was — so it is worth being able to find
-## them all at once rather than one report at a time.
+## A state with no clip is invisible at runtime (the character keeps playing whatever it was),
+## so a content check wants them all at once.
 func missing_for(states: Array[StringName]) -> Array[StringName]:
 	_ensure_built()
 	var out: Array[StringName] = []
@@ -120,11 +116,8 @@ func _to_string() -> String:
 
 
 ## The eleven locomotion states, mapped to rows 0-10 of a sheet.
-##
-## [b]A skeleton rather than content.[/b] Frame counts and rates are guesses; what the
-## preset is actually for is the mapping, so a game only has to correct the numbers
-## rather than discover the list. [method missing_for] over
-## [method locomotion_states] is how it checks it did.
+## A skeleton rather than content: frame counts and rates are guesses; the mapping is the point.
+## [method missing_for] over [method locomotion_states] checks it.
 static func locomotion(p_id: StringName = &"locomotion") -> DotPlayerAnimSet:
 	var set := DotPlayerAnimSet.new()
 	set.id = p_id

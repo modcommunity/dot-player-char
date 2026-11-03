@@ -2,12 +2,8 @@ class_name DotPlayerAnimSpriteSink
 extends DotPlayerAnimSink
 
 ## Drives a sprite sheet. The 2D sink.
-##
-## [b]Duck-typed on purpose.[/b] It calls [code]set_row[/code] and [code]set_frame[/code]
-## on whatever it is pointed at. [DotPlayerSpriteVisual] is in this same addon and could
-## be named directly — the reason not to is that a game with its own sprite node, its
-## own [AnimatedSprite2D] wrapper or its own tilemap-based character gets this whole
-## animation layer by offering two methods, and nothing here needs to know which it got.
+## Duck-typed on purpose: it calls [code]set_row[/code] and [code]set_frame[/code] on whatever it points at, so a
+## game with its own sprite node or tilemap character gets this layer by offering two methods.
 
 const SINK_CHANNEL := "player.anim"
 
@@ -70,10 +66,9 @@ func _resolve() -> void:
 	_target = _find(self)
 
 	if _target == null and get_parent() != null:
-		# Direct siblings only, never the parent's whole subtree. A recursive search
-		# upward finds another player's node in a scene that holds several — and the
-		# symptom is one character driving somebody else's animation, which is not
-		# where anybody would look. Anything further away is what player_ref is for.
+		# Direct siblings only: a recursive search upward finds another player's node in a scene
+		# holding several, and one character drives somebody else's animation.
+		# Anything further away is what player_ref is for.
 		for sibling in get_parent().get_children():
 			if sibling != self and sibling.has_method("set_row") \
 					and sibling.has_method("set_frame"):

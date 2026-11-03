@@ -90,10 +90,8 @@ func fallback() -> DotPlayerModelDef:
 
 
 ## Every scene path this catalogue can possibly need.
-##
-## What a preloader, a dot-cloud manifest builder or a packaging check asks for. Here
-## rather than in a game because the catalogue is the only thing that knows the full
-## set, and a game listing them by hand is a game that ships a model with a part missing.
+## For a preloader, a dot-cloud manifest builder or a packaging check: only the catalogue knows the full set,
+## and a hand-written list in a game ships a model with a part missing.
 func content_paths() -> PackedStringArray:
 	_ensure_built()
 	var out := PackedStringArray()
@@ -134,11 +132,8 @@ func _to_string() -> String:
 
 
 ## A catalogue with the mount names a humanoid rig is expected to have.
-##
-## [b]The names are the useful part.[/b] Every character rig anybody builds has these
-## attachment points under different spellings, and a family that agrees on one spelling
-## is a family where a weapon written for one game attaches in another. No scene paths:
-## the rig is the game's.
+## The names are the useful part: one spelling across the family lets a weapon written for one game attach
+## in another. No scene paths; the rig is the game's.
 static func humanoid(p_id: StringName = &"humanoid") -> DotPlayerModelCatalogue:
 	var cat := DotPlayerModelCatalogue.new()
 	cat.id = p_id

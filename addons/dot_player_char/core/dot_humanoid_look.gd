@@ -1,17 +1,9 @@
 class_name DotHumanoidLook
 extends RefCounted
 
-## What one of the family's people looks like: which of the four bodies, and the colours of
-## its skin, hair, top and bottom. Pure data, loads nothing, so a server can pick and send one
-## without holding the art; [DotHumanoidFigure] draws it.
-##
-## [b]Colours, not textures.[/b] The four bodies share one flat-swatch atlas, and the figure's
-## palette shader swaps the body's own skin, hair, top and bottom swatches for these, so any
-## colour anybody picked anywhere (the site's avatar editor, a team, a class) can be worn
-## without a texture per look. See docs/people.md.
-##
-## [b]Everything here is deterministic.[/b] [method stock] draws from a seed with its own
-## generator (never the global one), so every client dresses the same player the same way.
+## What one of the family's people looks like: which of four bodies, and the colours of skin, hair, top and bottom.
+## Pure data, so a server can send one without the art. Colours, not textures: the palette shader swaps atlas swatches.
+## [method stock] uses its own seeded generator, never the global one, so every client dresses a player alike.
 
 ## The bodies, in the order a seed or a site letter picks them. All four are on one rig with one
 ## clip set; their files are `people/people_<id>.glb`.
@@ -27,12 +19,9 @@ const HAIR: Array[String] = ["4a3a30", "3b2a20", "5a3b24", "7a5230", "a5784a", "
 const TOPS: Array[String] = ["3f5f8a", "8a3f3f", "4f7a4a", "c9a24a", "5a5a62", "e0ddd5", "6a4a7a", "2f3a48", "b8653a", "3a7a78"]
 const BOTTOMS: Array[String] = ["2f3a4f", "3a3a3a", "5a4a36", "4a5a3a", "6a6a70", "2a2f38", "7a6a52"]
 
-## The site's built-in avatar is Kenney's blocky kit: eighteen painted people, `skin-a` to
-## `skin-r`, chosen per face, top and legs. Measured from the kit's atlases (the colour under
-## the most area of that part, `tools/kenney_site_colours.py`): per letter, the
-## face's skin and hair, the torso's colour and the legs' colour. A member's site avatar is
-## worn as those colours on one of the four bodies, so the person they dressed is recognisable
-## without the blocky body itself.
+## The site's built-in avatar is Kenney's blocky kit: eighteen people, `skin-a` to `skin-r`.
+## Per letter: the face's skin and hair, the torso's and the legs' colour, measured from the kit's atlases
+## (`tools/kenney_site_colours.py`), so a site avatar is worn as colours on one of the four bodies.
 const SITE_SKINS := {
 	"a": ["f6d1a5", "4d505e", "cd8961", "37a177"],
 	"b": ["8d5641", "3c3c44", "cb4248", "6078cc"],
@@ -85,12 +74,9 @@ static func stock(seed: int) -> DotHumanoidLook:
 	return look
 
 
-## A member's site avatar (the site's `builtin` document) as a person: the face's letter picks
-## the body and gives skin and hair, the top's and the legs' give the clothes. Null for a
-## document that is not the site's, or one with no face, top or legs this table knows.
-##
-## [b]Duck-typed[/b] (`schema_id`, `part_in(slot)`), so this addon does not depend on
-## dot-user-avatar; a [code]DotAvatar[/code] fits.
+## A member's site avatar (the site's `builtin` document) as a person: the face's letter picks the body, skin and hair.
+## Null for a document that is not the site's, or one with no face, top or legs this table knows.
+## Duck-typed (`schema_id`, `part_in(slot)`) so this addon does not depend on dot-user-avatar.
 static func from_site(foreign: Object) -> DotHumanoidLook:
 	if foreign == null or not foreign.has_method(&"part_in"):
 		return null

@@ -128,11 +128,8 @@ func _to_string() -> String:
 
 
 ## One character with the metrics a first-person shooter assumes.
-##
-## 1.8 m standing, 1.0 m crouched, 0.35 m radius, eyes at 1.65 — the numbers behind
-## every corridor, doorway and vent anybody has ever built for this genre. A game that
-## changes them changes what every existing map means, which is worth knowing before
-## changing them.
+## 1.8 m standing, 1.0 m crouched, 0.35 m radius, eyes at 1.65: the numbers behind every doorway and vent
+## built for this genre, so changing them changes what every existing map means.
 static func standard() -> DotPlayerCharCatalogue:
 	var cat := DotPlayerCharCatalogue.new()
 	cat.id = &"standard"
@@ -151,11 +148,9 @@ static func standard() -> DotPlayerCharCatalogue:
 	return cat
 
 
-## Three body types, which is what a game with visible characters actually needs.
-##
-## The metrics differ and that is the point: a small character is genuinely harder to
-## hit and genuinely fits through gaps a large one does not, and a game whose three
-## characters have identical hulls has three skins rather than three characters.
+## Three body types, as a game with visible characters needs.
+## The metrics differ on purpose: a small character is harder to hit and fits gaps a large one does not,
+## otherwise three characters are three skins.
 static func three_builds() -> DotPlayerCharCatalogue:
 	var cat := DotPlayerCharCatalogue.new()
 	cat.id = &"three_builds"

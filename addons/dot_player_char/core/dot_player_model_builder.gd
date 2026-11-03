@@ -1,10 +1,9 @@
 class_name DotPlayerModelBuilder
 extends RefCounted
 
-## Works out what goes where, and then puts it there. The two are separate.
-## Generalised from dot-user-avatar's builder: the plan is an array of plain [Dictionary]
-## steps (slot, mount, part, scene, colours, layer, missing) so any source can share the
-## node work.
+## Works out what goes where ([method plan], pure), then puts it there ([method apply], the only node work).
+## Generalised from dot-user-avatar's builder: the plan is plain [Dictionary] steps (slot, mount, part, scene,
+## colours, layer, missing) so any source can share the node work.
 
 const CHANNEL := "player.model"
 

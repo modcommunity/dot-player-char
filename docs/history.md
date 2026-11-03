@@ -15,3 +15,23 @@ Decisions and bugs worth recognising if they come back. The lessons that still a
 Game-zombie-zone's survivors, the first people to die holding guns, were rendered face-planting and stayed on their feet for good. The plank (the face plant's one rigid piece) was boxed round every bone's posed points plus each copied mesh's bounds; a skinned mesh's bounds are its rest pose, arms out, and a gun in the hand added another half metre in front, so the box was about as deep as it was wide. The 1.6 rad/s spin about the toes, damped at the floor-flapping rate of 1.5, ran out long before the top passed the toes, and the body rocked back upright and froze. The unarmed person in the suite fell, slowly, so nothing failed. The plank is now boxed round the head, body and legs alone and spins undamped until it lands; `ragdoll_selftest` face-plants a person holding a long gun out and fails on the old code.
 
 The same evening mg-prop-hunt's hunters, killed with a gun in the hand, fell limp and stayed kneeling, torso 0.67 m up, for as long as they lay there: the arm's box was merged with the held gun's mesh bounds, and a rigid stick half a metre long under the body held it up. Held things are now drawn on their part and never collided.
+
+## API levels
+
+- Level 1: everything before this file existed (an absent file reads as 1).
+- Level 2: dead bodies: DotPlayerRagdolls, DotPlayerRagdoll, DotPlayerRagdollRules, DotPlayerDeath, DotPlayerDeathReaction(s), DotPlayerDeathSounds and death/sounds/. A pack that draws a ragdoll needs a shell with this level, and says so in its requires.json.
+- Level 3: people and skinned bodies: DotHumanoidLook, DotHumanoidClips, DotHumanoidFigure, people/, and DotPlayerRagdoll falling a skinned figure by its bones (skinned_meshes, skeleton_copy); the right-handed (mirrored) clips, DotHumanoidFigure.aim, seat_height, `seated`, the made sit and climb clips, the made swim stroke (DotHumanoidClips.SWIM, SWIM_CYCLE, DotHumanoidFigure.SWIM_LEAN) and the crown mount (head_top / crest / hat). All before any tag.
+- Level 4: the `driving` motion key and DotHumanoidClips.DRIVE (a retargeted Driving_Loop in people_ual.res).
+- Level 5: DotHumanoidActions and DotHumanoidFigure.play_action/stop_action: the 13 starter emotes, poses and gestures.
+- Level 6: DotHumanoidFigure.add_action_scene, DotHumanoidActions.from_upload/humanoid_bone_map/profile_bone_of: uploaded clips.
+- Level 7: DotPlayerViewArms: your own crawling arms in first person while downed (arms_factory to replace them).
+- Level 8: DotPlayerViewArms.set_held and DotViewGrip: the arms posed on a weapon mesh the host supplies.
+- Level 9: DotHumanoidFigure.sprint_speed and DotHumanoidClips.SPRINT: a runner above it plays the real sprint clip.
+- Level 10: DotFootPlant (feet planted over a gait phase) and DotHumanoidIk.two_bone_to.
+- Level 11: DotHumanoidFigure.frame_delta: the game-time step pose() animates by, for a figure that wraps it.
+- Level 12: DotHumanoidFigure.pose_record / pose_apply: a drawn pose kept and put back (a killcam replay).
+- Level 13: DotHumanoidLegs (legs.twist, backward walk, wall feet; the `velocity` and `wall` motion keys), DotHumanoidOwnView and DotHumanoidFigure.first_person (your own legs or body, shadow kept).
+- Level 14: DotPlayerViewArms.debug_pose and DotViewArmsPoseDebug: sockets, hand targets and arm bone axes drawn over the view.
+- Level 15: DotPlayerViewArms.hand_error(grip): how far the hands are from a grip, for a game's tests and tools.
+- Level 16: DotPlayerHitboxes and DotPlayerHitboxPlan: optional config-driven hit zones (off by default).
+- Level 17: DotOwnBodySetting (the client-only `cl_legs` setting) and DotHumanoidFigure.own_body_shown.

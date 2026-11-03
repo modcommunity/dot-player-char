@@ -2,15 +2,9 @@
 class_name DotPlayerDeathReaction
 extends Resource
 
-## One way a body goes down: what kills may pick it, how heavily, and the push, the pose
-## and the sounds that make it look like itself. A document: a game or a weapon adds its
-## own without touching the addon (see [DotPlayerDeathReactions]).
-##
-## [b]Chosen once, by the server, and replayed by everybody.[/b] [DotPlayerDeathReactions.pick]
-## is pure in its inputs and a seed, the server sends the id and the seed with the kill, and
-## each client builds its own [DotPlayerRagdoll] from them. Physics is not bit-exact across
-## machines, so two screens agree on the reaction, the direction and the strength, and differ
-## by a few centimetres in where a hand lands, which nobody can see.
+## One way a body goes down: what kills may pick it, how heavily, and the push, pose and sounds. A document:
+## a game or weapon adds its own (see [DotPlayerDeathReactions]). Chosen once by the server and replayed by
+## everybody; physics is not bit-exact, so screens agree on the reaction and differ by centimetres.
 
 ## How the body is posed and driven before physics takes it.
 enum Pose {

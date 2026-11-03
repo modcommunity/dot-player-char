@@ -1,17 +1,9 @@
 class_name DotPlayerAnimSink
 extends Node
 
-## Where an animation decision actually goes.
-##
-## [b]The reason this addon works for both 2D and 3D without depending on either.[/b]
-## The driver decides what should be playing; a sink makes it happen — on an
-## [AnimationPlayer], on a sprite sheet, on a game's own [AnimationTree], or nowhere at
-## all in a headless test.
-##
-## The two shipped sinks are in this addon and neither imports the thing it drives:
-## [DotPlayerAnimPlayerSink] takes an [AnimationPlayer], which is native, and
-## [DotPlayerAnimSpriteSink] duck-types [code]set_row[/code] and [code]set_frame[/code]
-## — so the animation half drives a sprite this addon never has to name.
+## Where an animation decision actually goes: the driver decides, a sink makes it happen on an [AnimationPlayer],
+## a sprite sheet, a game's [AnimationTree], or nothing in a test. That is how the addon serves 2D and 3D without
+## depending on either; [DotPlayerAnimSpriteSink] duck-types [code]set_row[/code] and [code]set_frame[/code].
 
 ## Start a clip. [param elapsed] is where in it to start, for a resumed state.
 func play(_clip: DotPlayerAnimClip, _elapsed: float) -> void:

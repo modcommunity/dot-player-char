@@ -1,23 +1,2 @@
 # comments
 # Baselines only shrink: scripts/<gate> --update lowers or drops entries and refuses to add.
-addons/dot_player_char/core/dot_humanoid_clips.gd::long_block	6
-addons/dot_player_char/core/dot_humanoid_look.gd::long_block	3
-addons/dot_player_char/core/dot_player_anim_set.gd::long_block	3
-addons/dot_player_char/core/dot_player_break_rules.gd::long_block	2
-addons/dot_player_char/core/dot_player_char_catalogue.gd::long_block	2
-addons/dot_player_char/core/dot_player_death.gd::long_block	3
-addons/dot_player_char/core/dot_player_death_reaction.gd::long_block	1
-addons/dot_player_char/core/dot_player_death_reactions.gd::long_block	3
-addons/dot_player_char/core/dot_player_death_sounds.gd::long_block	1
-addons/dot_player_char/core/dot_player_model_builder.gd::long_block	1
-addons/dot_player_char/core/dot_player_model_catalogue.gd::long_block	2
-addons/dot_player_char/core/dot_player_ragdoll_rules.gd::long_block	3
-addons/dot_player_char/dot_player_char_api.gd::long_block	2
-addons/dot_player_char/dot_player_char_plugin.gd::long_block	1
-addons/dot_player_char/nodes/dot_humanoid_figure.gd::long_block	2
-addons/dot_player_char/nodes/dot_player_anim_player_sink.gd::long_block	2
-addons/dot_player_char/nodes/dot_player_anim_sink.gd::long_block	1
-addons/dot_player_char/nodes/dot_player_anim_sprite_sink.gd::long_block	2
-addons/dot_player_char/nodes/dot_player_body_break.gd::long_block	2
-addons/dot_player_char/nodes/dot_player_first_person_body.gd::long_block	2
-addons/dot_player_char/nodes/dot_player_ragdolls.gd::long_block	1

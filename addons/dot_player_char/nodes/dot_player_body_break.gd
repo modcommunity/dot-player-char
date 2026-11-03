@@ -1,9 +1,8 @@
 class_name DotPlayerBodyBreak
 extends Node3D
 
-## A body coming apart: the chosen meshes, copied into tumbling pieces that land, lie a
-## while, and shrink away. See [DotPlayerBreakRules] for what decides how much.
-## Copies and hides the originals (the player node may be freed or respawned mid-flight);
+## A body coming apart: the chosen meshes, copied into tumbling pieces that land, lie a while, and shrink away.
+## See [DotPlayerBreakRules] for how much. Originals are copied and hidden (the player may be freed mid-flight);
 ## pieces hang off [param world] and free themselves. Not for a server: needs a physics world.
 
 const CHANNEL := "player.break"
@@ -88,10 +87,9 @@ static func break_apart(
 	return made
 
 
-## A skinned body comes apart by its bones: each limb is baked out of the skin where posed
-## into a mesh that tumbles, and its top bones shrink to nothing on the body. EXPLODE takes
-## every limb and the head; the torso stays as the ragdoll's. Baked, not copied: a skinned
-## mesh copied without its skeleton draws its bind pose.
+## A skinned body comes apart by its bones: each limb is baked out of the skin where posed into a tumbling mesh
+## and its top bones shrink to nothing. EXPLODE takes every limb and the head; the torso stays as the ragdoll's.
+## Baked, not copied: a skinned mesh copied without its skeleton draws its bind pose.
 static func _break_skinned(
 	body: Node3D, world: Node, p_rules: DotPlayerBreakRules, skinned: Array[MeshInstance3D],
 	direction: Vector3, rng: RandomNumberGenerator

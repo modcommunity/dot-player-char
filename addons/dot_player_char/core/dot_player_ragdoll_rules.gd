@@ -2,17 +2,9 @@
 class_name DotPlayerRagdollRules
 extends DotConfig
 
-## What a dead body does: become a jointed ragdoll, topple as one piece, fall over without
-## physics, or vanish — for how long, how many at once, and which death reactions a server
-## allows. A [DotConfig], and every field a game exposes as a server cvar through
-## [method bind_cvars] (the [code]sv_ragdoll*[/code] set), replicated so each client draws
-## under its server's rules.
-##
-## [b]Presentation only.[/b] A ragdoll collides with the world and nothing collides with it:
-## no player trips on a corpse, no shot stops in one, so nothing here can change a match and a
-## client that draws less (a phone, a low setting, a browser tab) loses a picture and nothing
-## else. A dedicated server never builds one; it only picks the reaction
-## ([DotPlayerDeath.decide]).
+## What a dead body does: jointed ragdoll, topple as one piece, fall without physics, or vanish; for how long, how many
+## at once, and which reactions a server allows. A [DotConfig] exposed as the [code]sv_ragdoll*[/code] cvars ([method bind_cvars]).
+## Presentation only: nothing collides with a corpse, and a dedicated server only picks the reaction.
 
 
 enum Style {
@@ -175,16 +167,9 @@ func cvar_specs() -> Array[Dictionary]:
 	]
 
 
-## Registers the [code]sv_ragdoll*[/code] cvars through [param add] and keeps these rules in
-## step with them. [param add] is a server module's [code]add_cvar[/code] or anything shaped
-## [code](name, default, description, flags) -> cvar[/code]; a cvar needs a
-## [code]changed(old, new)[/code] signal and [code]get_string()[/code]. Returns the cvars.
-##
-## Duck-typed like dot-combat's [code]DotCombatManager.bind_cvars[/code], because dot-server is
-## not a dependency here. [b]Pass dot-server's FLAG_REPLICATED[/b] and have each client
-## [method follow_cvars] its link: a client draws the bodies, so it is the one that needs the
-## lifetime, the cap and the style. The value a cvar already holds (argv, a config run early)
-## is read back after registering.
+## Registers the [code]sv_ragdoll*[/code] cvars through [param add], shaped [code](name, default, description, flags) -> cvar[/code].
+## Duck-typed: dot-server is not a dependency. Pass FLAG_REPLICATED and have each client [method follow_cvars],
+## since a client draws the bodies. Returns the cvars.
 func bind_cvars(add: Callable, flags: int = 0) -> Array:
 	var made: Array = []
 	for spec in cvar_specs():
@@ -203,10 +188,9 @@ func bind_cvars(add: Callable, flags: int = 0) -> Array:
 	return made
 
 
-## Keeps these rules on a server's values, as [param source] reports them: dot-server's
-## [code]DotClientLink[/code] or anything with [code]replicated_cvar(name, fallback)[/code] and a
-## [code]replicated_cvar_changed(name, value)[/code] signal. False when it cannot follow (an
-## older shell's link), and the rules keep their own values.
+## Keeps these rules on a server's values, as [param source] reports them: dot-server's [code]DotClientLink[/code]
+## or anything with [code]replicated_cvar(name, fallback)[/code] and a [code]replicated_cvar_changed[/code] signal.
+## False when it cannot follow (an older shell's link); the rules keep their own values.
 func follow_cvars(source: Object) -> bool:
 	if source == null or not is_instance_valid(source):
 		return false

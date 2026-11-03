@@ -1,14 +1,9 @@
 class_name DotPlayerDeath
 extends RefCounted
 
-## One death as the server decided it: which reaction, the seed, which way the shot went and
-## how hard. The thing that travels with a kill, so every client builds the same fall.
-##
-## [b]Small on purpose.[/b] No pose, no positions: a client already draws the victim where it
-## is, and a ragdoll is built from that drawn body. What a client cannot know is what the
-## server rolled, so that and the shot's direction and strength are all there is. A game puts
-## [method to_dict]'s keys in its own kill message (game-arena writes them on its KILL event,
-## optional at the end, so an older client reads a kill without them).
+## One death as the server decided it: which reaction, the seed, which way the shot went and how hard.
+## Small on purpose: a client already draws the victim, so only what the server rolled travels with a kill.
+## A game puts [method to_dict]'s keys in its kill message, optional at the end so an older client still reads it.
 
 ## The reaction's id in a [DotPlayerDeathReactions].
 var reaction: StringName = DotPlayerDeathReactions.LIMP
@@ -26,10 +21,9 @@ var damage: float = 0.0
 var headshot: bool = false
 
 
-## The server's decision for one kill. [param weapon_def] is the killing weapon's definition
-## or null; [param power] overrides its [code]death_power[/code] when not negative, and
-## [param named] its [code]death_reaction[/code] when not empty: a game whose killer is not a
-## weapon (a bus, a trap) says what it wants directly.
+## The server's decision for one kill. [param weapon_def] is the killing weapon's definition or null;
+## [param power] overrides its [code]death_power[/code] when not negative, and [param named] its
+## [code]death_reaction[/code] when not empty (a bus or a trap says what it wants directly).
 static func decide(
 	reactions: DotPlayerDeathReactions,
 	p_headshot: bool,
@@ -91,10 +85,9 @@ static func from_dict(data: Dictionary) -> DotPlayerDeath:
 const REACTION_BYTES := 24
 
 
-## Writes this death onto a dot-net [code]DotNetWriter[/code] (duck-typed: this addon does not
-## depend on dot-net): the reaction as a short string, because a game or a server may add its
-## own; the seed, the damage and, when there is one, the direction. About seven bytes. Put it
-## LAST in a message and read it only when bytes remain, so an older client reads the rest.
+## Writes this death onto a dot-net [code]DotNetWriter[/code] (duck-typed: no dot-net dependency), about seven bytes.
+## The reaction goes as a short string because a game may add its own. Put it LAST in a message and read it
+## only when bytes remain, so an older client reads the rest.
 func write_to(writer: Object) -> void:
 	writer.call(&"write_string", String(reaction), REACTION_BYTES)
 	writer.call(&"write_varint", roll_seed)

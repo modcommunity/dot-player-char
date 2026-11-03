@@ -3,16 +3,8 @@ class_name DotPlayerBreakRules
 extends DotConfig
 
 ## How a body comes apart when its player dies: not at all, a limb or two, or every piece.
-##
-## [b]Presentation only, and safe to drop.[/b] Nothing here is simulated or replicated: a
-## server never builds a body and never breaks one, and a client that skips it (a low
-## setting, a phone) loses a picture and nothing else. It is a [DotConfig] because a
-## server owner turns it up, down or off per mode and per map like any other rule — the
-## game sends the value, each client draws it.
-##
-## [b]The randomness is seeded from the death[/b] (the game passes the victim and the tick),
-## so everybody watching sees the same arm come off in the same direction. That is the
-## whole reason [DotPlayerBodyBreak] takes a seed instead of calling [code]randf()[/code].
+## Presentation only and safe to drop; a [DotConfig] so a server owner sets it per mode and map.
+## Seeded from the death (victim and tick), so everybody sees the same arm come off the same way.
 
 enum Mode {
 	## Nothing comes apart. The game's own death presentation is all there is.
@@ -29,9 +21,7 @@ enum Mode {
 @export_range(1, 8, 1) var limbs: int = 1
 
 ## Only a lethal CRITICAL breaks the body; any other death leaves it whole. Off, every death does.
-##
-## On by default, because a body that comes apart on every death stops meaning anything,
-## and one that comes apart on a headshot is a reward the shooter can see.
+## On by default: a body that comes apart on every death stops meaning anything.
 @export var criticals_only: bool = true
 
 ## Outward speed of a piece, in m/s, plus the hit's own push along its direction.

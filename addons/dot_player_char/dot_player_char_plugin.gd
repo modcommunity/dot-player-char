@@ -2,9 +2,7 @@
 extends EditorPlugin
 
 ## Editor entry point for dot-player-char. Registers inspector types only.
-##
-## No autoloads: two players in one scene are two characters, and a character preview in
-## a menu beside the player wearing it is a third.
+## No autoloads: two players in one scene are two characters, and a menu preview beside the player is a third.
 
 const _ICON := "res://addons/dot_player_char/icon_placeholder.svg"
 

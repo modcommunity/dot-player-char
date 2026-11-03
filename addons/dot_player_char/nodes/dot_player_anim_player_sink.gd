@@ -9,10 +9,8 @@ const SINK_CHANNEL := "player.anim"
 @export var player_ref: DotNodeRef = null
 
 ## Whether a clip the [AnimationPlayer] does not have is reported.
-##
-## On. A missing clip means the character keeps playing whatever it was, which looks
-## like the animation system not working at all rather than like one absent clip — and
-## once per clip is cheap because [member _warned] remembers.
+## On: a missing clip leaves the character playing whatever it was, which looks like a broken animation system.
+## Once per clip is cheap because [member _warned] remembers.
 @export var warn_on_missing: bool = true
 
 var _player: AnimationPlayer = null
@@ -91,10 +89,9 @@ func _resolve() -> void:
 	_player = _find(self)
 
 	if _player == null and get_parent() != null:
-		# Direct siblings only, never the parent's whole subtree. A recursive search
-		# upward finds another player's AnimationPlayer in a scene that holds several,
-		# and the symptom is one character driving somebody else's animation — which is
-		# not where anybody would look. Anything further away is what player_ref is for.
+		# Direct siblings only: a recursive search upward finds another player's AnimationPlayer in a scene
+		# holding several, and one character drives somebody else's animation.
+		# Anything further away is what player_ref is for.
 		for sibling in get_parent().get_children():
 			if sibling is AnimationPlayer:
 				_player = sibling as AnimationPlayer

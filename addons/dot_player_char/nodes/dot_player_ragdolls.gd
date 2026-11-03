@@ -1,22 +1,9 @@
 class_name DotPlayerRagdolls
 extends Node3D
 
-## Where a game's dead bodies lie: builds each one from a death, keeps no more than the cap,
-## and passes their sounds on. One per world, placed by the game (no autoload, so a server and
-## a client in one process each have their own, or the server none).
-##
-## [codeblock]
-## var yard := DotPlayerRagdolls.new()
-## yard.rules = rules                      # a DotPlayerRagdollRules following the server's cvars
-## yard.sound_fn = audio.play_at           # (id, position, volume) -> anything; optional
-## world.add_child(yard)
-## # on a kill message:
-## yard.spawn(victim_figure, DotPlayerDeath.from_dict(info), victim_velocity)
-## [/codeblock]
-##
-## [b]The cap is the lower of the server's ([member DotPlayerRagdollRules.max_count]) and this
-## machine's ([member local_cap]).[/b] The oldest body fades quickly to make room: the new one is
-## the death somebody is looking at.
+## Where a game's dead bodies lie: builds each from a death, keeps no more than the cap, passes their sounds on.
+## One per world, placed by the game (no autoload). The cap is the lower of the server's and [member local_cap];
+## the oldest body fades quickly. Use: `spawn(victim_figure, DotPlayerDeath.from_dict(info), victim_velocity)`.
 
 const CHANNEL := "player.ragdoll"
 
