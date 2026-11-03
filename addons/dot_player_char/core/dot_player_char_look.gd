@@ -2,15 +2,8 @@ class_name DotPlayerCharLook
 extends RefCounted
 
 ## What a player has chosen for their character, as a bounded document.
-##
-## [b]The whole point is that a server can validate one without holding any art.[/b]
-## Four questions, all answered from ids: does the character have that slot, is that a
-## legal option for it, are there no more colours than the character has channels, and
-## is every colour a colour. dot-user-avatar makes the same promise for cosmetics that
-## follow a person between servers; this is the smaller one for the character itself.
-##
-## Kept separate from [DotPlayerCharDef] because a definition is content and a look is a
-## choice: one ships with the game and the other arrives from a client.
+## A server validates one from ids alone (slot exists, option legal, colour count and
+## values), holding no art. Separate from [DotPlayerCharDef]: content ships, a look arrives.
 
 ## Which character this is a look for.
 var char_id: StringName = &""
@@ -41,11 +34,7 @@ func clear_slot(slot: StringName) -> void:
 
 
 ## Whether this look is legal for a character. Loads nothing.
-##
-## [b]If a change here ever needs a [code]load()[/code] or a
-## [code]ResourceLoader.exists[/code], that is the thing to push back on.[/b] The whole
-## value of the document is that a dedicated server can check it, and a server that has
-## to hold the art to check it is a server that has to ship every cosmetic anybody owns.
+## Keep it that way: a server must be able to check it without holding the art.
 func validate(def: DotPlayerCharDef) -> DotResult:
 	if def == null:
 		return DotResult.fail(DotError.CODE_INVALID, "No character to validate against.")
@@ -90,13 +79,8 @@ func validate(def: DotPlayerCharDef) -> DotResult:
 
 
 ## Removes everything illegal, rather than refusing the whole document.
-##
-## The counterpart to [method validate] and used in a different place: validate is for
-## the trust boundary, where a bad document should be refused; conform is for loading
-## somebody's saved look after the content it referred to has been removed, where
-## refusing would lock them out of their own character.
-##
-## Returns how many things it dropped.
+## For loading a saved look after its content was removed; [method validate] is for the
+## trust boundary. Returns how many things it dropped.
 func conform(def: DotPlayerCharDef) -> int:
 	if def == null:
 		return 0
@@ -118,11 +102,8 @@ func conform(def: DotPlayerCharDef) -> int:
 	return dropped
 
 
-## Fills every empty slot with the character's first option.
-##
-## So that a player who has never opened the customisation screen still has a complete,
-## valid look rather than a half-built one — which is what a renderer would otherwise
-## have to have an opinion about.
+## Fills every empty slot with the character's first option, so a renderer never sees
+## a half-built look.
 func fill_defaults(def: DotPlayerCharDef) -> void:
 	if def == null:
 		return

@@ -2,17 +2,8 @@ class_name DotPlayerAnimState
 extends RefCounted
 
 ## Which locomotion state a character is in, as a pure function of how it is moving.
-##
-## [b]Pure, and with hysteresis, and the second is why it is worth a class.[/b] The
-## naive version — [code]speed > walk_speed ? "run" : "walk"[/code] — flickers between
-## two animations for a player holding a stick at exactly the threshold, and the fix is
-## not a smaller epsilon, it is two thresholds: one to enter a state and a lower one to
-## leave it. The same applies to leaving the ground, where a single frame of a stair
-## step should not start a jump animation.
-##
-## Nothing here reads a node, a clock or an input device. [method advance] takes a
-## description of the motion and returns a state, which is what lets a replay, a remote
-## player and a server-side animation check all produce the same answer.
+## Hysteresis (a higher threshold to enter a state than to leave it) stops flicker at a
+## threshold; nothing reads a node or clock, so replays and remote players agree.
 
 ## The vocabulary. A game may use any [StringName]; these are the ones the presets map.
 const IDLE := &"idle"
@@ -40,10 +31,7 @@ var move_speed: float = 0.2
 var move_exit_speed: float = 0.1
 
 ## Seconds of being off the ground before the air animations start.
-##
-## [b]Not zero.[/b] A stair step, a ramp seam and a physics jitter all take a character
-## off the floor for one or two ticks, and a character that started a jump animation
-## every time would twitch its way up a staircase.
+## Not zero: stair steps and physics jitter leave the floor for a tick or two.
 var air_grace: float = 0.08
 
 ## Upward speed above which the air state is a jump rather than a fall.
@@ -61,14 +49,8 @@ var _land_time: float = 0.0
 var _was_on_floor: bool = true
 
 
-## One tick. [param motion] carries whatever the caller knows.
-##
-## Recognised keys, all optional: [code]speed[/code] (ground speed),
-## [code]vertical[/code] (positive is up), [code]on_floor[/code], [code]crouched[/code],
-## [code]climbing[/code], [code]swimming[/code], [code]alive[/code].
-##
-## Everything missing takes a default that means "no", so a game that only supplies a
-## speed and a floor flag still gets sensible locomotion rather than a crash.
+## One tick. [param motion] keys, all optional: speed, vertical (up positive), on_floor,
+## crouched, climbing, swimming, alive. A missing key defaults to "no".
 func advance(motion: Dictionary, delta: float) -> StringName:
 	if not bool(motion.get("alive", true)):
 		_state = DEAD
@@ -100,10 +82,8 @@ func advance(motion: Dictionary, delta: float) -> StringName:
 	_was_on_floor = on_floor
 
 	if _land_time > 0.0:
-		# Decremented before the test, so a long frame ends the landing in the same
-		# call rather than one later. A tick that is longer than the whole landing is
-		# not hypothetical: it is what a level load, or a headless suite stepping a
-		# second at a time, produces.
+		# Decremented before the test so a long frame (a level load, a suite stepping a
+		# second) ends the landing in the same call.
 		_land_time -= delta
 
 		if _land_time > 0.0:
@@ -158,11 +138,8 @@ func is_moving() -> bool:
 
 
 ## Puts the machine back where it started. For a respawn.
-##
-## [b]Not called [code]reset[/code].[/b] The family has already shipped one
-## [code]reset_state[/code] that silently bound to [Resource]'s — see
-## [code]docs/gdscript-hazards.md[/code] — and although this class extends
-## [RefCounted], the habit is the point.
+## Not called [code]reset[/code]: see [code]docs/gdscript-hazards.md[/code] on [Resource]'s
+## name clash.
 func forget_state() -> void:
 	_state = IDLE
 	_air_time = 0.0

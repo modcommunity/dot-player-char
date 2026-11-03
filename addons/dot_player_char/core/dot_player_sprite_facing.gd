@@ -2,14 +2,8 @@ class_name DotPlayerSpriteFacing
 extends RefCounted
 
 ## Which way a 2D character is drawn, from which way it is actually pointing.
-##
-## [b]Static, and it returns the mirror flag with the index.[/b] A four-way sheet that
-## mirrors is five drawn directions and three derived ones, and a caller that had to
-## work out the flip itself would have to know which three — so the answer is both
-## numbers together and nothing downstream needs to know how the sheet was drawn.
-##
-## Angles are the same convention as everything else in this family: radians, wrapped to
-## [code]-PI..PI[/code], zero pointing along +X, increasing anticlockwise.
+## Returns the mirror flag with the index, so callers need not know which directions the
+## sheet derives. Angles: radians in [code]-PI..PI[/code], zero along +X, anticlockwise.
 
 ## One direction: the row offset, and whether to draw it flipped.
 class Facing extends RefCounted:
@@ -39,10 +33,8 @@ static func resolve(angle: float, count: int, mirror: bool = true, first: int = 
 			return Facing.new(first, facing_left)
 		return Facing.new(first + (1 if facing_left else 0), false)
 
-	# Four- or eight-way: the circle is divided into `count` sectors, offset by half a
-	# sector so that an exact cardinal angle lands in the middle of its sector rather
-	# than on the boundary between two — which is what makes a character walking due
-	# north flicker between two frames.
+	# Sectors are offset by half a sector so an exact cardinal lands mid-sector, not on
+	# a boundary where it would flicker between two frames.
 	var sector := TAU / float(count)
 	var raw := int(floor((wrapf(angle, 0.0, TAU) + sector * 0.5) / sector)) % count
 
@@ -59,10 +51,7 @@ static func resolve(angle: float, count: int, mirror: bool = true, first: int = 
 
 
 ## How many rows a mirrored sheet actually has to draw.
-##
-## Useful to an artist and to a validator: a sheet claiming eight directions with
-## mirroring on only needs five, and one that drew all eight has three rows nothing will
-## ever index.
+## Eight directions mirrored need only five; more rows are never indexed.
 static func drawn_directions(count: int, mirror: bool) -> int:
 	if count <= 1:
 		return 1
@@ -77,11 +66,8 @@ static func drawn_directions(count: int, mirror: bool) -> int:
 
 
 ## An angle from a movement vector, or a fallback when it is not moving.
-##
-## The fallback matters: a character that stopped should keep facing where it was, and a
-## velocity of zero has no angle at all. Passing the previous facing through rather than
-## snapping to a default is the difference between a character standing still and one
-## that turns to face south every time it stops.
+## A zero velocity has no angle, so the previous facing is passed through rather than
+## snapping to a default.
 static func angle_of(velocity: Vector2, previous: float) -> float:
 	if velocity.length_squared() < 0.0001:
 		return previous

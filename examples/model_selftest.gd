@@ -1,15 +1,7 @@
 extends Node
 
 ## Exercises dot-player-char's model half with rigs built in code and no art on disk.
-##
-## The planning half is checked as arithmetic over ids, which is the half that was
-## generalised out of dot-user-avatar and the half a server could run. The node half is
-## checked against real [Node3D] rigs assembled here, because "did it clear the mount
-## before rebuilding it" is not a question a value can answer.
-##
-## [codeblock]
 ## godot --headless --path . res://examples/model_selftest.tscn
-## [/codeblock]
 
 const SECTIONS := 8
 const CHECKS := 108
@@ -457,10 +449,8 @@ func _test_build() -> void:
 
 
 func await_free() -> void:
-	# queue_free is deferred, so a check on child_count immediately after a rebuild
-	# would see the old children as well as the new ones. This is the one place in the
-	# suite where that matters, and it is worth the two frames rather than the check
-	# being written around it.
+	# queue_free is deferred: child_count right after a rebuild would still see the old
+	# children, so wait the two frames.
 	await get_tree().process_frame
 	await get_tree().process_frame
 
@@ -613,12 +603,8 @@ func _test_visual() -> void:
 
 
 ## Where the rig is DRAWN, which nothing above asks.
-##
-## A visual is a plain [Node], and a [Node3D] under a plain Node inherits nobody's transform:
-## it is placed in world space. The rig was this visual's own child, so every body drawn
-## through it stood at the world origin whatever its player did — game-playground drew every
-## player at (0, 0, 0) for as long as it had bodies, and worked round it from the game. Every
-## check in `_test_visual` passed throughout, because none of them asks where anything is.
+## A Node3D under a plain Node inherits no transform, so every body once stood at the world
+## origin while the `_test_visual` checks all passed.
 func _test_placement() -> void:
 	_section("where the rig is drawn")
 

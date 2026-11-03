@@ -1,9 +1,8 @@
 extends Node3D
 
-## 30 people running in a ring (`people_sheet.gd --crowd`'s layout), then the same with four of
-## them fallen as skeletal ragdolls: frame time, draw calls and primitives over 300 frames,
-## printed (in a browser, to the console) as `BENCH` lines, then `BENCH DONE`. The main scene of
-## a scratch web export for measuring the people in a browser (docs/people.md, "What a crowd costs").
+## 30 people running in a ring, then with four fallen as ragdolls: frame time, draw calls and
+## primitives over 300 frames as `BENCH` lines, then `BENCH DONE`. Main scene of a scratch web
+## export (docs/people.md, "What a crowd costs").
 
 var _people: Array[DotHumanoidFigure] = []
 var _camera: Camera3D

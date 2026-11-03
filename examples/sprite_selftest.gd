@@ -1,15 +1,7 @@
 extends Node
 
-## Exercises dot-player-char's sprite half with no art on disk.
-##
-## The frame arithmetic and the facing resolution are the two halves worth checking
-## hardest, because both are the kind of four-line calculation that is wrong in one of
-## the three places a project writes it — and because both are pure, so a suite can
-## check every case rather than the one somebody happened to look at.
-##
-## [codeblock]
+## Exercises dot-player-char's sprite half with no art: frame arithmetic and facing, both pure, so every case.
 ## godot --headless --path . res://examples/sprite_selftest.tscn
-## [/codeblock]
 
 const SECTIONS := 6
 const CHECKS := 72

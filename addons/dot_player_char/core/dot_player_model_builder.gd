@@ -2,28 +2,9 @@ class_name DotPlayerModelBuilder
 extends RefCounted
 
 ## Works out what goes where, and then puts it there. The two are separate.
-##
-## [b]This is dot-user-avatar's builder, generalised.[/b] That addon had the split
-## already and it was the right one — working out which parts go in which mounts, in
-## what order, with which colours is pure logic over ids, and instantiating scenes and
-## reparenting nodes is not — but it was written against [code]DotAvatar[/code] and so
-## only avatars could use it. Here the plan is an array of plain [Dictionary] values, so
-## a character's customisation document, an avatar document, a loadout's view model and
-## a game's own system all produce one and share the node work.
-##
-## A step is:
-##
-## [codeblock]
-## {
-##   "slot": StringName,     which mount
-##   "mount": String,        the node name inside the rig
-##   "part": StringName,     what was asked for
-##   "scene": String,        the resolved path, or "" for nothing
-##   "colours": Array,       tints, in channel order
-##   "layer": int,           draw order within the mount
-##   "missing": bool,        nothing resolved; show a placeholder
-## }
-## [/codeblock]
+## Generalised from dot-user-avatar's builder: the plan is an array of plain [Dictionary]
+## steps (slot, mount, part, scene, colours, layer, missing) so any source can share the
+## node work.
 
 const CHANNEL := "player.model"
 
@@ -79,13 +60,8 @@ static func plan(def: DotPlayerModelDef, look: DotPlayerCharLook) -> Array[Dicti
 
 
 ## Builds a plan under a rig. The only function here that touches the scene tree.
-##
-## Every named mount is [b]cleared and rebuilt[/b], which is what makes applying a second
-## look to the same rig well defined — and that matters more than it sounds, because a
-## player changing a hat in a menu does exactly that several times a second. A builder
-## that appended would grow a hat per frame.
-##
-## Returns how many parts were actually shown.
+## Every named mount is cleared and rebuilt, so applying a second look is well defined
+## (a menu hat change would otherwise grow a hat per frame). Returns parts shown.
 static func apply(
 	steps: Array[Dictionary],
 	rig: Node3D,
@@ -137,11 +113,8 @@ static func apply(
 
 
 ## Applies tint colours to whatever a part instantiated.
-##
-## Per-instance shader parameters rather than material swaps, for two reasons: a part
-## with one mesh and three tintable regions does not need three materials, and two
-## players wearing the same part do not share a [Material] and recolour each other —
-## which is what happens the moment a [Resource] loaded from disk is edited in place.
+## Per-instance shader parameters, not material swaps: one material serves many tinted
+## regions, and players sharing a part cannot recolour each other.
 static func tint(instance: Node, colours: Array, prefix: String = "dot_tint_") -> void:
 	if colours.is_empty() or instance == null:
 		return
@@ -199,14 +172,8 @@ static func summarise(steps: Array[Dictionary]) -> Dictionary:
 
 
 ## Turns dot-user-avatar's plan into this one's, without importing that addon.
-##
-## [b]The bridge, and it is by duck typing on purpose.[/b] dot-user-avatar produces a
-## plan of its own — it has to, because its whole promise is that a server can validate
-## an avatar from ids — and this addon does the node work. Neither depends on the other:
-## a game with both calls this, a game with only one is unaffected.
-##
-## Accepts anything shaped like a plan: an [Array] of [Dictionary], or an array of
-## objects with a [code]describe[/code]-able set of the same fields.
+## Duck typed on purpose so neither addon depends on the other. Accepts an [Array] of
+## [Dictionary] or of objects with the same fields.
 static func from_plan(rows: Array, mounts: Dictionary = {}) -> Array[Dictionary]:
 	var steps: Array[Dictionary] = []
 

@@ -3,11 +3,8 @@ class_name DotPlayerModelRig
 extends Node3D
 
 ## A built character rig: named mounts, a stance, and where the eyes are.
-##
-## [b]A thin node over a scene somebody else authored.[/b] It does not build the model —
-## [DotPlayerModelBuilder] does — and it does not know what a character is. What it adds
-## is the lookup: a mount by slot name, cached, with one warning rather than one per
-## frame when the rig and the definition disagree.
+## A thin node over an authored scene: [DotPlayerModelBuilder] builds, this adds a cached
+## mount lookup that warns once when the rig and definition disagree.
 
 const CHANNEL := "player.model"
 
@@ -22,10 +19,7 @@ var _warned: Dictionary = {}
 
 
 ## Loads the rig scene and takes it as a child. Idempotent.
-##
-## Returns a failure rather than a half-built rig when the scene is missing, because a
-## rig with no mounts silently shows nothing and reads as "the character is invisible",
-## which is debugged in the renderer.
+## Fails rather than leaving a rig with no mounts, which reads as an invisible character.
 func build_from(p_def: DotPlayerModelDef) -> DotResult:
 	def = p_def
 	_mounts.clear()
@@ -79,10 +73,7 @@ func adopt(existing: Node3D, p_def: DotPlayerModelDef) -> void:
 
 
 ## The node a slot's content goes into, or null.
-##
-## Cached, and the warning fires once per slot rather than once per frame: a rig that
-## does not match its definition would otherwise fill a log with one line per attachment
-## per frame, which buries everything else.
+## Cached, and warns once per slot, not per attachment per frame.
 func mount(slot: StringName) -> Node3D:
 	if _mounts.has(slot):
 		var cached: Variant = _mounts[slot]
@@ -125,10 +116,7 @@ func weapon_mount() -> Node3D:
 
 
 ## The eye height this rig actually has, or -1 for "no opinion".
-##
-## Measured from the mount's position rather than declared, because a rig that has been
-## scaled, or whose author put the head somewhere unexpected, is exactly the case where
-## a declared number is wrong.
+## Measured from the mount, since a scaled rig makes a declared number wrong.
 func eye_height() -> float:
 	if def == null or def.eye_mount == &"":
 		return -1.0

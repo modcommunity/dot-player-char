@@ -1,14 +1,8 @@
 extends SceneTree
 
-## Renders contact sheets of the people: every clip of the family set at six moments, per body,
-## and one sheet of looks (stock and site avatars). The check no assertion makes.
-##
-## [codeblock]
+## Renders contact sheets of the people: every clip at six moments, per body, and one of looks.
 ## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--actions] [--crowd=N] [--compare[=FILE.res]]
-## [/codeblock]
-##
-## xvfb-run, not --headless: the headless display renders nothing and saves a blank frame.
-## Add `--rendering-method gl_compatibility` to see what a browser sees.
+## Needs xvfb-run, not --headless (blank frame); add `--rendering-method gl_compatibility` for a browser's view.
 
 const CELL := Vector2i(256, 320)
 const MOMENTS := 6
@@ -180,10 +174,9 @@ func _sheet_body(body: StringName) -> void:
 	await process_frame
 
 
-## The made clip and the real one (a library baked by tools/ual_retarget.gd) side by side: for
-## each clip in [param path], four rows (made and real from three-quarter front, made and real
-## from the side) of MOMENTS columns, on the clip body. `sit` is drawn on a stand-in bench at
-## the figure's [method DotHumanoidFigure.seat_height].
+## The made clip and the real one (a library from tools/ual_retarget.gd) side by side, for each
+## clip in [param path]: four rows by MOMENTS columns on the clip body. `sit` uses a stand-in bench
+## at [method DotHumanoidFigure.seat_height].
 func _sheet_compare(path: String) -> void:
 	var real := load(path) as AnimationLibrary
 	if real == null:

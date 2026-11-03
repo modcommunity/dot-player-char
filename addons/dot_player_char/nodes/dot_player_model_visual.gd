@@ -2,15 +2,8 @@ class_name DotPlayerModelVisual
 extends DotPlayerCharVisual
 
 ## The 3D implementation of dot-player-char's visual seam.
-##
-## [b]Four methods, and almost all of the work is somewhere else.[/b] The planning is
-## [DotPlayerModelBuilder]'s, the node lookup is [DotPlayerModelRig]'s, and what this
-## adds is the part only a visual can know: when to rebuild and when not to.
-##
-## Rebuilding is the expensive thing and the easy thing to get wrong in both directions.
-## Rebuild too eagerly — on every stance change, say — and a player who crouches
-## re-instantiates their whole wardrobe; rebuild too lazily and a hat changed in a menu
-## does not appear until the next respawn.
+## Planning is [DotPlayerModelBuilder]'s and lookup [DotPlayerModelRig]'s; this decides
+## when to rebuild: not on a stance change, but on a changed hat.
 
 ## Not [code]CHANNEL[/code]: the parent chain already has one.
 const MODEL_CHANNEL := "player.model"
@@ -132,10 +125,7 @@ func weapon_mount() -> Node3D:
 
 
 ## Forces a rebuild, ignoring the signature. For content that arrived late.
-##
-## Needed because dot-cloud can deliver a part after the model was first built: the plan
-## is identical, the signature matches, and without this the player wears a placeholder
-## until something else changes.
+## dot-cloud can deliver a part after the first build with an identical plan.
 func rebuild() -> void:
 	_last_signature = ""
 
@@ -179,10 +169,7 @@ func _root() -> Node3D:
 
 
 ## What makes two plans the same build.
-##
-## Colours are deliberately excluded: a tint is applied to an existing instance, so a
-## colour change never needs a rebuild, and including it here would put the menu case
-## back.
+## Colours are excluded: a tint applies to an existing instance and needs no rebuild.
 func _signature(steps: Array[Dictionary]) -> String:
 	var parts := PackedStringArray()
 

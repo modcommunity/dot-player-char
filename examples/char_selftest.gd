@@ -1,15 +1,7 @@
 extends Node
 
-## Exercises dot-player-char with no art, which is the promise being checked.
-##
-## A dedicated server has to decide whether a character and a customisation document are
-## legal without loading a mesh. This suite loads nothing at all, and the section that
-## uses a real node uses a stub visual — which doubles as the worked example of what a
-## visual implements.
-##
-## [codeblock]
+## Exercises dot-player-char with no art: a server must judge a character and look without loading a mesh.
 ## godot --headless --path . res://examples/char_selftest.tscn
-## [/codeblock]
 
 const SECTIONS := 6
 const CHECKS := 104

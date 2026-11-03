@@ -1,16 +1,7 @@
 extends Node
 
 ## Exercises dot-player-char's animation half with no rig, no sheet and no renderer.
-##
-## Which covers the half that matters: the state machine is a pure function, so every
-## branch of it — including the two kinds of flicker it exists to prevent — is checkable
-## as arithmetic. The sinks are checked against a real [AnimationPlayer] and a stub
-## sprite, because "did it only call the setter on a change" is not a question a value
-## can answer.
-##
-## [codeblock]
 ## godot --headless --path . res://examples/anim_selftest.tscn
-## [/codeblock]
 
 const SECTIONS := 7
 const CHECKS := 108

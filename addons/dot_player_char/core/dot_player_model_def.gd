@@ -3,12 +3,8 @@ class_name DotPlayerModelDef
 extends Resource
 
 ## A 3D character model: which rig, which mounts, and how a slot maps onto one.
-##
-## [b]A definition names content; it does not hold it.[/b] [member rig_scene] is a
-## path, every part is an id, and nothing here is a [PackedScene] — so a dedicated
-## server can carry a catalogue of these and answer questions about them without
-## loading a single mesh. The resolution from a path to an actual scene happens on a
-## client, in [DotPlayerModelBuilder], and only there.
+## Names content by path and id, never holds a [PackedScene], so a server can carry
+## a catalogue without loading a mesh; a client resolves them in [DotPlayerModelBuilder].
 
 ## The name everything else uses. Usually the same as a [DotPlayerCharDef]'s.
 @export var id: StringName = &""
@@ -16,10 +12,8 @@ extends Resource
 @export var display_name: String = ""
 
 ## The rig scene: a [Node3D] with a child per mount.
-##
-## A path rather than a [PackedScene] export, because a `PackedScene` export is loaded
-## the moment the resource is, and a server holding forty of these would load forty
-## character rigs it has no use for.
+## A path, not a [PackedScene] export, which loads with the resource and would make a
+## server load every rig.
 @export_file("*.tscn", "*.scn") var rig_scene: String = ""
 
 ## Uniform scale applied to the built rig.
@@ -27,28 +21,21 @@ extends Resource
 
 @export_group("Mounts")
 
-## slot id -> node name inside the rig.
-##
-## [code]{"head": "Skeleton3D/HeadAttachment", "back": "Skeleton3D/BackAttachment"}[/code].
-## Names rather than [NodePath]s so the table survives being written in JSON, which is
-## how a catalogue delivered through dot-cloud arrives.
+## slot id -> node name inside the rig, e.g. [code]{"head": "Skeleton3D/HeadAttachment"}[/code].
+## Names rather than [NodePath]s so the table survives JSON (dot-cloud catalogues).
 @export var mounts: Dictionary = {}
 
 ## The mount a weapon goes in.
 @export var weapon_mount: StringName = &"right_hand"
 
 ## The node whose position is the eyes, if the rig has one.
-##
-## What lets [method DotPlayerCharVisual.eye_offset] answer properly. Empty means the
-## rig has no opinion and the character definition's number is used.
+## Empty means the character definition's eye number is used.
 @export var eye_mount: StringName = &""
 
 @export_group("Parts")
 
 ## part id -> scene path. The content this model can put in its mounts.
-##
-## Flat and by id, the way dot-user-avatar's catalogue is, because the id is what a
-## server validates against and the path is what only a client ever needs.
+## Flat and by id: a server validates ids, only a client needs the paths.
 @export var parts: Dictionary = {}
 
 ## part id -> the slot it belongs in. A part in the wrong mount is a hat on a foot.
@@ -60,11 +47,8 @@ extends Resource
 @export_group("Tinting")
 
 ## The shader parameter prefix used for per-instance tints.
-##
-## Written with [method GeometryInstance3D.set_instance_shader_parameter], which is
-## per-instance and therefore cannot leak between two players wearing the same part —
-## the trap a shared [Material] falls into, and the one dot-user-avatar's builder
-## documents having avoided.
+## Written per instance, so two players wearing the same part cannot recolour each
+## other through a shared [Material].
 @export var tint_parameter: String = "dot_tint_"
 
 ## How many channels this model's materials actually read.

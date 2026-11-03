@@ -2,21 +2,10 @@ class_name DotHumanoidFigure
 extends Node3D
 
 ## One of the family's people, drawn: a skinned body from `people/`, wearing a [DotHumanoidLook]'s
-## colours, playing the family clip set ([DotHumanoidClips]) from how it moves, holding a weapon
-## in its hand, and handing its skeleton to [DotPlayerRagdoll] when it dies. Client side only.
-##
-## [b]The game places it and says how it moves; this picks the clip.[/b] [method pose] takes the
-## drawn position, yaw and ground speed; [method set_motion] the rest. A [DotPlayerAnimState] turns
-## that into a state with hysteresis, so a player at the run threshold does not flicker.
-##
-## [b]Legs from the locomotion clip, arms from an overlay.[/b] The upper body
-## ([constant DotHumanoidClips.UPPER_BONES]) is written over the locomotion pose after the clip is
-## applied, so the legs never stop for a swing. The clip is advanced here, manually, because left
-## to the engine the overlay and the clip run in an order nothing controls.
-##
-## [b]Cheap enough for a browser crowd:[/b] one surface and material per look, the import's LODs,
-## and the clip advanced every frame within [constant ANIM_NEAR], every second to [constant ANIM_FAR]
-## and every fourth beyond (docs/people.md has the numbers).
+## colours, playing the family clip set ([DotHumanoidClips]) from how it moves, holding a weapon,
+## and handing its skeleton to [DotPlayerRagdoll] when it dies. Client side only.
+## The upper body is written over the locomotion pose after the clip, advanced manually
+## (LOD rates [constant ANIM_NEAR], [constant ANIM_FAR]; docs/people.md has the numbers).
 
 const CHANNEL := "player.humanoid"
 
@@ -416,13 +405,10 @@ func mend() -> void:
 	_own.mend(_skeleton, _mesh)
 
 
-## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it:
-## `on_floor`, `vertical`, `crouched`, `swimming`, `climbing`, `alive`; plus `downed` here, and
-## `wall_running` (the run clip plays in the air), `sliding` (the slide clip; set `crouched` with it). `velocity` (world) turns the legs toward the way it
-## moves and walks them backward ([member legs]); `wall` (a world [Plane]) puts the feet on it in a wall run.
-## `seated` draws the person sitting ([method seat_height] says where their hips are), `driving`
-## (with `seated`) puts the hands on a wheel, and `aim`
-## (radians, up positive) is [method aim]; left out, the aim stays where it was.
+## Everything else about how the player moves, as [method DotPlayerAnimState.advance] reads it,
+## plus `downed`, `wall_running`, `sliding`, `velocity` (world; turns the legs, see [member legs]),
+## `wall` (a world [Plane]), `seated` ([method seat_height]), `driving` (hands on a wheel) and
+## `aim` (radians, up positive; left out, it stays).
 func set_motion(motion: Dictionary) -> void:
 	_motion = motion
 	sprinting = bool(motion.get("sprinting", false))
@@ -434,10 +420,9 @@ func set_motion(motion: Dictionary) -> void:
 		aim(float(motion["aim"]))
 
 
-## Where the player looks, up or down, in radians (up is positive; a first-person controller's
-## `state.pitch` is in degrees, so `deg_to_rad` it). Drawn on the next [method animate]: the waist
-## and chest bend by it, so the arms, the gun and the head point where the player aims, which is
-## how anybody else reads where somebody is looking. Held to [constant AIM_LIMIT].
+## Where the player looks, up or down, in radians (up positive; `deg_to_rad` a controller's
+## `state.pitch`). Drawn on the next [method animate]: waist and chest bend by it, held to
+## [constant AIM_LIMIT].
 func aim(pitch_radians: float) -> void:
 	aim_pitch = clampf(pitch_radians, -AIM_LIMIT, AIM_LIMIT) if is_finite(pitch_radians) else 0.0
 
@@ -758,9 +743,8 @@ func _start_overlay(which: StringName, rate: float) -> void:
 
 
 ## Writes the upper body over the locomotion pose: a playing overlay (swing, flinch, gesture),
-## else, holding a gun in a clip that is not a gun clip (crouch, air), the held-gun arms. Not while
-## swimming: the stroke is the arms, and a swimmer drawn holding the gun level was the leaned run
-## again from the waist up.
+## else the held-gun arms in a clip that is not a gun clip. Not while swimming, where the
+## stroke is the arms.
 func _apply_overlays() -> void:
 	if _skeleton == null:
 		return

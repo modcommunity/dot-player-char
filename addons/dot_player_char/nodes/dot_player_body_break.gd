@@ -3,15 +3,8 @@ extends Node3D
 
 ## A body coming apart: the chosen meshes, copied into tumbling pieces that land, lie a
 ## while, and shrink away. See [DotPlayerBreakRules] for what decides how much.
-##
-## [b]Copies, then hides the originals[/b], rather than reparenting them: the body belongs
-## to the player node, which a game frees or respawns on its own schedule, and a piece that
-## was still the player's child would vanish with it mid-flight or come back on respawn.
-## The pieces hang off [param world] (usually the player's parent) and free themselves.
-##
-## [b]Not for a server.[/b] Nothing here is simulated; a dedicated server never calls it.
-## A headless client can, and the suite does — the pieces are real [RigidBody3D]s and need
-## a physics world, not a renderer.
+## Copies and hides the originals (the player node may be freed or respawned mid-flight);
+## pieces hang off [param world] and free themselves. Not for a server: needs a physics world.
 
 const CHANNEL := "player.break"
 
@@ -23,11 +16,8 @@ var _sizes: Array[Vector3] = []
 
 
 ## Breaks [param body] apart under [param world]. Returns the node holding the pieces, or
-## null when the rules say this death breaks nothing.
-##
-## [param origin] is where the hit landed, [param direction] the way it was travelling;
-## [param p_seed] should be a function of the death (victim id and tick) so every viewer
-## agrees. [param lethal] and [param critical] are the [DotDamage]'s.
+## null when the rules say this death breaks nothing. [param p_seed] should derive from the
+## death (victim id and tick) so every viewer agrees.
 static func break_apart(
 	body: Node3D,
 	world: Node,
@@ -98,13 +88,10 @@ static func break_apart(
 	return made
 
 
-## A skinned body comes apart by its bones: a limb (every bone of one role, and what hangs off
-## them) is baked out of the skin where it is posed into a mesh of its own, which tumbles like any
-## piece, and the limb's top bones are shrunk to nothing on the body, so the stump is where it
-## joined. EXPLODE takes every limb and the head; the torso stays, as the ragdoll's.
-##
-## [b]Baked, not copied[/b]: a skinned mesh copied without its skeleton draws its bind pose, the
-## whole standing body, which is what a critical threw across the room before this.
+## A skinned body comes apart by its bones: each limb is baked out of the skin where posed
+## into a mesh that tumbles, and its top bones shrink to nothing on the body. EXPLODE takes
+## every limb and the head; the torso stays as the ragdoll's. Baked, not copied: a skinned
+## mesh copied without its skeleton draws its bind pose.
 static func _break_skinned(
 	body: Node3D, world: Node, p_rules: DotPlayerBreakRules, skinned: Array[MeshInstance3D],
 	direction: Vector3, rng: RandomNumberGenerator

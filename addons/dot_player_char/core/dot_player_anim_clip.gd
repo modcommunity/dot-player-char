@@ -3,12 +3,8 @@ class_name DotPlayerAnimClip
 extends Resource
 
 ## One animation, described in a way both a rig and a sprite sheet can honour.
-##
-## [b]Two vocabularies in one resource, on purpose.[/b] An [AnimationPlayer] wants a
-## clip name and a speed; a sprite sheet wants a row, a frame count and a frame rate.
-## A game that shipped both — and hungario and arena between them do — would otherwise
-## need two tables that say the same thing and drift apart, and the drift shows up as
-## the 2D build running an animation at the wrong speed.
+## Holds both vocabularies (clip name and speed; row, frames and frame rate) so a game
+## shipping both does not keep two drifting tables.
 
 ## The state or action this clip is for.
 @export var id: StringName = &""
@@ -40,10 +36,7 @@ extends Resource
 @export_group("Events")
 
 ## Frame numbers that fire a footstep, as a fraction of the clip.
-##
-## Fractions rather than frame indices so one clip works for a rig and a sheet: a rig's
-## animation has a length in seconds and a sheet's has a frame count, and 0.25 means the
-## same place in both.
+## Fractions so one clip works for a rig (seconds) and a sheet (frames).
 @export var footsteps: PackedFloat32Array = PackedFloat32Array()
 
 ## Other named events: [code]{"fire": 0.1, "eject": 0.4}[/code].
@@ -74,10 +67,7 @@ func sheet_duration() -> float:
 
 
 ## Which frame is showing after [param elapsed] seconds.
-##
-## Clamps rather than wrapping for a non-looping clip, so a one-shot holds its last
-## frame instead of snapping back to the first — which reads as the animation being cut
-## off rather than as having finished.
+## Clamps for a non-looping clip, so a one-shot holds its last frame.
 func frame_at(elapsed: float) -> int:
 	var index := int(floor(elapsed * fps * speed))
 
@@ -93,11 +83,8 @@ func finished_at(elapsed: float) -> bool:
 
 
 ## Event names whose moment falls between two elapsed times.
-##
-## [b]A window rather than an instant.[/b] A clip event at 0.25 of the way through will
-## never be tested at exactly that moment, so an implementation that compared for
-## equality would fire nothing, and one that compared for "past it" would fire every
-## tick afterwards. The pair of times is the only thing that fires it once.
+## A window, not an instant: equality would never fire and "past it" would fire every
+## tick afterwards.
 func events_between(from: float, to: float) -> PackedStringArray:
 	var out := PackedStringArray()
 	var length := sheet_duration()

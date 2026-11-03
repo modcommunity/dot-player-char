@@ -1,15 +1,8 @@
 extends SceneTree
 
-## Bakes clips from Quaternius' Universal Animation Library (CC0) onto the people's rig into one
-## small [AnimationLibrary] (`people/people_ual.res`, see docs/people.md). Run:
+## Bakes Quaternius' Universal Animation Library (CC0) clips onto the people's rig into one [AnimationLibrary] (`people/people_ual.res`, docs/people.md). Run:
 ## godot --headless --path . --script tools/ual_retarget.gd -- --ual=/path/UAL1_Standard.glb --ual2=/path/UAL2_Standard.glb [--out=res://...people_ual.res] [--clips=sit=Sitting_Idle_Loop]
-##
-## The skeletons and sizes differ but both rest in a T pose facing +Z, so a clip is carried by how
-## far each bone turned from rest in skeleton space: `turn = ual_global * ual_rest_global^-1`, and
-## the kit's bone is `turn * its own rest_global`. Bone lengths stay the kit's, hips' travel is
-## scaled by the leg-length ratio, a foot is put where its shin ends, and grounded clips are moved
-## until the lower foot is at the rest pose's feet.
-## Authored right-handed: added after [method DotHumanoidClips.mirror], not before.
+## Each bone is carried by its turn from rest in skeleton space (`turn = ual_global * ual_rest_global^-1`); bone lengths stay the kit's, hips scaled by leg ratio, feet grounded. Authored right-handed: add after [method DotHumanoidClips.mirror].
 
 const MATT := "res://addons/dot_player_char/people/people_matt.glb"
 const OUT := "res://addons/dot_player_char/people/people_ual.res"

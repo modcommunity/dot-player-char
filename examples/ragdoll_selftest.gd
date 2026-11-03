@@ -1,9 +1,8 @@
 extends Node
 
-## Exercises dead bodies: the reaction rule, the server's cvars, the death that travels, and real
-## ragdolls falling onto a real floor in a physics world (headless; no renderer needed).
-## The rule is checked by counting over a thousand seeds; bodies where they end up (lying, not
-## through the floor, frozen). Run: godot --headless --path . res://examples/ragdoll_selftest.tscn
+## Exercises dead bodies: the reaction rule (counted over a thousand seeds), the server's cvars, the
+## death that travels, and real ragdolls falling onto a floor (headless).
+## Run: godot --headless --path . res://examples/ragdoll_selftest.tscn
 
 const SECTIONS := 12
 const CHECKS := 111
