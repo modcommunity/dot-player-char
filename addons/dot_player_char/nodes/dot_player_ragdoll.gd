@@ -1,25 +1,9 @@
 class_name DotPlayerRagdoll
 extends Node3D
 
-## One dead body: the figure's meshes copied onto rigid bodies joined at the hips, shoulders and
-## neck, pushed the way the death says, settling, freezing, and fading after a while. Built by
-## [DotPlayerRagdolls], which caps how many there are; see [DotPlayerRagdollRules] for the
-## styles and [DotPlayerDeathReaction] for the falls.
-##
-## [b]Built from the drawn figure, whatever it is.[/b] The parts are found by name (a mesh or
-## any ancestor up to the figure saying [code]head[/code], [code]torso[/code], [code]arm[/code]
-## or [code]leg[/code] with [code]left[/code] or [code]right[/code]), which is what the block
-## characters, the humanoid mounts and every game's figure here already call them. Meshes that
-## are none of those (a crest, a gun in the hand) ride on the nearest part. A figure with no
-## torso among its names (a capsule) becomes one rigid piece, which still falls over properly.
-##
-## [b]Copies, then hides the figure[/b], as [DotPlayerBodyBreak] does and for its reason: the
-## figure is the player's, and a game frees or respawns it on its own schedule. The game shows
-## its figure again on respawn.
-##
-## [b]Nothing collides with a body[/b] (layer 0): it lands on [member DotPlayerRagdollRules.collision_mask]
-## and changes nothing in the game. [b]Its variations are seeded from the death[/b], never
-## [code]randf()[/code], so every client builds the same fall.
+## One dead body: the figure's meshes copied onto rigid bodies joined at hips, shoulders and neck,
+## pushed per the death, settling and fading. Parts are named head, torso, arm, leg (left/right);
+## other meshes ride the nearest part. Built by [DotPlayerRagdolls]; seeded from the death, never randf().
 
 const CHANNEL := "player.ragdoll"
 const PLANK_MIN_SPIN := 1.6
@@ -129,8 +113,7 @@ var _bone_order: PackedInt32Array = PackedInt32Array()
 
 ## Builds a body from [param figure] under [param world], or null when the style is HIDE or the
 ## figure has no meshes. [param velocity] is how the player was moving, carried into the fall.
-##
-## The figure is hidden; a game shows it again when the player respawns.
+## The figure is hidden; a game shows it again on respawn.
 static func build(
 	figure: Node3D,
 	world: Node,
@@ -238,8 +221,6 @@ static func role_of_name(text: String) -> int:
 static func group_by_role(figure: Node, meshes: Array[MeshInstance3D]) -> Dictionary:
 	return DotRagdollScan.group_by_role(figure, meshes)
 
-
-# --- Building --------------------------------------------------------------
 
 func _build_jointed(groups: Dictionary) -> void:
 	if _skel != null:
@@ -467,14 +448,9 @@ static func _set_looseness_of(joint: ConeTwistJoint3D, role: int, looseness: flo
 	joint.set_param(ConeTwistJoint3D.PARAM_RELAXATION, 1.0)
 
 
-# --- A skinned body -----------------------------------------------------------
-#
-# The same parts, the same joints, pushes, settling and fade as a body of rigid meshes: the only
-# difference is what a part carries. Here it carries bones, and the copied skeleton's bones are
-# put where their parts are after every step ([method _pose_bones]). One path for both kinds of
-# figure, so every reaction tuned on the block figures (the plank that becomes jointed on landing,
-# the crumple, the launches) falls the same way skinned; a PhysicalBoneSimulator3D would have been
-# a second ragdoll with its own joints and its own tuning. docs/ragdolls.md has the reasoning.
+# One path for rigid and skinned figures: a skinned part carries bones, posed to its part after
+# every step ([method _pose_bones]), so every reaction tuned on block figures falls the same
+# way. A PhysicalBoneSimulator3D would be a second ragdoll with its own joints; docs/ragdolls.md.
 
 ## Copies the skeleton [param skinned] is drawn by, posed as it is now, with copies of the meshes
 ## on it, under this body. Each bone gets the role of its name, or its parent's.
@@ -666,13 +642,9 @@ func _top_of(bones: Array, torso_at: Vector3) -> Vector3:
 	return best if best != Vector3.INF else torso_at
 
 
-## Gives [param part] [param bones] (their offsets from where the part is now) and, when
-## [param reshape], a box round the middle nine tenths of their points along each axis and its
-## copies: a spike of hair or a shoulder pad is not what the body lands on.
-##
-## [param column] (the one-piece body): the box is the head, torso and legs alone. Arms held out
-## made a person's plank a block as deep as it was wide, which a face plant's spin could not tip
-## past its toes, so it stood back up (zz's survivors, 2026-10-12).
+## Gives [param part] [param bones] (offsets from where the part is now) and, when [param reshape],
+## a box round the middle nine tenths of their points: a hair spike or shoulder pad is not what the
+## body lands on. [param column] (one-piece body) boxes head, torso and legs only; held-out arms tip too deep.
 func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, column: bool = false) -> void:
 	var frame := part.body.global_transform
 	var inverse := frame.affine_inverse()
@@ -702,10 +674,9 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, co
 		var hi := Vector3(DotPlayerRagdollMath.quantile(xs, 0.95), DotPlayerRagdollMath.quantile(ys, 0.97), DotPlayerRagdollMath.quantile(zs, 0.95))
 		bounds = AABB(lo, hi - lo)
 	for copy in part.copies:
-		# With the posed skin's points in hand, the box is the body's alone. A skinned copy's own
-		# bounds are its rest pose (arms out), and a held gun or a hat is drawn on its part, not
-		# collided: an arm boxed round a pistol propped a dead person up on their knees for good
-		# (prop-hunt's hunters), and a gun held out kept a face plant standing (zz's survivors).
+		# With the posed skin's points in hand the box is the body's alone: a skinned copy's own
+		# bounds are its rest pose (arms out), and a held gun or hat must not be collided, or
+		# the body props up on it.
 		if not xs.is_empty():
 			continue
 		var b := copy.transform * copy.mesh.get_aabb()
@@ -737,8 +708,6 @@ func _pose_bones() -> void:
 		if wanted.has(bone):
 			_skel.set_bone_global_pose(bone, wanted[bone])
 
-
-# --- Driving the fall --------------------------------------------------------
 
 func _drive(forward: Vector3, velocity: Vector3) -> void:
 	var k := rules.force_scale
@@ -807,9 +776,8 @@ func _drive_plank(forward: Vector3, velocity: Vector3) -> void:
 	var omega := axis * 1.6
 	for part in _parts:
 		var body := part.body as RigidBody3D
-		# Undamped until it lands: the damping is for a body flapping on the floor, and
-		# on a plank going over it ate the spin before the top passed the toes. A person
-		# holding a gun out is a deep box, and stood back up (zz's survivors, 2026-10-12).
+		# Undamped until it lands: the damping ate the spin of a plank going over, and a person
+		# holding a gun out is a deep box that stood back up.
 		body.angular_damp = 0.0
 		body.angular_velocity = omega
 		body.linear_velocity = velocity + omega.cross(_part_centre(part) - feet)
@@ -819,13 +787,9 @@ func _drive_plank(forward: Vector3, velocity: Vector3) -> void:
 		_plank_time = 0.0
 
 
-## Keeps a face plant turning until its weight is past the toes. One shove of 1.6 rad/s is enough
-## on a light world, but a box lying flush on the floor loses it to contact within a few frames,
-## and with the games' 20 m/s2 gravity the centre of mass needs more than the shove carries to
-## get over the toe edge: about one fall in three stood back up (nightly
-## ragdoll-faceplant-upright-1). Below the tipping angle the spin is topped up to a floor; past it,
-## gravity finishes the fall alone. A wall ahead still stops it, and the push gives up after a
-## second so it never leans on one.
+## Keeps a face plant turning until its weight is past the toes: one shove is lost to contact when
+## a box lies flush, so below the tipping angle the spin is topped up. A wall still stops it, and
+## the push gives up after a second.
 func _keep_tipping(delta: float) -> void:
 	if _plank_axis == Vector3.ZERO:
 		return
@@ -867,8 +831,6 @@ func _part(role: int) -> Part:
 			return part
 	return null
 
-
-# --- Topple: the no-physics fall --------------------------------------------
 
 func _start_topple(figure: Node3D, forward: Vector3) -> void:
 	var dir := death.direction
@@ -914,8 +876,6 @@ func _advance_topple(delta: float) -> void:
 		settled_now.emit()
 
 
-# --- Life --------------------------------------------------------------------
-
 func _physics_process(delta: float) -> void:
 	advance(delta)
 
@@ -940,11 +900,9 @@ func advance(delta: float) -> void:
 
 	if expiring:
 		var left := 1.0 - clampf((age - _fade_from) / maxf(_fade_len, 0.01), 0.0, 1.0)
-		# Shrunk into the floor as well as faded: the compatibility renderer (every web client)
-		# ignores [member GeometryInstance3D.transparency], and a body that stays solid until
-		# it vanishes is the pop this fade exists to avoid.
-		# One shrink about one point on the floor under the body, so the parts close in together
-		# rather than each shrinking about its own middle and drifting apart.
+		# Shrunk as well as faded: the compatibility renderer (every web client) ignores
+		# transparency, and a body solid until it vanishes pops.
+		# One shrink about one floor point, so the parts close in together, not each about its middle.
 		var squeeze := Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * maxf(left, 0.01)), Vector3.ZERO)
 		var about := Transform3D(Basis.IDENTITY, _fade_pivot) * squeeze * Transform3D(Basis.IDENTITY, -_fade_pivot)
 		for part in _parts:
@@ -1027,11 +985,9 @@ func _watch_motion(delta: float) -> void:
 	_fastest = fastest
 	_still_for = _still_for + delta if fastest < rules.settle_speed else 0.0
 
-	# A plank that has stopped before lying down is leaning on something: a table edge at hip
-	# height, a counter, a wall. Pushing harder is wrong (it is past tipping, its weight is on the
-	# edge), and freezing it leaves a dead body standing at 30 degrees against furniture (nightly
-	# ragdoll-faceplant-upright-1, game-murder-mystery CI). It lets go instead, as it would on
-	# landing, and the jointed body slumps off the edge or down the wall.
+	# A plank stopped before lying down is leaning on something (a table edge, a wall). Pushing
+	# is wrong (past tipping), and freezing leaves it standing at 30 degrees, so it lets go as
+	# on landing and the jointed body slumps off.
 	if _jointed_on_land and not landed and _parts.size() == 1 \
 			and (_still_for >= PLANK_STALL_SECONDS or age >= PLANK_GIVE_UP_AGE) \
 			and absf(_parts[0].body.global_basis.y.dot(Vector3.UP)) > 0.55:

@@ -1,16 +1,9 @@
 class_name DotPlayerSpriteVisual
 extends DotPlayerCharVisual
 
-## The 2D implementation of dot-player-char's visual seam.
-##
-## [b]One [Sprite2D] per layer, all indexed by one frame number.[/b] That is the whole
-## design and it is why [DotPlayerSpriteDef] insists every overlay is cut on the same
-## grid as the base: an overlay with a different grid cannot share the index, and every
-## animation would then need a second table that somebody has to keep in step.
-##
-## The node does not animate. It exposes [method set_frame] and
-## [method set_facing_angle], and [DotPlayerAnimDriver] drives them — or a game
-## does, in four lines, if it has no use for an animation layer.
+## The 2D implementation of dot-player-char's visual seam: one [Sprite2D] per layer, all indexed by
+## one frame number, which is why [DotPlayerSpriteDef] cuts every overlay on the base's grid.
+## It does not animate; [DotPlayerAnimDriver] (or a game) calls [method set_frame] and [method set_facing_angle].
 
 ## Not [code]CHANNEL[/code]: the parent chain already has one.
 const SPRITE_CHANNEL := "player.sprite"
@@ -21,10 +14,8 @@ signal rebuilt(layers: int)
 @export var catalogue: DotPlayerSpriteCatalogue = null
 
 ## Material applied to every layer, for a game with a tint shader.
-##
-## This addon ships no shader on purpose: a shader is art, and an addon that shipped one
-## would be an addon with an opinion about a game's rendering. Above one tint channel,
-## supply one whose parameters match [member DotPlayerSpriteDef.tint_parameter].
+## No shader ships (a shader is art); above one tint channel, supply one whose parameters match
+## [member DotPlayerSpriteDef.tint_parameter].
 @export var layer_material: Material = null
 
 @export var hide_when_not_shown: bool = true
@@ -61,8 +52,6 @@ func _drawn_node() -> Node:
 func _anchor_class() -> StringName:
 	return &"Node2D"
 
-
-# --- The seam ---------------------------------------------------------------
 
 func apply_char(def: DotPlayerCharDef, look: DotPlayerCharLook) -> void:
 	if catalogue == null:
@@ -116,8 +105,6 @@ func attachment_names() -> Array[StringName]:
 	return out
 
 
-# --- Drawing ----------------------------------------------------------------
-
 ## Which row of the sheet — which state — is being drawn.
 func set_row(row: int) -> void:
 	if row == _row:
@@ -137,10 +124,8 @@ func set_frame(frame: int) -> void:
 
 
 ## Which way the character is pointing, in radians.
-##
-## Takes the angle rather than a direction index so that a caller never has to know how
-## the sheet was cut. The mirror flag comes back out of
-## [method DotPlayerSpriteFacing.resolve] and is applied here.
+## Takes an angle so callers never need to know how the sheet was cut; the mirror flag from
+## [method DotPlayerSpriteFacing.resolve] is applied here.
 func set_facing_angle(angle: float) -> void:
 	if _def == null:
 		return
@@ -171,8 +156,6 @@ func facing() -> DotPlayerSpriteFacing.Facing:
 func def() -> DotPlayerSpriteDef:
 	return _def
 
-
-# --- Building ---------------------------------------------------------------
 
 func _rebuild() -> void:
 	for child in _root.get_children():
@@ -246,10 +229,8 @@ func _set_region(sprite: Sprite2D, rect: Rect2i, flip: bool, offset: Vector2) ->
 	sprite.position = offset
 
 	if flip:
-		# The anchor is measured from the left, so flipping about the node's origin
-		# moves the sprite by its own width. Without this a mirrored character walks
-		# with its feet a frame-width to the side, which reads as the collision being
-		# offset rather than as the sprite.
+		# The anchor is measured from the left, so flipping about the origin shifts the sprite by
+		# its width, which reads as the collision being offset.
 		sprite.position.x += float(rect.size.x)
 
 

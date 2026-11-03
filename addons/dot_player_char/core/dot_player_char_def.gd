@@ -3,17 +3,8 @@ class_name DotPlayerCharDef
 extends Resource
 
 ## One character: how big it is, what it is called, and which content it names.
-##
-## [b]The body metrics are the reason this is not just a cosmetic.[/b] A character's
-## height decides the collision capsule, the eye height decides where the camera and the
-## muzzle are, the crouch height decides whether it fits under a vent — and every one of
-## those is read by a different addon. Keeping them in the same document as the model id
-## is what stops a game shipping a character that is visibly two metres tall and
-## collides as if it were 1.8.
-##
-## Everything else is an id. A server has to be able to say "that is not a legal
-## character" without loading a mesh, which is dot-user-avatar's rule and dot-loadout's
-## and dot-player-class's, for the same reason.
+## The body metrics live here with the model id so a character cannot look two metres tall and
+## collide as 1.8. Everything else is an id, so a server can reject an illegal character without loading a mesh.
 
 ## The name everything else uses.
 @export var id: StringName = &""
@@ -25,9 +16,7 @@ extends Resource
 @export_group("Body")
 
 ## Standing height, in metres. In 2D, in pixels.
-##
-## [b]Read by at least four things[/b]: the collision capsule, the crouch test, the
-## camera height and the hitbox layout. One number, one place.
+## Read by the collision capsule, the crouch test, the camera height and the hitbox layout.
 @export_range(0.1, 10.0, 0.01, "or_greater") var height: float = 1.8
 
 ## Height while crouched.
@@ -37,10 +26,7 @@ extends Resource
 @export_range(0.05, 5.0, 0.01, "or_greater") var radius: float = 0.35
 
 ## Eye height above the feet, standing.
-##
-## Not a fraction of [member height]: the fraction is different for a tall thin
-## character and a short wide one, and a game that computed it would have every
-## character's camera in slightly the wrong place.
+## Not a fraction of [member height]: the fraction differs for a tall thin and a short wide character.
 @export_range(0.05, 10.0, 0.01, "or_greater") var eye_height: float = 1.65
 
 ## Eye height while crouched.
@@ -50,10 +36,8 @@ extends Resource
 @export_range(1.0, 10000.0, 1.0) var mass: float = 80.0
 
 ## Multiplier on how big a target this character is, for a game that wants one.
-##
-## Separate from [member radius] because a hitbox is not a collision hull: a character
-## can be harder to hit than it is to walk into, which is how an asymmetric mode makes a
-## large character viable.
+## Separate from [member radius] because a hitbox is not a collision hull: a character can be
+## harder to hit than to walk into.
 @export_range(0.1, 5.0, 0.01) var hitbox_scale: float = 1.0
 
 @export_group("Content ids")
@@ -76,16 +60,11 @@ extends Resource
 @export_group("Customisation")
 
 ## Named slots a player may change: [code]{"hat": ["none", "cap"], ...}[/code].
-##
-## Values are ids, never scenes. A slot with no options is a slot nothing can be put in,
-## which is how a character is made fixed without a second flag.
+## Values are ids, never scenes. A slot with no options is how a character is made fixed.
 @export var slots: Dictionary = {}
 
-## How many tintable colour channels this character has.
-##
-## Zero means it cannot be recoloured. Bounded on purpose: a document that may carry an
-## arbitrary number of colours is a document a client can make arbitrarily large, and a
-## server validating one has to have a limit to check against.
+## How many tintable colour channels this character has. Zero means it cannot be recoloured.
+## Bounded so a client cannot make the document arbitrarily large and a server has a limit to check.
 @export_range(0, 8, 1) var colour_channels: int = 0
 
 @export_group("Availability")
@@ -210,11 +189,8 @@ func height_for(crouched: bool) -> float:
 
 
 ## Builds the collision shape this character should have.
-##
-## A capsule because that is what every character controller in this family assumes —
-## a box catches on corners and a cylinder has no standard Godot character body. The
-## returned shape is fresh each time: a [Shape3D] handed to two bodies is shared by
-## them, and resizing one resizes the other.
+## A capsule, as every character controller here assumes. Fresh each time: a [Shape3D] given to two
+## bodies is shared, and resizing one resizes the other.
 func capsule_3d(crouched: bool = false) -> CapsuleShape3D:
 	var shape := CapsuleShape3D.new()
 	shape.radius = radius

@@ -65,8 +65,6 @@ func _def() -> DotPlayerSpriteDef:
 	return s
 
 
-# --- The definition ---------------------------------------------------------
-
 func _test_def() -> void:
 	_section("a sprite definition")
 
@@ -402,8 +400,6 @@ func _test_placement() -> void:
 	loose_parent.queue_free()
 	await get_tree().process_frame
 
-
-# --- Harness ---------------------------------------------------------------
 
 func _section(title: String) -> void:
 	_section_count += 1

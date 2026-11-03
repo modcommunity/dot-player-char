@@ -127,8 +127,6 @@ func _to_string() -> String:
 	return describe()
 
 
-# --- Presets ----------------------------------------------------------------
-
 ## One character with the metrics a first-person shooter assumes.
 ##
 ## 1.8 m standing, 1.0 m crouched, 0.35 m radius, eyes at 1.65 — the numbers behind

@@ -3,12 +3,8 @@ class_name DotPlayerSpriteDef
 extends Resource
 
 ## A 2D character: which sheets, how they are cut, and how many ways it can face.
-##
-## [b]The frame arithmetic is the part worth having in one place.[/b] A sheet is a grid,
-## a state is a row, a direction is an offset within the row, and a frame is a column —
-## and every project writes that four-line calculation three times, once per layer,
-## with the rows and columns swapped in one of them. Here it is
-## [method frame_index] and everything asks it.
+## The frame arithmetic (a state is a row, a direction an offset, a frame a column) lives in
+## [method frame_index] so every layer asks it instead of rewriting it with rows and columns swapped.
 
 ## The name everything else uses.
 @export var id: StringName = &""
@@ -25,10 +21,8 @@ extends Resource
 @export var frame_size: Vector2i = Vector2i(32, 32)
 
 ## How many columns the sheet has.
-##
-## Given rather than derived from the texture width, because a server, a validator and
-## an editor tool all want to reason about the sheet without loading it — and because a
-## sheet with padding on the right would derive a column too many.
+## Given, not derived from the texture width, so a server or editor tool can reason about the sheet
+## without loading it, and padding on the right does not add a column.
 @export_range(1, 512, 1) var columns: int = 8
 
 ## How many rows.
@@ -37,17 +31,12 @@ extends Resource
 @export_group("Facing")
 
 ## How many directions the sheet draws: 1, 2, 4 or 8.
-##
-## [b]Not free-form.[/b] Those are the four a sheet is ever actually cut for, and a
-## number that is not one of them silently produces a facing calculation that lands
-## between two rows.
+## Not free-form: any other number gives a facing calculation that lands between two rows.
 @export_enum("1", "2", "4", "8") var directions: int = 2
 
 ## Whether the left-facing frames are the right-facing ones, flipped.
-##
-## The standard saving on a four- or eight-way sheet: draw five directions, mirror three.
-## [method DotPlayerSpriteFacing.resolve] returns the flip along with the index, so
-## nothing downstream has to know which directions were drawn and which were derived.
+## Saves drawing three directions on a four- or eight-way sheet; [method DotPlayerSpriteFacing.resolve]
+## returns the flip so nothing downstream knows which were drawn.
 @export var mirror_left: bool = true
 
 ## The direction index the sheet starts at. 0 is usually "down" or "right".
@@ -56,10 +45,8 @@ extends Resource
 @export_group("Drawing")
 
 ## Where the sprite's origin sits within a frame, as a fraction.
-##
-## [code](0.5, 1.0)[/code] — bottom centre — is right for a character standing on the
-## ground, and is the default for that reason: a sprite anchored at its middle sinks
-## into the floor by half its height, which reads as a collision bug.
+## Bottom centre (0.5, 1.0) is the default: a sprite anchored at its middle sinks into the floor
+## by half its height, which reads as a collision bug.
 @export var anchor: Vector2 = Vector2(0.5, 1.0)
 
 ## Integer scale. Fractional scaling of pixel art is the thing to avoid here.
@@ -74,10 +61,8 @@ extends Resource
 @export_group("Layers")
 
 ## slot id -> overlay sheet path. Drawn over the base, cut identically.
-##
-## Identically is the constraint that makes layered 2D characters work at all: an
-## overlay whose grid does not match the base cannot be indexed by the same frame
-## number, and every animation would need a second table.
+## An overlay on a different grid cannot share the base's frame index, and every animation would
+## need a second table.
 @export var layers: Dictionary = {}
 
 ## slot id -> draw order. Higher is in front.
@@ -86,9 +71,7 @@ extends Resource
 @export_group("Tinting")
 
 ## How many tint channels. 0 is none, 1 is [member CanvasItem.modulate].
-##
-## Above one needs a shader, which this addon does not ship: it writes the parameters
-## and a game supplies the material. Shipping a shader would mean shipping art.
+## Above one needs a shader, which this addon does not ship (a shader is art).
 @export_range(0, 8, 1) var tint_channels: int = 1
 
 @export var tint_parameter: String = "dot_tint_"
@@ -151,11 +134,8 @@ func direction_count() -> int:
 
 
 ## Which cell in the sheet, given a row, a direction and a frame.
-##
-## [b]The four lines every project writes three times.[/b] Rows are states, a direction
-## offsets the row, and the frame is the column. Clamped rather than wrapped: a frame
-## past the end of a row is a content error, and wrapping it draws the start of the
-## animation in the middle of it, which reads as a stutter rather than as a mistake.
+## Clamped, not wrapped: a frame past the end of a row is a content error, and wrapping draws the
+## start of the animation mid-way, which reads as a stutter instead of a mistake.
 func frame_index(row: int, direction: int, frame: int) -> int:
 	var d := direction_count()
 	var effective_row := clampi(row * d + direction, 0, maxi(0, rows - 1))

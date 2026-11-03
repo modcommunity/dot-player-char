@@ -2,34 +2,16 @@ class_name DotPlayerCharVisual
 extends Node
 
 ## The seam between "who this character is" and "what is drawn".
-##
-## [b]One abstract node, three implementations, and the reason none of them is
-## required.[/b] [DotPlayerModelVisual] builds a 3D rig, [DotPlayerSpriteVisual] builds
-## a 2D one, and a game with its own art pipeline writes a third — and a project that
-## deletes the two it does not want still has this one. A game that ships no art at all still gets the metrics, the
-## customisation document and the validation, which is most of the value.
-##
-## Overriding is four methods, and the first is the only compulsory one.
+## Implemented by [DotPlayerModelVisual] (3D) and [DotPlayerSpriteVisual] (2D); a game with its own art
+## writes a third, and a game with no art still gets the metrics, customisation and validation.
 
 ## Whether this visual is currently being drawn.
-##
-## Set by [DotPlayerChar] rather than by the game: a character's first-person self and
-## its third-person body are two visuals under one player, and exactly one of them being
-## visible to the local player is the whole reason this is a property and not a call.
+## Set by [DotPlayerChar]: first-person self and third-person body are two visuals, and only one shows.
 @export var visual_enabled: bool = true
 
-## Where the drawn node hangs. Unset, the nearest ancestor of the kind that can place it —
-## a [Node3D] for a 3D visual, a [Node2D] for a 2D one — which is the player body in every
-## game shaped the ordinary way.
-##
-## [b]Why the drawn node does not simply stay a child of this one.[/b] A visual is a plain
-## [Node]: it is a behaviour, not a place. A [Node3D] whose parent is not a [Node3D] inherits
-## nobody's transform — it is placed in world space — so a rig kept here stood at the world
-## origin whatever its player did, and a 2D sheet stood at the canvas origin the same way.
-## game-playground drew every body at (0, 0, 0) for as long as it had bodies, hidden only
-## because its lobby spawn is the origin, and worked round it from the game. The drawn node
-## is moved onto the anchor instead, and this visual keeps its reference, so everything it
-## offers — hiding, mounts, tints, a rebuild — still reaches it.
+## Where the drawn node hangs. Unset, the nearest ancestor that can place it ([Node3D] or [Node2D]).
+## The drawn node moves onto the anchor because a visual is a plain [Node]: a [Node3D] under it would
+## sit at the world origin whatever its player did. This visual keeps the reference.
 @export var anchor_ref: DotNodeRef = null
 
 ## Not [code]CHANNEL[/code]: the parent chain already has one.
@@ -39,46 +21,35 @@ var _seat_pending := false
 
 
 ## Called when the character, or the look, changes. Must be safe to call repeatedly.
-##
-## [b]Repeatedly matters.[/b] A player editing their character in a menu calls this
-## several times a second, so an implementation that appends rather than replaces grows
-## a hat every frame — which is the bug dot-user-avatar's builder documents having
-## avoided by clearing each slot before rebuilding it.
+## An editing menu calls it several times a second, so an implementation that appends rather than
+## replaces grows a hat every frame.
 func apply_char(_def: DotPlayerCharDef, _look: DotPlayerCharLook) -> void:
 	pass
 
 
 ## Called when the stance changes: standing, crouched, prone.
-##
-## Separate from [method apply_char] because it happens every time somebody ducks and
-## rebuilding a rig for that would be absurd.
+## Separate from [method apply_char] because rebuilding a rig on every duck would be absurd.
 func set_stance(_crouched: bool) -> void:
 	pass
 
 
 ## Called when the character should or should not be drawn for the local viewer.
-##
-## Not the same as [member visual_enabled]: this is "the player is dead" or "the player
-## is behind a wall and interest management has dropped them", while the property is
-## "this is the wrong visual for the current camera".
+## Not [member visual_enabled]: this is dead or interest-managed away, that is the wrong visual
+## for the current camera.
 func set_shown(_shown: bool) -> void:
 	pass
 
 
 ## Where this visual thinks the eyes are, if it knows better than the definition.
-##
-## Returns a negative number by default, meaning "no opinion", and [DotPlayerChar] then
-## uses the definition's number. A rig with a real head bone can answer properly, which
-## is what makes a first-person camera line up with a third-person model.
+## Negative (the default) means no opinion and [DotPlayerChar] uses the definition's number; a rig
+## with a head bone answers so a first-person camera lines up with the model.
 func eye_offset() -> float:
 	return -1.0
 
 
 ## An attachment point by name, for a weapon, an effect or a nameplate.
-##
-## Null when the visual has no such point, which every caller must handle: a game
-## switching from models to sprites loses every bone, and a weapon that assumed one
-## would crash on the first frame of the 2D build.
+## Null when the visual has no such point, which every caller must handle: a sprite visual has no
+## bones.
 func attachment(_point: StringName) -> Node:
 	return null
 
@@ -86,8 +57,6 @@ func attachment(_point: StringName) -> Node:
 func attachment_names() -> Array[StringName]:
 	return []
 
-
-# --- Where the drawn node hangs ------------------------------------------------
 
 ## The node this visual draws into: what gets seated on the anchor. Null for a visual that
 ## draws nothing of its own, which is the default.
@@ -130,12 +99,8 @@ func is_seated() -> bool:
 
 
 ## Puts the drawn node on the anchor. Returns whether it is there now.
-##
-## Safe to call at any time. [b]It defers when the anchor is still readying its
-## children[/b] — the ordinary case when a whole player is added at once and this runs from
-## this visual's own [code]_ready[/code] — because Godot refuses [code]add_child[/code] on a
-## node that is part-way through setting up the ones it has, and says so with an error rather
-## than a result. Deferred, it lands before the frame is drawn.
+## Defers while the anchor is still readying its children, because Godot refuses [code]add_child[/code]
+## there with an error; deferred, it lands before the frame is drawn.
 func seat() -> bool:
 	var drawn := _drawn_node()
 

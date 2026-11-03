@@ -84,8 +84,6 @@ func _air(vertical: float) -> Dictionary:
 	return {"speed": 0.0, "on_floor": false, "vertical": vertical}
 
 
-# --- The state machine ------------------------------------------------------
-
 func _test_states() -> void:
 	_section("locomotion states")
 
@@ -219,8 +217,6 @@ func _test_hysteresis() -> void:
 	)
 
 
-# --- Clips ------------------------------------------------------------------
-
 func _test_clips() -> void:
 	_section("clips")
 
@@ -328,8 +324,6 @@ func _test_set() -> void:
 	_check(not DotPlayerAnimSet.new().build().ok, "and an empty one")
 	_check(set.describe_lines().size() == 12, "and a set describes itself")
 
-
-# --- The driver -------------------------------------------------------------
 
 func _test_driver() -> void:
 	_section("the driver")
@@ -524,8 +518,6 @@ func _test_sinks() -> void:
 	orphan.queue_free()
 	player.queue_free()
 
-
-# --- Harness ---------------------------------------------------------------
 
 func _test_foot_plant() -> void:
 	_section("foot plant")

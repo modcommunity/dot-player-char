@@ -159,7 +159,6 @@ func _test_body_break() -> void:
 	await get_tree().process_frame
 
 
-
 ## First person: the head stops drawing but keeps its shadow; the body moves back; restore undoes both.
 func _check_first_person_body(world: Node3D) -> void:
 	var mine := _break_body()
@@ -234,8 +233,6 @@ func _look(cap: bool = true, pack: bool = true) -> DotPlayerCharLook:
 	return l
 
 
-# --- The definition ---------------------------------------------------------
-
 func _test_def() -> void:
 	_section("a model definition")
 
@@ -305,8 +302,6 @@ func _test_catalogue() -> void:
 	)
 	_check(cat.describe_lines().size() == 2, "and a catalogue describes itself")
 
-
-# --- Planning ---------------------------------------------------------------
 
 func _test_plan() -> void:
 	_section("planning")
@@ -380,8 +375,6 @@ func _test_plan() -> void:
 	)
 	_check(DotPlayerModelBuilder.from_plan([1, 2, 3]).is_empty(), "nonsense converts to nothing")
 
-
-# --- Building ---------------------------------------------------------------
 
 func _test_build() -> void:
 	_section("building")
@@ -472,8 +465,6 @@ func await_free() -> void:
 	await get_tree().process_frame
 
 
-# --- The rig ----------------------------------------------------------------
-
 func _test_rig() -> void:
 	_section("the rig node")
 
@@ -538,8 +529,6 @@ func _test_rig() -> void:
 	missing.queue_free()
 	sceneless.queue_free()
 
-
-# --- The visual -------------------------------------------------------------
 
 func _test_visual() -> void:
 	_section("the visual")
@@ -746,8 +735,6 @@ func _test_placement() -> void:
 	loose_parent.queue_free()
 	await get_tree().process_frame
 
-
-# --- Harness ---------------------------------------------------------------
 
 func _section(title: String) -> void:
 	_section_count += 1

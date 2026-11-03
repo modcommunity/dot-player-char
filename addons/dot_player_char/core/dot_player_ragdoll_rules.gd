@@ -146,8 +146,6 @@ static func style_from(text: String) -> int:
 	return at
 
 
-# --- Server cvars ------------------------------------------------------------
-
 ## The cvars [method bind_cvars] makes: name, current value, description, and a range when it
 ## has one.
 func cvar_specs() -> Array[Dictionary]:

@@ -2,20 +2,8 @@ class_name DotPlayerAnimDriver
 extends DotPlayerComponent
 
 ## Decides what should be playing, and tells every sink under it.
-##
-## [b]The decision and the playing are separate, and the decision is pure.[/b] A
-## locomotion state comes out of [DotPlayerAnimState] given a description of the motion;
-## a clip comes out of [DotPlayerAnimSet] given the state; and a sink makes it happen.
-## So a headless server can run the same state machine as a client and check what it
-## claims to be doing — which is the only way an animation-driven hitbox is ever
-## trustworthy — and a suite can exercise the whole of it with no rig at all.
-##
-## [codeblock]
-## DotPlayer
-##   DotPlayerChar
-##   DotPlayerAnimDriver            set = DotPlayerAnimSet.locomotion()
-##     DotPlayerAnimPlayerSink      (3D)   or  DotPlayerAnimSpriteSink (2D)
-## [/codeblock]
+## The decision is pure ([DotPlayerAnimState] then [DotPlayerAnimSet]) and a sink plays it, so a
+## headless server runs the same state machine as a client and a suite needs no rig.
 
 ## Not [code]CHANNEL[/code]: [DotPlayerComponent] already declares one.
 const ANIM_CHANNEL := "player.anim"
@@ -30,18 +18,13 @@ signal action_started(action: StringName)
 signal action_finished(action: StringName, interrupted: bool)
 
 ## A clip event fired: a footstep, a muzzle flash, a shell ejecting.
-##
-## [b]Emitted from the clip's own timeline, not from a [Timer].[/b] A footstep played on
-## a wall clock drifts out of step with the animation the moment the frame rate changes,
-## and the mismatch is the kind of thing everybody notices and nobody can describe.
+## Emitted from the clip's own timeline, not a [Timer], which drifts when the frame rate changes.
 signal clip_event(event: StringName, elapsed: float)
 
 @export var anim_set: DotPlayerAnimSet = null
 
 ## Whether to run the state machine from the player's body every frame.
-##
-## Off for a game that computes its own motion description and calls
-## [method drive] itself — which is what a server replaying commands does.
+## Off for a game that computes its own motion and calls [method drive], as a replaying server does.
 @export var auto_drive: bool = true
 
 ## The state machine. Exposed so a game can retune the thresholds.
@@ -68,8 +51,6 @@ func _process(delta: float) -> void:
 
 	drive(_motion_from_body(), delta)
 
-
-# --- Driving ----------------------------------------------------------------
 
 ## One frame. [param motion] is whatever the caller knows; see [DotPlayerAnimState].
 ##
@@ -112,10 +93,7 @@ func drive(motion: Dictionary, delta: float) -> DotPlayerAnimClip:
 
 
 ## Starts a one-shot: an attack, a reload, a gesture.
-##
-## Returns a failure for an action the set has no clip for, rather than silently doing
-## nothing — an animation that never plays is invisible, and the report is usually
-## "the reload does not work".
+## Fails for an action the set has no clip for, because a clip that never plays is invisible.
 func play_action(action: StringName) -> DotResult:
 	if anim_set == null or not anim_set.has_clip(action):
 		return DotResult.fail(
@@ -184,8 +162,6 @@ func forget_state() -> void:
 		sink.stop()
 
 
-# --- Reading ----------------------------------------------------------------
-
 func state() -> StringName:
 	return states.state() if states != null else &""
 
@@ -227,8 +203,6 @@ func describe_lines() -> PackedStringArray:
 	return out
 
 
-# --- Internals --------------------------------------------------------------
-
 func _advance_clip(delta: float) -> void:
 	if _clip == null:
 		return
@@ -268,10 +242,8 @@ func _advance_action(delta: float) -> void:
 
 
 ## Reads the motion out of the player's body, for the automatic case.
-##
-## Everything it cannot work out is left out of the dictionary rather than guessed, so
-## [DotPlayerAnimState]'s defaults apply — which is why a game with a body that is not a
-## [CharacterBody3D] still gets idle and walk rather than nothing.
+## What it cannot work out is left out, not guessed, so [DotPlayerAnimState] defaults apply and a
+## body that is not a [CharacterBody3D] still gets idle and walk.
 func _motion_from_body() -> Dictionary:
 	var motion: Dictionary = {}
 
@@ -304,10 +276,7 @@ func _motion_from_body() -> Dictionary:
 
 
 ## The heading of a 2D velocity, keeping the previous one when it is standing still.
-##
-## [DotPlayerSpriteFacing.angle_of] is the same question and is in this addon, so it is
-## asked rather than re-answered. It was a duplicate while the sprite half was a
-## separate addon a 3D game would not have installed; it is not one now.
+## Asks [DotPlayerSpriteFacing.angle_of] rather than re-answering it.
 func _heading_of(velocity: Vector2) -> float:
 	return DotPlayerSpriteFacing.angle_of(velocity, _facing)
 

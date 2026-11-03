@@ -83,8 +83,6 @@ class StubVisual extends DotPlayerCharVisual:
 		return [&"head"]
 
 
-# --- Metrics ----------------------------------------------------------------
-
 func _test_metrics() -> void:
 	_section("body metrics")
 
@@ -234,8 +232,6 @@ func _test_catalogue() -> void:
 	_check(std.describe_lines().size() == 2, "and a catalogue describes itself")
 
 
-# --- The look document ------------------------------------------------------
-
 func _test_look() -> void:
 	_section("the customisation document")
 
@@ -318,8 +314,6 @@ func _test_look() -> void:
 	_check(stale.chosen(&"back") == &"pack", "a copy is a copy")
 	_check(stale.describe().contains("medium"), "and it describes itself")
 
-
-# --- The node ---------------------------------------------------------------
 
 func _test_node() -> void:
 	_section("the component")
@@ -497,8 +491,6 @@ func _test_visuals() -> void:
 	head.queue_free()
 	player.queue_free()
 
-
-# --- Harness ---------------------------------------------------------------
 
 func _section(title: String) -> void:
 	_section_count += 1

@@ -2,20 +2,8 @@ class_name DotPlayerChar
 extends DotPlayerComponent
 
 ## Which character a player is, and the one place everything asks about their body.
-##
-## [b]This node owns the metrics, and that is what makes it worth having.[/b] The
-## collision capsule, the crouch test, the camera height, the hitbox layout and the
-## third-person model are five things that have to agree about how tall somebody is, and
-## in most projects they agree by five separate numbers that were the same on the day
-## they were typed.
-##
-## [codeblock]
-## DotPlayer
-##   CharacterBody3D
-##     CollisionShape3D          sized by apply_to_body()
-##   DotPlayerChar               char_id = &"medium"
-##     DotPlayerModelVisual      or a sprite visual, or none at all
-## [/codeblock]
+## Capsule, crouch test, camera height, hitboxes and model must agree on height, so they ask here.
+## Children: a [DotPlayerCharVisual] (model, sprite or none); [method apply_to_body] sizes the capsule.
 
 ## Not [code]CHANNEL[/code]: [DotPlayerComponent] declares one already.
 const CHAR_CHANNEL := "player.char"
@@ -38,10 +26,7 @@ signal stance_changed(crouched: bool)
 		_refresh()
 
 ## Whether to resize the player's collision shape when the character changes.
-##
-## On: a character that is visibly two metres tall and collides as if it were 1.8 is the
-## exact bug the metrics live in one place to prevent. Off for a game whose bodies are
-## built by hand and whose characters are all the same size.
+## Off for a game whose bodies are built by hand and are all the same size.
 @export var size_body: bool = true
 
 ## Whether to keep the roster's [code]char_id[/code] in step with this node.
@@ -54,11 +39,8 @@ var _crouched: bool = false
 
 
 func _ready() -> void:
-	# A visual added after this node has already bound would otherwise never be told
-	# what to draw: `_push_to_visuals` runs during the bind, and at that moment the
-	# visual is not a child yet. A game that instances its character and then attaches
-	# a first-person arms rig — which is the ordinary way round — would see an empty
-	# player and debug it in the renderer.
+	# A visual attached after the bind (the usual order for first-person arms) is told
+	# what to draw only by this signal; the bind-time push ran before it existed.
 	child_entered_tree.connect(_on_child_entered)
 	super()
 
@@ -81,15 +63,10 @@ func _on_bound(_p: DotPlayer) -> void:
 
 
 ## Pushes the current character and look at every visual again.
-##
-## Called automatically when a visual is added; public for a game that swaps a visual's
-## catalogue at runtime, where nothing about the character has changed and so nothing
-## else would prompt a redraw.
+## Public for a game that swaps a visual's catalogue at runtime.
 func refresh_visuals() -> void:
 	_push_to_visuals()
 
-
-# --- The character ----------------------------------------------------------
 
 ## The definition in force, or null when there is no catalogue.
 func def() -> DotPlayerCharDef:
@@ -113,11 +90,8 @@ func set_char(new_id: StringName) -> DotResult:
 
 
 ## Replaces the look, conforming it rather than refusing it.
-##
-## Conform rather than validate because this is the loading path: somebody's saved
-## character after the hat they chose was removed from the game should lose the hat,
-## not be locked out of playing. The trust boundary — a look arriving from a client —
-## is the game's [method DotPlayerCharLook.validate] call, not this.
+## Conform, not validate: this is the loading path, and a saved character whose hat was
+## removed should lose the hat, not be locked out. Validating a client's look is the game's call.
 func set_look(new_look: DotPlayerCharLook) -> int:
 	look = new_look if new_look != null else DotPlayerCharLook.make(char_id)
 	look.char_id = char_id
@@ -132,8 +106,6 @@ func set_look(new_look: DotPlayerCharLook) -> int:
 	char_changed.emit(_def)
 	return dropped
 
-
-# --- Stance -----------------------------------------------------------------
 
 ## Standing or crouched. Drives the capsule, the eye height and every visual.
 func set_crouched(crouched: bool) -> void:
@@ -155,8 +127,6 @@ func is_crouched() -> bool:
 	return _crouched
 
 
-# --- Metrics ----------------------------------------------------------------
-
 ## How tall this player is right now.
 func height() -> float:
 	return _def.height_for(_crouched) if _def != null else 1.8
@@ -167,10 +137,8 @@ func radius() -> float:
 
 
 ## Where the eyes are above the feet, right now.
-##
-## Asks the visual first: a rig with a real head bone knows better than a number in a
-## resource, and the two disagreeing is what makes a first-person camera float above a
-## third-person model's shoulders.
+## Asks the visual first: a head bone knows better than a resource number, and the two
+## disagreeing floats a first-person camera above the third-person shoulders.
 func eye_height() -> float:
 	for v in visuals():
 		if not v.visual_enabled:
@@ -193,20 +161,13 @@ func hitbox_scale() -> float:
 
 
 ## The eye transform, given where the feet are and where the player is looking.
-##
-## One function so a first-person camera, a muzzle and a lag-compensated trace all get
-## the same answer. Getting three slightly different answers is how a shot comes out of
-## somewhere the player cannot see.
+## One function so camera, muzzle and lag-compensated trace get the same answer.
 func eye_transform(feet: Transform3D, look_basis: Basis) -> Transform3D:
 	return Transform3D(look_basis, feet.origin + Vector3.UP * eye_height())
 
 
-# --- The body ---------------------------------------------------------------
-
 ## Sizes the player's collision shape to this character.
-##
-## Called automatically on every change when [member size_body] is on. Public because a
-## game that builds its body later needs to ask for it once the shape exists.
+## Public for a game that builds its body after the character is set.
 func apply_to_body() -> DotResult:
 	return _size_body()
 
@@ -251,8 +212,6 @@ func _size_body() -> DotResult:
 	return DotResult.success(null)
 
 
-# --- Visuals ----------------------------------------------------------------
-
 ## Every visual under this node.
 func visuals() -> Array[DotPlayerCharVisual]:
 	var out: Array[DotPlayerCharVisual] = []
@@ -266,10 +225,8 @@ func visuals() -> Array[DotPlayerCharVisual]:
 
 
 ## Turns exactly one visual on and the rest off.
-##
-## What a game calls when the camera changes: a first-person arms rig and a third-person
-## body are two visuals under one player, and both being drawn is the bug where you can
-## see your own head.
+## For camera changes: a first-person rig and a third-person body are both under one
+## player, and drawing both shows you your own head.
 func use_visual(which: DotPlayerCharVisual) -> void:
 	for v in visuals():
 		v.visual_enabled = v == which
@@ -297,8 +254,6 @@ func attachment(point: StringName) -> Node:
 	return null
 
 
-# --- Internals --------------------------------------------------------------
-
 func _refresh() -> void:
 	if catalogue == null:
 		_def = null
@@ -308,10 +263,8 @@ func _refresh() -> void:
 		var fallback := catalogue.fallback_for(_team(), _class())
 
 		if fallback != null:
-			# This goes back through the setter, which calls this function again — one
-			# level, and it terminates because a fallback id is never empty so the
-			# branch is not taken twice. Returning here rather than falling through is
-			# what keeps it to one level.
+			# Goes back through the setter, one level only: a fallback id is never empty.
+			# Returning here rather than falling through keeps it to that one level.
 			char_id = fallback.id
 
 		return

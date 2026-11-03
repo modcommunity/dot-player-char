@@ -1,15 +1,9 @@
 class_name DotHumanoidClips
 extends RefCounted
 
-## The family's clip set for skinned people: which clips exist, which loop, carrying a clip set
-## from one skeleton to another, and the clips made from others (a held crouch, a crouch
-## walk, sitting, climbing and a swim stroke). Static and loads nothing itself; [DotHumanoidFigure]
-## hands it libraries.
-##
-## [b]One rig.[/b] The people (`people/`) and game-zombie-zone's zombies are one artist's rig with
-## the same bone names (Root, Body, Hips, Abdomen, Torso, Neck, Head, Shoulder/UpperArm/LowerArm
-## .L/.R, UpperLeg/LowerLeg/Foot .L/.R, fingers), so any clip made for one plays on all of them
-## once [method retarget] has moved it onto the other's rest pose. See docs/people.md.
+## The clip set for skinned people: which clips exist, which loop, retargeting between skeletons, and
+## the made clips (held crouch, sitting, climbing, swimming). Static; [DotHumanoidFigure] hands it libraries.
+## The people and game-zombie-zone's zombies share one rig's bone names, so a clip plays on all (docs/people.md).
 
 ## The clips the people carry, by the family's names. `duck` is the kit's one-shot dodge; the
 ## held crouch is made from its lowest frame ([method synthesise]).
@@ -72,10 +66,9 @@ const ROOTED_BONES: Array[String] = ["Body", "Foot.L", "Foot.R", "PoleTarget.L",
 const UPPER_BONES: Array[String] = ["Abdomen", "Torso", "Neck", "Head", "Shoulder.L", "UpperArm.L",
 	"LowerArm.L", "Shoulder.R", "UpperArm.R", "LowerArm.R"]
 
-## The bones an aim pitch bends, and each one's share of it. The waist and chest take a little
-## under a quarter (much more folds a cartoon-proportioned person in half: the first try gave them
-## two thirds and a player looking down was bowing), and the neck enough again for the head to
-## read as looking there. The hips and legs take none.
+## The bones an aim pitch bends, and each one's share of it. Waist and chest take a little under a
+## quarter (more folds a cartoon-proportioned person in half), the neck enough for the head to read
+## as looking there; hips and legs take none.
 const AIM_BONES := {"Abdomen": 0.1, "Torso": 0.12, "Neck": 0.25}
 
 ## The weapon arm's share, at the shoulder, when the hand holds something: with the chest's, the
@@ -112,13 +105,9 @@ static func library_of(scene: PackedScene) -> AnimationLibrary:
 
 
 ## [param library]'s clips, moved from a skeleton with rests [param from] onto [param to].
-##
-## [b]A clip stores where each bone is, not how far it moved.[/b] Two bodies on one rig still
-## differ in rest pose (a survivor's chest bone points up, a zombie's leans forward; even two
-## survivors differ at the shoulder), and a clip played as it is on the other body bends it at
-## the waist. What the animator made is the motion away from rest, so each key is taken off the
-## old rest and put on the new: rotation `to * from^-1 * key`, a position by the same turn about
-## the new rest. game-zombie-zone found it first (its docs/zombies.md).
+## A clip stores where each bone is, not how far it moved, and two bodies on one rig differ in rest
+## pose, so a clip played as-is bends the other body at the waist. Each key is taken off the old rest
+## and put on the new: rotation `to * from^-1 * key`, a position by the same turn about the new rest.
 static func retarget(library: AnimationLibrary, from: Dictionary, to: Skeleton3D) -> AnimationLibrary:
 	if library == null or to == null:
 		return library
@@ -154,19 +143,11 @@ static func retarget(library: AnimationLibrary, from: Dictionary, to: Skeleton3D
 	return out
 
 
-## [param library] (in place) turned left for right: every track of a `.L` bone becomes the
-## `.R` bone's and the other way round, and every key is reflected across the body's middle.
-## Returns it.
-##
-## [b]The kit's people are left-handed[/b]: every weapon in it hangs off the left hand, and its
-## gun and melee clips hold them there. The family's first-person view models are right-handed,
-## so a player seen by anybody else held the gun in the other hand from the one they saw it in.
-## Mirroring the whole set (not only the gun clips) keeps every clip one person: a right-handed
-## swing, wave and punch to go with the right-handed gun, and a walk is a walk either way.
-##
-## The rig is symmetric (each `.R` bone's rest is the `.L` bone's reflected across x = 0 in the
-## skeleton's space, to the thousandth), so a local pose mirrors on its own: with the reflection
-## `M`, `L'(b) = M L(mirror b) M`, a rotation's y and z negated and a position's x.
+## [param library] (in place) turned left for right: every `.L` track becomes the `.R` bone's and
+## every key is reflected across the body's middle. Returns it.
+## The kit's people are left-handed and the first-person view models right-handed, so mirroring the
+## whole set keeps every clip one person. The rig is symmetric, so a local pose mirrors on its own:
+## `L'(b) = M L(mirror b) M`, a rotation's y and z negated and a position's x.
 static func mirror(library: AnimationLibrary) -> AnimationLibrary:
 	if library == null:
 		return library
@@ -200,23 +181,11 @@ static func mirrored_bone(bone: String) -> String:
 
 
 ## Adds the made clips to [param library] (in place) and returns it: [constant CROUCH] and
-## [constant CROUCH_WALK], the idle and the walk with the kit's duck (at its lowest) added to the
-## body and legs; and the air clips with the body's own rise taken out.
-##
-## [b]Made, not drawn,[/b] because the kit has no crouch at all: its duck is a one-shot dodge with
-## both arms over the head, and held at its lowest it reads as somebody cowering, not crouching.
-## The bend is added as a change from the idle pose (`key * idle^-1 * duck` on each of
-## [constant CROUCH_BONES]' local rotations, the drop added to positions), so the idle's breathing
-## and the walk's stride are kept above and under it.
-##
-## [b]The jump and the fall lift the body in the clip[/b] (an in-place jump), and a player in the
-## air is already lifted by the game: drawn as it is, a falling player hung half a metre above
-## their own capsule. The body's height in [constant JUMP], [constant FALL] and [constant LAND] is
-## held at the idle's, and only allowed to go lower (the landing's squat).
-##
-## With [param skeleton] (the clip body's), also [constant SIT], [constant CLIMB] and
-## [constant SWIM], which need the bone hierarchy to pose: see [method _sat], [method _climbing]
-## and [method _swimming].
+## [constant CROUCH_WALK] (idle and walk with the kit's duck added to body and legs), and the air
+## clips with the body's own rise taken out. With [param skeleton], also [constant SIT],
+## [constant CLIMB] and [constant SWIM], which need the hierarchy to pose.
+## Made, not drawn: the kit's duck is a cowering dodge. The jump and fall lift the body in the clip,
+## and the game already lifts a player in the air, so height is held at the idle's and only lowered.
 static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -> AnimationLibrary:
 	if library == null or not library.has_animation(DUCK) or not library.has_animation(IDLE):
 		return library
@@ -260,12 +229,9 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 
 
 ## [param library] (in place) with each clip of [param real] put in place of the one of the same
-## name, loop mode set from [constant LOOPING]. Returns it.
-##
-## [param real] is `people/people_ual.res`: clips from Quaternius' Universal Animation Library,
-## baked onto the clip body's skeleton by `tools/ual_retarget.gd` and already right-handed, so
-## this runs after [method mirror] and [method synthesise]. Only a clip that reads better than
-## the made one is in the file (docs/people.md, "Real clips").
+## name, loop mode from [constant LOOPING]. Returns it.
+## [param real] is `people/people_ual.res`, baked by `tools/ual_retarget.gd` and already right-handed,
+## so this runs after [method mirror] and [method synthesise] (docs/people.md, "Real clips").
 static func adopt(library: AnimationLibrary, real: AnimationLibrary) -> AnimationLibrary:
 	if library == null or real == null:
 		return library
@@ -291,13 +257,9 @@ static func sit_height(library: AnimationLibrary, skeleton: Skeleton3D) -> float
 	return globals[hips].origin.y - globals[foot].origin.y
 
 
-## Sitting, made from the idle's first frame: the thighs laid forward level, the shins hanging
-## straight down with the feet flat on the floor under the knees, and the body dropped until they
-## are. The hips end at knee height. The kit has no seat; a rider drawn crouching was somebody
-## squatting over the cushion.
-##
-## The feet are not the shins' children on this rig (they hang off the root, for the kit's own
-## leg IK, which nothing here runs), so each is put where its shin now ends, and the knee pole
+## Sitting, made from the idle's first frame: thighs level, shins straight down with feet flat
+## under the knees, body dropped until they are. The kit has no seat.
+## The feet hang off the root on this rig, so each is put where its shin ends, and the knee pole
 ## targets move with the knees.
 static func _sat(idle: Animation, skeleton: Skeleton3D) -> Animation:
 	var g := _globals(_locals(idle, 0.0, skeleton), skeleton)
@@ -326,11 +288,9 @@ static func _sat(idle: Animation, skeleton: Skeleton3D) -> Animation:
 	return made
 
 
-## Climbing a ladder, made from the idle (its breathing kept): one knee lifted to the next rung
-## while the other leg straightens, and the arms reaching up over the head, the hand on the side
-## of the straight leg the higher (people climb with opposite hand and foot). One second a cycle;
-## the figure plays it as fast as the player climbs. The kit has none; the crawl it played before
-## was a body lying on its front, drawn upright on a ladder.
+## Climbing a ladder, made from the idle (breathing kept): one knee lifted while the other leg
+## straightens, arms reaching up, opposite hand and foot. One second a cycle, played as fast as the
+## player climbs. The kit has none.
 static func _climbing(idle: Animation, skeleton: Skeleton3D) -> Animation:
 	var made := Animation.new()
 	made.length = 1.0
@@ -390,17 +350,10 @@ static func _climbing(idle: Animation, skeleton: Skeleton3D) -> Animation:
 const SWIM_CYCLE := 1.6
 
 
-## A front crawl, made from the idle and drawn UPRIGHT: [DotHumanoidFigure] lays the whole figure
-## forward about the hips ([constant DotHumanoidFigure.SWIM_LEAN]), so this clip's "up" is ahead
-## of the swimmer, its "front" is down into the water and its "back" is up out of it.
-##
-## In that frame a crawl is a windmill: each arm goes round the body's side, up (the reach),
-## front (the catch and pull, under the chest, elbow bent), down to the thigh (the finish) and
-## back (the recovery over the water, elbow high and wide), the two arms half a turn apart. The
-## body rolls about the spine towards the pulling arm and the head turns with it to breathe on
-## one side. The legs flutter from the hip, three kicks per arm, knees a little bent and toes
-## pointed. One stroke cycle is [constant SWIM_CYCLE] seconds; the figure plays it faster with
-## speed. The kit has no swim; the stand-in before was the run, slowed and leaned forward.
+## A front crawl, made from the idle and drawn UPRIGHT: [DotHumanoidFigure] lays the figure forward
+## ([constant DotHumanoidFigure.SWIM_LEAN]), so this clip's "up" is ahead of the swimmer and its
+## "front" is down into the water. In that frame each arm windmills (reach, catch, finish, recovery),
+## the body rolls to breathe, and the legs flutter. One cycle is [constant SWIM_CYCLE] seconds.
 static func _swimming(idle: Animation, skeleton: Skeleton3D) -> Animation:
 	var made := Animation.new()
 	made.length = SWIM_CYCLE
