@@ -61,7 +61,7 @@ Paths under `core/`, `nodes/` and `people/` are in `addons/dot_player_char/`; `t
 
 ## Running and testing
 
-The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything)), then **all six** suites: `char_selftest.tscn`, `model_selftest.tscn`, `sprite_selftest.tscn`, `anim_selftest.tscn`, `ragdoll_selftest.tscn`, `people_selftest.tscn` under `res://examples/`. What people look like and how they fall is only seen in `xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--looks|--ragdoll]` ([docs/people.md](docs/people.md#looking-at-them)). The ragdoll suite runs real physics and takes about fifteen seconds; what a fall looks like is only seen in a rendered sequence ([docs/ragdolls.md](docs/ragdolls.md#looking-at-one)). The first is the main scene, and the one a careless check runs alone.
+The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything)), then **all seven** suites: `hitbox_selftest.tscn`, `char_selftest.tscn`, `model_selftest.tscn`, `sprite_selftest.tscn`, `anim_selftest.tscn`, `ragdoll_selftest.tscn`, `people_selftest.tscn` under `res://examples/`. What people look like and how they fall is only seen in `xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--looks|--ragdoll]` ([docs/people.md](docs/people.md#looking-at-them)). The ragdoll suite runs real physics and takes about fifteen seconds; what a fall looks like is only seen in a rendered sequence ([docs/ragdolls.md](docs/ragdolls.md#looking-at-one)). The first is the main scene, and the one a careless check runs alone.
 
 ## Rules that bite
 
