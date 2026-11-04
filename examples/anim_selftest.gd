@@ -97,7 +97,11 @@ func _test_states() -> void:
 		"and so is crouching along"
 	)
 
-	# Air, with the grace window.
+	_test_states_air(s)
+
+
+func _test_states_air(s: DotPlayerAnimState) -> void:
+	# The air has a grace window.
 	s.forget_state()
 	_check(
 		s.advance(_air(0.0), 0.016) == DotPlayerAnimState.IDLE,
@@ -463,6 +467,12 @@ func _test_sinks() -> void:
 	driver.drive(_ground(0.0), 0.016)
 	_check(stub.row == 0, "stopping resets the sink, so the next frame sets everything")
 
+	await _test_sinks_player(player, driver, sprite_sink)
+
+
+func _test_sinks_player(
+	player: DotPlayer, driver: DotPlayerAnimDriver, sprite_sink: DotPlayerAnimSpriteSink
+) -> void:
 	# The AnimationPlayer sink, against a real one.
 	var anim_player := AnimationPlayer.new()
 	var library := AnimationLibrary.new()

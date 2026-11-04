@@ -270,7 +270,11 @@ func _test_look() -> void:
 	)
 	_check(not DotPlayerCharLook.new().validate(null).ok, "with nothing to check against")
 
-	# Conform, which is the loading path rather than the trust boundary.
+	_test_look_conform(def)
+
+
+func _test_look_conform(def: DotPlayerCharDef) -> void:
+	# Conform is the loading path rather than the trust boundary.
 	var stale := DotPlayerCharLook.make(&"medium")
 	stale.choose(&"head", &"crown")
 	stale.choose(&"back", &"pack")
@@ -358,24 +362,7 @@ func _test_node() -> void:
 		+ "both know"
 	)
 
-	ch.set_crouched(true)
-	_check(ch.is_crouched(), "crouching is recorded")
-	_check(is_equal_approx(ch.height(), ch.def().crouch_height), "the height follows")
-	_check(ch.eye_height() < ch.def().eye_height, "and so do the eyes")
-	_check(
-		is_equal_approx((shape.shape as CapsuleShape3D).height, ch.def().crouch_height),
-		"and the capsule"
-	)
-	ch.set_crouched(false)
-
-	_check(ch.set_char(&"heavy").ok, "the character can be changed")
-	_check(is_equal_approx(ch.height(), 2.0), "and the metrics change with it")
-	_check(
-		is_equal_approx((shape.shape as CapsuleShape3D).height, 2.0),
-		"and so does the hull, so a character that looks two metres tall is two metres "
-		+ "tall"
-	)
-	_check(not ch.set_char(&"nonexistent").ok, "an unknown character is refused")
+	_test_node_stance(ch, shape)
 
 	var eye := ch.eye_transform(Transform3D.IDENTITY, Basis.IDENTITY)
 	_check(
@@ -394,6 +381,27 @@ func _test_node() -> void:
 
 	player.queue_free()
 	roster.queue_free()
+
+
+func _test_node_stance(ch: DotPlayerChar, shape: CollisionShape3D) -> void:
+	ch.set_crouched(true)
+	_check(ch.is_crouched(), "crouching is recorded")
+	_check(is_equal_approx(ch.height(), ch.def().crouch_height), "the height follows")
+	_check(ch.eye_height() < ch.def().eye_height, "and so do the eyes")
+	_check(
+		is_equal_approx((shape.shape as CapsuleShape3D).height, ch.def().crouch_height),
+		"and the capsule"
+	)
+	ch.set_crouched(false)
+
+	_check(ch.set_char(&"heavy").ok, "the character can be changed")
+	_check(is_equal_approx(ch.height(), 2.0), "and the metrics change with it")
+	_check(
+		is_equal_approx((shape.shape as CapsuleShape3D).height, 2.0),
+		"and so does the hull, so a character that looks two metres tall is two metres "
+		+ "tall"
+	)
+	_check(not ch.set_char(&"nonexistent").ok, "an unknown character is refused")
 
 
 func _test_visuals() -> void:
@@ -441,6 +449,13 @@ func _test_visuals() -> void:
 	_check(not a.shown and not b.shown, "hiding hides all of them")
 	ch.set_shown(true)
 
+	var head := _test_visuals_select(ch, a, b)
+
+	head.queue_free()
+	player.queue_free()
+
+
+func _test_visuals_select(ch: DotPlayerChar, a: StubVisual, b: StubVisual) -> Node3D:
 	ch.use_visual(a)
 	_check(
 		a.visual_enabled and not b.visual_enabled,
@@ -479,9 +494,7 @@ func _test_visuals() -> void:
 	_check(ch.visuals().size() == 2, "the visuals can be listed")
 	_check(a.attachment_names().size() == 1, "and name their attachment points")
 	_check(a.describe_lines().size() == 1, "and describe themselves")
-
-	head.queue_free()
-	player.queue_free()
+	return head
 
 
 func _section(title: String) -> void:
