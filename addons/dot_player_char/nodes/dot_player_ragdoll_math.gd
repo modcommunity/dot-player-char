@@ -14,6 +14,11 @@ static func mean(list: Array, fallback: Vector3) -> Vector3:
 	return sum / float(list.size())
 
 
+## [param v], or [param fallback] when any component is NaN or infinite.
+static func finite_or(v: Vector3, fallback: Vector3 = Vector3.ZERO) -> Vector3:
+	return v if is_finite(v.x) and is_finite(v.y) and is_finite(v.z) else fallback
+
+
 ## A basis whose Y runs along [param along], with Z as near [param forward] as that allows.
 static func basis_along(along: Vector3, forward: Vector3) -> Basis:
 	var y := along.normalized() if along.length_squared() > 0.0001 else Vector3.DOWN

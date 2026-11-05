@@ -124,6 +124,12 @@ static func build(
 ) -> DotPlayerRagdoll:
 	if figure == null or world == null or p_rules == null or not figure.is_inside_tree():
 		return null
+	# A bot or peer whose own body went bad hands over NaN; a rigid body given it never recovers
+	# and every wall ray from it errors each tick.
+	velocity = DotPlayerRagdollMath.finite_or(velocity)
+	if p_death != null:
+		p_death.direction = DotPlayerRagdollMath.finite_or(p_death.direction)
+		p_death.damage = p_death.damage if is_finite(p_death.damage) else 0.0
 
 	var chosen_style := p_rules.effective_style()
 	if chosen_style == DotPlayerRagdollRules.Style.HIDE:
