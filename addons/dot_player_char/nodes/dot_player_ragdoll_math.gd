@@ -19,6 +19,26 @@ static func finite_or(v: Vector3, fallback: Vector3 = Vector3.ZERO) -> Vector3:
 	return v if is_finite(v.x) and is_finite(v.y) and is_finite(v.z) else fallback
 
 
+## [param v] as a unit vector, or [param fallback] when it is non-finite, near zero, or so large that its length overflows.
+static func unit(v: Vector3, fallback: Vector3) -> Vector3:
+	if not (is_finite(v.x) and is_finite(v.y) and is_finite(v.z)):
+		return fallback
+	var big := maxf(absf(v.x), maxf(absf(v.y), absf(v.z)))
+	if big < 0.01:
+		return fallback
+	return (v / big).normalized()
+
+
+## [param b] orthonormalised, or the identity when it is non-finite or has collapsed (a zero-scaled node gives NaN).
+static func ortho(b: Basis) -> Basis:
+	for v: Vector3 in [b.x, b.y, b.z]:
+		if not (is_finite(v.x) and is_finite(v.y) and is_finite(v.z)):
+			return Basis.IDENTITY
+	if b.x.length_squared() < 0.000001 or b.y.length_squared() < 0.000001 or b.z.length_squared() < 0.000001 or absf(b.determinant()) < 0.000001:
+		return Basis.IDENTITY
+	return b.orthonormalized()
+
+
 ## A basis whose Y runs along [param along], with Z as near [param forward] as that allows.
 static func basis_along(along: Vector3, forward: Vector3) -> Basis:
 	var y := along.normalized() if along.length_squared() > 0.0001 else Vector3.DOWN

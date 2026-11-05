@@ -167,7 +167,7 @@ static func build(
 
 	var forward := -figure.global_basis.z
 	forward.y = 0.0
-	forward = forward.normalized() if forward.length_squared() > 0.0001 else Vector3.FORWARD
+	forward = DotPlayerRagdollMath.unit(forward, Vector3.FORWARD)
 
 	match chosen_style:
 		DotPlayerRagdollRules.Style.RAGDOLL:
@@ -239,7 +239,7 @@ func _build_jointed(groups: Dictionary) -> void:
 		if not groups.has(role):
 			continue
 		var list: Array[MeshInstance3D] = groups[role]
-		var frame := Transform3D(list[0].global_basis.orthonormalized(), list[0].global_position)
+		var frame := Transform3D(DotPlayerRagdollMath.ortho(list[0].global_basis), list[0].global_position)
 		var part := _make_body(role, list, frame, rules.mass * float(MASS_SHARE.get(role, 0.05)) / share_total)
 		if role == Role.TORSO:
 			torso = part
@@ -265,7 +265,7 @@ func _finish_joints(torso: Part) -> void:
 
 ## One piece holding every mesh: STIFF as a rigid body, TOPPLE as a plain node.
 func _build_one(meshes: Array[MeshInstance3D], figure: Node3D, physical: bool) -> void:
-	var frame := Transform3D(figure.global_basis.orthonormalized(), figure.global_position)
+	var frame := Transform3D(DotPlayerRagdollMath.ortho(figure.global_basis), figure.global_position)
 	if physical:
 		var made := _make_body(Role.TORSO, meshes, frame, rules.mass)
 		if _skel != null:
@@ -598,7 +598,7 @@ func _build_jointed_skeletal(mesh_groups: Dictionary) -> void:
 	for role: int in points:
 		share_total += float(MASS_SHARE.get(role, 0.05))
 	var torso_at := DotPlayerRagdollMath.mean(points.get(Role.TORSO, []), global_position)
-	var forward := -_skel_base.basis.z.normalized()
+	var forward := DotPlayerRagdollMath.unit(-_skel_base.basis.z, Vector3.FORWARD)
 
 	var torso: Part = null
 	for role: int in [Role.TORSO, Role.HEAD, Role.ARM_L, Role.ARM_R, Role.LEG_L, Role.LEG_R]:
@@ -612,7 +612,7 @@ func _build_jointed_skeletal(mesh_groups: Dictionary) -> void:
 		var frame: Transform3D
 		if role == Role.TORSO:
 			var anchor: int = found["anchors"][role]
-			frame = Transform3D(_bone_world(anchor).basis.orthonormalized(), centre)
+			frame = Transform3D(DotPlayerRagdollMath.ortho(_bone_world(anchor).basis), centre)
 		else:
 			var top := _top_of(bones, torso_at)
 			frame = Transform3D(DotPlayerRagdollMath.basis_along(centre - top, forward), top)
@@ -719,10 +719,10 @@ func _drive(forward: Vector3, velocity: Vector3) -> void:
 	# into the floor, which reads as nothing. With no sideways part at all there is no push.
 	var dir := death.direction
 	var flat := Vector3(dir.x, 0.0, dir.z)
-	if flat.length() < 0.1:
+	if not (flat.length() >= 0.1):
 		dir = Vector3.ZERO
 	else:
-		dir = (flat.normalized() + Vector3.UP * clampf(dir.y, -0.3, 0.3)).normalized()
+		dir = DotPlayerRagdollMath.unit(DotPlayerRagdollMath.unit(flat, Vector3.FORWARD) + Vector3.UP * clampf(dir.y, -0.3, 0.3), Vector3.ZERO)
 	var strength := clampf(death.damage, 0.0, 300.0) / 100.0
 
 	var base := velocity
@@ -836,7 +836,7 @@ func _part(role: int) -> Part:
 func _start_topple(figure: Node3D, forward: Vector3) -> void:
 	var dir := death.direction
 	dir.y = 0.0
-	var fall := dir.normalized() if dir.length_squared() > 0.0001 else (forward if reaction.pose == DotPlayerDeathReaction.Pose.FACE_PLANT else -forward)
+	var fall := DotPlayerRagdollMath.unit(dir, (forward if reaction.pose == DotPlayerDeathReaction.Pose.FACE_PLANT else -forward))
 	if reaction.pose == DotPlayerDeathReaction.Pose.FACE_PLANT:
 		fall = forward
 	var holder := _parts[0].body

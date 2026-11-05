@@ -4,8 +4,8 @@ extends Node
 ## death that travels, and real ragdolls falling onto a floor (headless).
 ## Run: godot --headless --path . res://examples/ragdoll_selftest.tscn
 
-const SECTIONS := 13
-const CHECKS := 113
+const SECTIONS := 14
+const CHECKS := 121
 
 var _passed := 0
 var _failed := 0
