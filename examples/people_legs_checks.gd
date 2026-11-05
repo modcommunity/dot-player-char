@@ -125,6 +125,20 @@ func _check_own_view() -> void:
 		"legs: the whole person's shadow comes from a shadow-only copy")
 	var low: float = DotHumanoidLegs.ankles(sk).map(func(a: Vector3) -> float: return a.y).min()
 	suite._check(absf(low) < 0.12, "legs: standing, the ankles are at the feet's origin (%.3f m)" % low)
+	var back_at := func(pitch_degrees: float) -> float:
+		g.aim(deg_to_rad(pitch_degrees))
+		g.animate(0.0, DT)
+		return g.body_node().position.z
+	var level: float = back_at.call(0.0)
+	var down: float = back_at.call(-89.0)
+	var want := g.own_look_down_back * g.height / 1.8
+	suite._check(absf(level) < 0.001 and want > 0.1 and absf(down - want) < 0.01,
+		"legs: looking straight down the body trails %.2f m behind the eye (want %.2f), level it does not (%.3f)" % [down, want, level])
+	g.first_person = DotHumanoidOwnView.THIRD
+	var third: float = back_at.call(-89.0)
+	g.first_person = DotHumanoidOwnView.LEGS
+	suite._check(absf(third) < 0.001, "third person looking down: the body stays under the eye (%.3f)" % third)
+	back_at.call(0.0)
 	g.first_person = DotHumanoidOwnView.BODY
 	g.animate(0.0, DT)
 	suite._check(scale_of.call("Shoulder.L") < 0.01 and scale_of.call("Neck") < 0.01 and scale_of.call("Abdomen") > 0.9, "body: the head, neck and arms are gone, the chest is not")

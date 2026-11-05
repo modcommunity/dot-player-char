@@ -35,3 +35,4 @@ The same evening mg-prop-hunt's hunters, killed with a gun in the hand, fell lim
 - Level 15: DotPlayerViewArms.hand_error(grip): how far the hands are from a grip, for a game's tests and tools.
 - Level 16: DotPlayerHitboxes and DotPlayerHitboxPlan: optional config-driven hit zones (off by default).
 - Level 17: DotOwnBodySetting (the client-only `cl_legs` setting) and DotHumanoidFigure.own_body_shown.
+- Level 18: DotHumanoidFigure.own_look_down_back (DotHumanoidOwnView.look_down_back, back_for): in first person your own body trails behind the eye as the view tips past 40 degrees down, by default; a game that places the body itself sets it to 0.
