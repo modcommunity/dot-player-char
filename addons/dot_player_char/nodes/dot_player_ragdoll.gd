@@ -124,8 +124,7 @@ static func build(
 ) -> DotPlayerRagdoll:
 	if figure == null or world == null or p_rules == null or not figure.is_inside_tree():
 		return null
-	# A bot or peer whose own body went bad hands over NaN; a rigid body given it never recovers
-	# and every wall ray from it errors each tick.
+	# NaN from a bad peer or bot body would break every wall ray from this body.
 	velocity = DotPlayerRagdollMath.finite_or(velocity)
 	if p_death != null:
 		p_death.direction = DotPlayerRagdollMath.finite_or(p_death.direction)
@@ -173,9 +172,7 @@ static func build(
 	match chosen_style:
 		DotPlayerRagdollRules.Style.RAGDOLL:
 			if made.reaction.pose == DotPlayerDeathReaction.Pose.FACE_PLANT:
-				# A plank is one rigid body until the face lands, then the jointed body. Tight
-				# joints are not a plank: on impact, five cone limits a few degrees wide threw
-				# the test figure a hundred metres (docs/ragdolls.md).
+				# A plank until the face lands, then jointed; tight joints on impact threw the figure away (docs/ragdolls.md).
 				made._build_one(meshes, figure, true)
 				made._jointed_on_land = true
 			else:
@@ -680,9 +677,7 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, co
 		var hi := Vector3(DotPlayerRagdollMath.quantile(xs, 0.95), DotPlayerRagdollMath.quantile(ys, 0.97), DotPlayerRagdollMath.quantile(zs, 0.95))
 		bounds = AABB(lo, hi - lo)
 	for copy in part.copies:
-		# With the posed skin's points in hand the box is the body's alone: a skinned copy's own
-		# bounds are its rest pose (arms out), and a held gun or hat must not be collided, or
-		# the body props up on it.
+		# With posed skin points the box is the body's alone; rest-pose bounds include arms, gun and hat.
 		if not xs.is_empty():
 			continue
 		var b := copy.transform * copy.mesh.get_aabb()
@@ -977,9 +972,7 @@ func _watch_motion(delta: float) -> void:
 		if body == null:
 			continue
 		var speed := body.linear_velocity.length()
-		# One piece that stood on the floor it falls onto never reports touching it again (its
-		# toes never left), so a plank lying down on it has landed: on zz's streets the face plant
-		# never went limp and never smacked.
+		# A plank that stood on this floor never reports touching it again, so check for it lying down.
 		if not landed and _parts.size() == 1 and age >= 0.25 and body.get_contact_count() > 0 \
 				and absf(body.global_basis.y.dot(Vector3.UP)) <= 0.3:
 			var was := float(_last_speed.get(part, speed))
@@ -991,9 +984,7 @@ func _watch_motion(delta: float) -> void:
 	_fastest = fastest
 	_still_for = _still_for + delta if fastest < rules.settle_speed else 0.0
 
-	# A plank stopped before lying down is leaning on something (a table edge, a wall). Pushing
-	# is wrong (past tipping), and freezing leaves it standing at 30 degrees, so it lets go as
-	# on landing and the jointed body slumps off.
+	# A plank stalled before lying down leans on something: let go as on landing, so it slumps off.
 	if _jointed_on_land and not landed and _parts.size() == 1 \
 			and (_still_for >= PLANK_STALL_SECONDS or age >= PLANK_GIVE_UP_AGE) \
 			and absf(_parts[0].body.global_basis.y.dot(Vector3.UP)) > 0.55:
@@ -1070,9 +1061,7 @@ func _land(at: Vector3, strength: float) -> void:
 		if part.body is RigidBody3D:
 			(part.body as RigidBody3D).angular_damp = rules.angular_damp
 	if _jointed_on_land:
-		# The plank lets go when the face meets the floor: limp from here. Deferred, because
-		# this runs inside the physics server's contact report, and bodies added there are
-		# added mid-step.
+		# Deferred: this runs inside the physics contact report, where added bodies land mid-step.
 		_jointed_on_land = false
 		_become_jointed.call_deferred()
 	if reaction.land_sound != &"":
