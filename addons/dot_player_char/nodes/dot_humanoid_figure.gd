@@ -171,6 +171,13 @@ var own_body_shown: bool = true:
 		_own.shown = value
 		_own.apply(_skeleton, _mesh)
 
+## Metres your own body trails behind the eye looking straight down in first person ([member DotHumanoidOwnView.look_down_back]); 0 when the game places the body itself.
+var own_look_down_back: float:
+	get:
+		return _own.look_down_back
+	set(value):
+		_own.look_down_back = maxf(value, 0.0)
+
 var _model: Node3D = null
 var _skeleton: Skeleton3D = null
 var _mesh: MeshInstance3D = null
@@ -205,6 +212,8 @@ var _upper: Dictionary = {}
 var _ease := DotHumanoidBlend.new()
 var _swim_pitch: float = 0.0
 var _prop_pitch: float = 0.0
+var _view_pitch: float = 0.0
+var _own_back: float = 0.0
 var _own := DotHumanoidOwnView.new()
 var legs := DotHumanoidLegs.new()
 var _auto_last: Vector3 = Vector3.INF
@@ -422,6 +431,7 @@ func set_motion(motion: Dictionary) -> void:
 ## [constant AIM_LIMIT].
 func aim(pitch_radians: float) -> void:
 	aim_pitch = clampf(pitch_radians, -AIM_LIMIT, AIM_LIMIT) if is_finite(pitch_radians) else 0.0
+	_view_pitch = pitch_radians if is_finite(pitch_radians) else 0.0
 
 
 ## How high above the feet the hips are when sitting, in metres at this figure's height: a game
@@ -832,18 +842,19 @@ func _apply_swim(delta: float) -> void:
 	if _model == null:
 		return
 	var wanted := SWIM_LEAN if state == DotPlayerAnimState.SWIM and not downed else 0.0
-	var before := _swim_pitch + _prop_pitch + _slide_lift
+	var before := _swim_pitch + _prop_pitch + _slide_lift + _own_back
 	var sliding := state != DotPlayerAnimState.SWIM and clip == DotHumanoidClips.SLIDE
 	_slide_lift = move_toward(_slide_lift, SLIDE_LIFT * height / 1.8 if sliding else 0.0, delta * 0.6)
 	_swim_pitch = move_toward(_swim_pitch, wanted, delta * 3.0)
 	_prop_pitch = move_toward(_prop_pitch, -PROP_LEAN if downed and propped else 0.0, delta * 3.0)
+	_own_back = _own.back_for(_view_pitch) * height / 1.8
 	var total := _swim_pitch + _prop_pitch
-	if is_equal_approx(before, total + _slide_lift) and total == 0.0 and _slide_lift == 0.0:
+	if is_equal_approx(before, total + _slide_lift + _own_back) and total == 0.0 and _slide_lift == 0.0 and _own_back == 0.0:
 		return
 	var hips := Vector3(0.0, height * 0.55, 0.0)
 	var tilt := Transform3D(Basis(Vector3.RIGHT, -total), Vector3.ZERO)
 	var about := Transform3D(Basis.IDENTITY, hips) * tilt * Transform3D(Basis.IDENTITY, -hips)
-	_model.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, _slide_lift, 0.0)) * about * Transform3D(_model_basis, _model_origin)
+	_model.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, _slide_lift, _own_back)) * about * Transform3D(_model_basis, _model_origin)
 
 
 ## The directory the people's files are in.

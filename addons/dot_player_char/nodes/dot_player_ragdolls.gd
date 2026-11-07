@@ -86,7 +86,7 @@ func drop_prop(model: Node3D, velocity: Vector3 = Vector3.ZERO) -> RigidBody3D:
 	if meshes.is_empty():
 		return null
 
-	var frame := model.global_transform.orthonormalized()
+	var frame := Transform3D(DotPlayerRagdollMath.ortho(model.global_basis), model.global_position)
 	var to_local := frame.affine_inverse()
 	var bounds := AABB()
 	var first := true
@@ -184,7 +184,9 @@ func shoot(point: Vector3, direction: Vector3, impulse: float = 4.0, radius: flo
 		return false
 	hit_body.wake()
 	best.freeze = false
-	best.apply_impulse(direction.normalized() * impulse * rules.force_scale, point - best.global_position)
+	var push := DotPlayerRagdollMath.unit(direction, Vector3.ZERO) * impulse * rules.force_scale
+	var lever := DotPlayerRagdollMath.finite_or(point - best.global_position)
+	best.apply_impulse(DotPlayerRagdollMath.finite_or(push), lever)
 	return true
 
 

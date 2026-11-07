@@ -13,11 +13,16 @@ const BODY := 2
 
 const HIDDEN_BONES := {LEGS: ["Abdomen"], BODY: ["Neck", "Shoulder.L", "Shoulder.R"]}
 const GONE := Vector3.ONE * 0.001
+## Degrees down where the body starts trailing back; the full trail clears the hips from a 100-degree view at 80 degrees down.
+const LOOK_DOWN_FROM := 40.0
+const LOOK_DOWN_FULL := 85.0
 
 var mode: int = THIRD
 ## False (the `cl_legs` setting off): in first person nothing of the body is drawn, only its shadow, with no shrunk bones, cap or shadow copy.
 var shown: bool = true
 var hide_head: bool = false
+## Metres (at 1.8 m tall) the body trails behind the eye as the view tips from [constant LOOK_DOWN_FROM] to 85 degrees down ([method back_for]): over the cut waist, the hip cap fills the screen and reads as a face. 0 for a game that places the body itself.
+var look_down_back: float = 1.0
 ## Colour of the disc that closes the cut waist in LEGS mode (the look's top: the hem left at the waist); set before [method apply].
 var cap_colour := Color("2f3a4f")
 var _shrunk: Array[int] = []
@@ -64,6 +69,14 @@ func mend(skeleton: Skeleton3D, mesh: MeshInstance3D) -> void:
 ## The mode that is drawn: [member mode], or [constant THIRD] while [member shown] is off.
 func effective() -> int:
 	return mode if shown else THIRD
+
+
+## How far behind its origin the body is drawn for a view [param pitch_radians] (down negative): 0 outside first person.
+func back_for(pitch_radians: float) -> float:
+	if effective() == THIRD or not is_finite(pitch_radians):
+		return 0.0
+	var down := clampf(-rad_to_deg(pitch_radians), 0.0, 90.0)
+	return look_down_back * clampf((down - LOOK_DOWN_FROM) / (LOOK_DOWN_FULL - LOOK_DOWN_FROM), 0.0, 1.0)
 
 
 ## The shadow copy's skeleton, or null outside first person.
@@ -146,4 +159,4 @@ static func _shadow_of(skeleton: Skeleton3D, mesh: MeshInstance3D) -> Skeleton3D
 
 
 func describe() -> Dictionary:
-	return {"mode": mode, "shown": shown, "hide_head": hide_head, "shrunk": _shrunk.size(), "shadow": shadow() != null}
+	return {"mode": mode, "shown": shown, "hide_head": hide_head, "shrunk": _shrunk.size(), "shadow": shadow() != null, "look_down_back": look_down_back}
