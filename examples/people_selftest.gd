@@ -4,8 +4,8 @@ extends Node
 ## from how it moves. What a person LOOKS like is `tools/people_sheet.gd`'s contact sheets.
 ## godot --headless --path . res://examples/people_selftest.tscn
 
-const SECTIONS := 16
-const CHECKS := 165
+const SECTIONS := 17
+const CHECKS := 170
 
 var _passed := 0
 var _failed := 0
@@ -23,6 +23,7 @@ func _run() -> void:
 	_test_site()
 	_test_clips()
 	await _test_figure()
+	_test_zombie_gait()
 	await _test_hand_and_aim()
 	_test_actions()
 	_test_materials()
@@ -168,6 +169,25 @@ func _test_clips() -> void:
 		slider.animate(6.0, 1.0 / 30.0)
 	_check(slider.clip != DotHumanoidClips.SLIDE, "a slide in the air is a fall, not a slide (%s)" % slider.clip)
 	slider.free()
+
+
+func _test_zombie_gait() -> void:
+	_section("the zombie gait")
+	var f := DotHumanoidFigure.new()
+	add_child(f)
+	f.build(DotHumanoidLook.stock(9), 1.8)
+	f.zombie_gait = true
+	f.animate(0.0, 0.1)
+	_check(f.clip == DotHumanoidClips.ZOMBIE_IDLE, "standing: the zombie idle (%s)" % f.clip)
+	f.animate(1.3, 0.1)
+	_check(f.clip == DotHumanoidClips.ZOMBIE_WALK, "walking: the zombie walk (%s)" % f.clip)
+	_check(f._anim.get_animation(DotHumanoidClips.ZOMBIE_WALK).loop_mode == Animation.LOOP_LINEAR, "and it loops")
+	f.animate(5.0, 0.1)
+	_check(f.clip == DotHumanoidClips.SPRINT, "running: the real sprint (%s)" % f.clip)
+	f.zombie_gait = false
+	f.animate(1.5, 0.1)
+	_check(f.clip == DotHumanoidClips.WALK, "off again, the person's own walk (%s)" % f.clip)
+	f.free()
 
 
 func _test_figure() -> void:

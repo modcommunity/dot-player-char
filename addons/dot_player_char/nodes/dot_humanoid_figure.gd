@@ -125,6 +125,9 @@ var auto_animate: bool = false:
 		set_process(value)
 		_auto_last = Vector3.INF
 
+## Idles, walks and runs as a zombie does: the library's shuffling walk ([constant DotHumanoidClips.ZOMBIE_WALK]), its idle, and the real sprint for a run. Every other state is the person's own. A figure without the real clips ignores it.
+var zombie_gait: bool = false
+
 ## Seconds over which [member auto_animate]'s measured speed is averaged. A body carried in physics ticks or on network snapshots moves in steps, so its per-frame speed alternates between zero and double and the clip flips between idle, walk and run. 0 keeps the raw measure.
 var auto_smooth_time: float = 0.0
 
@@ -132,6 +135,10 @@ var auto_smooth_time: float = 0.0
 const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN,
 	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK, DotHumanoidClips.SPRINT]
 const STRIDE_MAX_RATE := 4.0
+
+## The zombie walk's and the sprint's own ground speeds (m/s), for the rate at other speeds.
+const ZOMBIE_WALK_NATURAL := 1.3
+const ZOMBIE_SPRINT_NATURAL := 6.0
 
 ## Ground speed from which a runner plays the sprint clip when the game sends no `sprinting` key (0 picks 1.6 times the run speed), and how far below it the run clip returns.
 var sprint_speed: float = 0.0
@@ -612,6 +619,10 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 			DotPlayerAnimState.CROUCH_IDLE, DotPlayerAnimState.CROUCH_WALK, DotPlayerAnimState.RUN,
 			DotPlayerAnimState.WALK, DotPlayerAnimState.IDLE] and _anim != null and _anim.has_animation(DotHumanoidClips.SLIDE):
 		return [DotHumanoidClips.SLIDE, 1.0]
+	if zombie_gait and not gun and _anim != null:
+		var zombie := _zombie_clip_for(p_state, speed)
+		if not zombie.is_empty():
+			return zombie
 	match p_state:
 		DotPlayerAnimState.DEAD:
 			return [DotHumanoidClips.DEATH, 1.0]
@@ -639,6 +650,21 @@ func _clip_for(p_state: StringName, speed: float) -> Array:
 		DotPlayerAnimState.CLIMB:
 			return [DotHumanoidClips.CLIMB, clampf(absf(float(_motion.get("vertical", 0.0))) / 2.5, 0.0, 1.2)]
 	return [DotHumanoidClips.IDLE_GUN if gun else DotHumanoidClips.IDLE, 1.0]
+
+
+## The zombie gait's clip and rate for a ground state, or empty. The rates are the clips' own ground speeds (metres a second).
+func _zombie_clip_for(p_state: StringName, speed: float) -> Array:
+	match p_state:
+		DotPlayerAnimState.IDLE:
+			if _anim.has_animation(DotHumanoidClips.ZOMBIE_IDLE):
+				return [DotHumanoidClips.ZOMBIE_IDLE, 1.0]
+		DotPlayerAnimState.WALK:
+			if _anim.has_animation(DotHumanoidClips.ZOMBIE_WALK):
+				return [DotHumanoidClips.ZOMBIE_WALK, clampf(speed / ZOMBIE_WALK_NATURAL, 0.6, 1.8)]
+		DotPlayerAnimState.RUN:
+			if _anim.has_animation(DotHumanoidClips.SPRINT):
+				return [DotHumanoidClips.SPRINT, clampf(speed / ZOMBIE_SPRINT_NATURAL, 0.7, 1.5)]
+	return []
 
 
 ## Whether a runner at [param speed] plays the sprint clip: the game's `sprinting` key when it sends one, else the speed, with a gap so it does not flicker.
