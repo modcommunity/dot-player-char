@@ -25,7 +25,18 @@ static func basis_along(along: Vector3, forward: Vector3) -> Basis:
 	return Basis(x, y, z)
 
 
+## [param v], or [param fallback] when any component is NaN or infinite.
+static func finite_or(v: Vector3, fallback: Vector3 = Vector3.ZERO) -> Vector3:
+	return v if is_finite(v.x) and is_finite(v.y) and is_finite(v.z) else fallback
+
+
+## [param x], or [param fallback] when it is NaN or infinite.
+static func finite_float(x: float, fallback: float = 0.0) -> float:
+	return x if is_finite(x) else fallback
+
+
 ## The value [param q] (0 to 1) of the way up the sorted [param values].
+
 static func quantile(values: Array[float], q: float) -> float:
 	values.sort()
 	return values[clampi(int(q * float(values.size() - 1)), 0, values.size() - 1)]

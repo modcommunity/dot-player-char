@@ -37,8 +37,10 @@ static func decide(
 	var out := DotPlayerDeath.new()
 	out.roll_seed = p_seed & 0x7fffffff
 	out.headshot = p_headshot
-	out.damage = maxf(p_damage, 0.0)
-	out.direction = p_direction.normalized() if p_direction.length_squared() > 0.0001 else Vector3.ZERO
+	out.damage = maxf(DotPlayerRagdollMath.finite_float(p_damage), 0.0)
+	var dir := DotPlayerRagdollMath.finite_or(p_direction)
+	out.direction = dir.normalized() if dir.length_squared() > 0.0001 else Vector3.ZERO
+
 
 	var weapon_power := power if power >= 0.0 else DotPlayerDeathReactions.weapon_power(weapon_def)
 	var asked := named if named != &"" else DotPlayerDeathReactions.weapon_reaction(weapon_def)

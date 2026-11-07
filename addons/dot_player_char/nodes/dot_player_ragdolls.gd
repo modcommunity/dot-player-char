@@ -166,6 +166,11 @@ func _expire_prop(prop) -> void:
 func shoot(point: Vector3, direction: Vector3, impulse: float = 4.0, radius: float = 0.6, from: Vector3 = Vector3.INF) -> bool:
 	if rules == null or not rules.shootable:
 		return false
+	direction = DotPlayerRagdollMath.finite_or(direction)
+	if not is_finite(impulse) or not point.is_finite():
+
+		return false
+
 	_reap()
 	var best: RigidBody3D = null
 	var best_d := radius
