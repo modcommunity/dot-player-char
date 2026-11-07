@@ -145,6 +145,10 @@ static func build(
 	made.rules = p_rules
 	made.reaction = p_reaction if p_reaction != null else DotPlayerDeathReactions.stock().find(DotPlayerDeathReactions.LIMP)
 	made.death = p_death if p_death != null else DotPlayerDeath.new()
+	# A NaN direction or damage from a game's kill message would normalise to NaN and freeze the body.
+	made.death.direction = DotPlayerRagdollMath.finite_or(made.death.direction)
+	made.death.damage = DotPlayerRagdollMath.finite_float(made.death.damage)
+
 	made._rng.seed = made.death.roll_seed
 	made._anchor = figure.global_position + Vector3.UP * 0.9
 	world.add_child(made)
