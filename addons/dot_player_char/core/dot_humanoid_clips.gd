@@ -38,12 +38,17 @@ const SPRINT := &"ual_sprint"
 ## The slide, baked from the Universal Animation Library (CC0); a figure without it crouches through a slide.
 const SLIDE := &"ual_slide"
 
+## The library's zombie idle and shuffling walk, only from `people/people_ual.res`; a figure with [member DotHumanoidFigure.zombie_gait] but without them plays the made ones.
+const ZOMBIE_IDLE := &"ual_zombie_idle"
+const ZOMBIE_WALK := &"ual_zombie_walk"
+
 ## Every clip a figure is expected to have, for a suite and a contact sheet.
 const ALL: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK,
 	JUMP, FALL, LAND, SLASH, STAB, PUNCH, HIT, DEATH, CRAWL, WAVE, YES, NO, DUCK, SIT, DRIVE, CLIMB, SWIM]
 
 ## Clips that loop; the rest play once and hold their last frame.
-const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, DRIVE, CLIMB, SWIM, SPRINT]
+const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, DRIVE, CLIMB, SWIM, SPRINT,
+	ZOMBIE_IDLE, ZOMBIE_WALK, &"ual_jog", &"ual_crouch_walk"]
 
 ## How much of the duck's bend a crouch walk keeps (the full bend left no room for a stride), and
 ## how far the hips dip at each step, in the clip body's units.
