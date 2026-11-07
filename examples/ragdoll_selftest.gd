@@ -4,8 +4,8 @@ extends Node
 ## death that travels, and real ragdolls falling onto a floor (headless).
 ## Run: godot --headless --path . res://examples/ragdoll_selftest.tscn
 
-const SECTIONS := 12
-const CHECKS := 111
+const SECTIONS := 13
+const CHECKS := 119
 
 var _passed := 0
 var _failed := 0
@@ -35,6 +35,7 @@ func _run() -> void:
 	await _test_faceplant_sweep()
 	await DotRagdollWeaponChecks.new(self).run()
 	await _test_against_wall()
+	await _test_non_finite()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -641,7 +642,43 @@ func _sweep_jostled(yard: DotPlayerRagdolls, table: StaticBody3D, jostled: Array
 		yard.clear()
 
 
+# Non-finite input
+
+func _test_non_finite() -> void:
+	_section("NaN and infinite kills never reach the body")
+	var M := DotPlayerRagdollMath
+	_check(M.finite_or(Vector3(NAN, 0, 1)) == Vector3.ZERO and M.finite_or(Vector3(0, INF, 0), Vector3.UP) == Vector3.UP,
+		"finite_or replaces a NaN or infinite vector")
+	_check(M.finite_or(Vector3(1, 2, 3)) == Vector3(1, 2, 3) and M.finite_float(NAN, 5.0) == 5.0 and M.finite_float(2.0) == 2.0,
+		"and keeps a finite one")
+	var r := DotPlayerDeathReactions.stock()
+	var decided := DotPlayerDeath.decide(r, false, NAN, Vector3(NAN, 1, 0), 7)
+	_check(is_finite(decided.damage) and decided.direction == Vector3.ZERO, "decide() sanitises damage and direction")
+
+	var yard := DotPlayerRagdolls.new()
+	_world.add_child(yard)
+	var body := yard.spawn(_figure(Vector3(40, 0, 40)), _death(&"launch", Vector3(NAN, NAN, NAN), false, NAN), Vector3(INF, NAN, 0))
+	_check(body != null and is_finite(body.death.damage) and body.death.direction == Vector3.ZERO, "a NaN death builds with a plain fall")
+	var plank := yard.spawn(_figure(Vector3(44, 0, 40)), _death(&"face_plant", Vector3(NAN, 0, NAN)), Vector3(NAN, 0, 0))
+	_check(plank != null, "a NaN face-plant builds too")
+	for i in range(30):
+		await get_tree().physics_frame
+	var sound := true
+	for b in [body, plank]:
+		for node in b.part_nodes():
+			sound = sound and node.global_position.is_finite()
+	_check(sound, "every part is still at a finite position after a second of falling")
+	_check(not yard.shoot(body.centre(), Vector3(NAN, 0, 0), 4.0, 5.0) or body.centre().is_finite(),
+		"a NaN shot neither crashes nor moves a part to NaN")
+	var shot_ok := true
+	for node in body.part_nodes():
+		shot_ok = shot_ok and node.global_position.is_finite()
+	_check(shot_ok and not yard.shoot(body.centre(), Vector3.RIGHT, INF, 5.0), "an infinite impulse is refused")
+	yard.queue_free()
+
+
 # Plumbing
+
 
 func _section(title: String) -> void:
 	_section_count += 1
