@@ -5,7 +5,7 @@ extends Node
 ## Run: godot --headless --path . res://examples/ragdoll_selftest.tscn
 
 const SECTIONS := 15
-const CHECKS := 121
+const CHECKS := 129
 
 var _passed := 0
 var _failed := 0
