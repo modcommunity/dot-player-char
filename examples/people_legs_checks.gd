@@ -125,6 +125,20 @@ func _check_own_view() -> void:
 		"legs: the whole person's shadow comes from a shadow-only copy")
 	var low: float = DotHumanoidLegs.ankles(sk).map(func(a: Vector3) -> float: return a.y).min()
 	suite._check(absf(low) < 0.12, "legs: standing, the ankles are at the feet's origin (%.3f m)" % low)
+	var hip_y := func() -> float:
+		return (sk.global_transform * DotHumanoidIk.global_pose(sk, sk.find_bone("UpperLeg.L")).origin).y
+	var stand_hip: float = hip_y.call()
+	var leg: float = stand_hip - low
+	suite._check(leg > 0.2 * g.height and leg < 0.65 * g.height, "legs: standing, hip to ankle is %.2f m of a %.2f m person (0.2 to 0.65; short cartoon legs)" % [leg, g.height])
+	g.set_motion({"on_floor": true, "crouched": true})
+	for i in 30:
+		g.animate(0.0, DT)
+	var crouch_low: float = DotHumanoidLegs.ankles(sk).map(func(a: Vector3) -> float: return a.y).min()
+	var crouch_hip: float = hip_y.call()
+	suite._check(absf(crouch_low) < 0.12 and crouch_hip < stand_hip - 0.02, "legs: crouched, the feet stay on the floor (%.3f m) and the hips drop (%.2f to %.2f m)" % [crouch_low, stand_hip, crouch_hip])
+	g.set_motion({"on_floor": true})
+	for i in 30:
+		g.animate(0.0, DT)
 	var back_at := func(pitch_degrees: float) -> float:
 		g.aim(deg_to_rad(pitch_degrees))
 		g.animate(0.0, DT)
