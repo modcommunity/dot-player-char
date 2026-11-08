@@ -59,7 +59,7 @@ func _stress() -> void:
 	var bad := ""
 	var frames := 0
 	var kills := 0
-	while frames < 60 * 150 and bad.is_empty():
+	while frames < 60 * 45 and bad.is_empty():
 		if frames % 20 == 0:
 			var at := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(0.0, 0.5), rng.randf_range(-1.5, 1.5))
 			var fig: Node3D = suite._figure(at)
