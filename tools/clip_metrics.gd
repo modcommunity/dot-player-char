@@ -8,6 +8,8 @@ const SCENARIOS := [
 	[&"idle", 0.0, 0.0, false],
 	[&"walk", 2.0, 0.0, false],
 	[&"run", 5.0, 0.0, false],
+	[&"walk_arena", 4.05, 0.0, false],
+	[&"sprint", 9.0, 0.0, false],
 	[&"crouch", 0.0, 1.0, false],
 	[&"crouch_walk", 1.4, 1.0, false],
 	[&"slide", 6.0, 1.0, true],
@@ -18,6 +20,9 @@ const MAX_POP := 0.02
 const MAX_JERK := 1000.0
 const MAX_POP_MOVING := 0.2
 const MAX_JERK_MOVING := 60000.0
+## Most any bone may turn between two samples 1/15 s apart (degrees): the filmstrip's bone_pop gate.
+const MAX_BONE_STEP := 135.0
+const BONE_STRIDE := 4
 const DT := 1.0 / 60.0
 
 var _failed := false
@@ -27,6 +32,8 @@ var _frame := 0
 var _heads: Array[float] = []
 var _head_pos: Array[Vector3] = []
 var _foot_pos: Array = [[], []]
+var _rot_hist: Array = []
+var _bone_step := 0.0
 
 
 func _initialize() -> void:
@@ -46,6 +53,7 @@ func _process(delta: float) -> bool:
 	_frame += 1
 	var sk := _fig.skeleton()
 	if _frame > 60:
+		_sample_bone_rate(sk)
 		_head_pos.append(sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Head")).origin)
 		_heads.append(_head_pos[-1].y)
 		for f in 2:
@@ -57,11 +65,25 @@ func _process(delta: float) -> bool:
 	_heads.clear()
 	_head_pos.clear()
 	_foot_pos = [[], []]
+	_rot_hist.clear()
+	_bone_step = 0.0
 	_i += 1
 	if _i >= SCENARIOS.size():
 		print("CLIPMETRICS ", "flagged" if _failed else "ok")
 		quit(0)
 	return false
+
+
+## Tracks the biggest turn of any bone over 1/15 s.
+func _sample_bone_rate(sk: Skeleton3D) -> void:
+	var cur: Array[Quaternion] = []
+	for b in sk.get_bone_count():
+		cur.append(sk.get_bone_pose_rotation(b))
+	_rot_hist.append(cur)
+	if _rot_hist.size() > BONE_STRIDE:
+		var old: Array = _rot_hist.pop_front()
+		for b in cur.size():
+			_bone_step = maxf(_bone_step, rad_to_deg((old[b] as Quaternion).angle_to(cur[b])))
 
 
 func _report(s: Array) -> void:
@@ -91,6 +113,6 @@ func _report(s: Array) -> void:
 					n += 1
 		skate = err / maxf(n, 1) / speed
 	var moving: bool = speed > 0.5 and s[0] != &"slide"
-	var flag := skate > MAX_SKATE or pop > (MAX_POP_MOVING if moving else MAX_POP) or jerk > (MAX_JERK_MOVING if moving else MAX_JERK)
+	var flag := skate > MAX_SKATE or pop > (MAX_POP_MOVING if moving else MAX_POP) or jerk > (MAX_JERK_MOVING if moving else MAX_JERK) or _bone_step > MAX_BONE_STEP
 	_failed = _failed or flag
-	print("CLIPMETRICS ", s[0], " skate=", snappedf(skate, 0.01), " pop=", snappedf(pop, 0.001), " jerk=", roundi(jerk), "  FLAG" if flag else "")
+	print("CLIPMETRICS ", s[0], " skate=", snappedf(skate, 0.01), " pop=", snappedf(pop, 0.001), " jerk=", roundi(jerk), " bone_deg_15hz=", roundi(_bone_step), "  FLAG" if flag else "")
