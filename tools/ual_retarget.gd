@@ -24,6 +24,9 @@ const CLIPS := {
 	&"ual_crouch_walk": ["Crouch_Fwd_Loop", "grounded"],
 	&"ual_hit_chest": ["Hit_Chest", "grounded"],
 	&"ual_hit_head": ["Hit_Head", "grounded"],
+	&"ual_walk": ["Walk_Loop", "grounded"],
+	&"ual_idle": ["Idle_Loop", "grounded"],
+	&"ual_death": ["Death01", "free"],
 }
 
 ## Kit bone -> library bone. The kit's `Middle1`, `Index1` and `Pinky1` all start at the wrist
