@@ -776,7 +776,7 @@ func _start_overlay(which: StringName, rate: float) -> void:
 
 
 ## Writes the upper body over the locomotion pose: a playing overlay (swing, flinch, gesture),
-## else the held-gun arms in a clip that is not a gun clip. Not while swimming, where the
+## else the held-gun arms in a clip that is not a gun clip (nor a full-body action such as a dance). Not while swimming, where the
 ## stroke is the arms.
 func _apply_overlays() -> void:
 	if _skeleton == null:
@@ -805,7 +805,7 @@ func _apply_overlays() -> void:
 		else:
 			t = _overlay_time
 			weight = minf(1.0, _overlay_time / _overlay_blend) * minf(1.0, (source.length - _overlay_time) / BLEND_OUT)
-	if source == null and hold == Hold.GUN and not downed and not String(clip).ends_with("_gun") and clip != DotHumanoidClips.DEATH and clip != DotHumanoidClips.SWIM:
+	if source == null and hold == Hold.GUN and not downed and _action_full == &"" and not String(clip).ends_with("_gun") and clip != DotHumanoidClips.DEATH and clip != DotHumanoidClips.SWIM:
 		source = _anim.get_animation(DotHumanoidClips.IDLE_GUN)
 		t = 0.0
 		weight = 1.0

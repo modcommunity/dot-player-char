@@ -129,6 +129,29 @@ func run_gun_steady() -> void:
 	suite._check(true, "the flicker run finished")
 
 
+## A full-body action (dance, sit) is not flattened by the held-gun arms.
+func run_full_body_action() -> void:
+	suite._section("a held gun while a full-body action plays")
+	var world := Node3D.new()
+	suite.add_child(world)
+	var armed := DotHumanoidFigure.new()
+	var bare := DotHumanoidFigure.new()
+	for f: DotHumanoidFigure in [armed, bare]:
+		world.add_child(f)
+		f.build(DotHumanoidLook.stock(21), 1.8)
+		f.set_motion({"on_floor": true})
+	armed.set_hold(DotHumanoidFigure.Hold.GUN)
+	var played := armed.play_action(&"dance", true) and bare.play_action(&"dance", true)
+	for i in 10:
+		armed.animate(0.0, 1.0 / 60.0)
+		bare.animate(0.0, 1.0 / 60.0)
+	var gap := _pose_gap(armed.skeleton(), bare.skeleton(), true)
+	suite._check(played, "both figures start the dance")
+	suite._check(gap < 0.01, "the armed dancer's pose is the unarmed dancer's (gap %.4f rad)" % gap)
+	world.queue_free()
+	await suite.get_tree().process_frame
+
+
 func run_pose_record() -> void:
 	suite._section("a recorded pose replays as drawn")
 	var world := Node3D.new()
