@@ -231,6 +231,37 @@ func standing_count() -> int:
 	return _standing().size()
 
 
+## Builds one throwaway body off a stock figure, far below the world, and frees it [param frames] frames later, so the first real death does not pay for first-use work (the physics bodies and joints, the script and shape setup: a 32 ms hitch in a web build). Call it under a loading cover; it neither emits [signal spawned] nor plays a sound, and no body is left in the yard.
+func prewarm(frames: int = 2) -> void:
+	if rules == null or not is_inside_tree() or rules.effective_style() == DotPlayerRagdollRules.Style.HIDE:
+		return
+	var figure := Node3D.new()
+	figure.name = "RagdollPrewarm"
+	add_child(figure)
+	figure.global_position = Vector3(0.0, -4000.0, 0.0)
+	var box := BoxMesh.new()
+	# name, centre, size: the roles the build looks for, in a human's proportions.
+	for spec: Array in [
+		["leg-left", Vector3(0.13, 0.4, 0), Vector3(0.2, 0.8, 0.2)], ["leg-right", Vector3(-0.13, 0.4, 0), Vector3(0.2, 0.8, 0.2)],
+		["torso", Vector3(0, 1.1, 0), Vector3(0.5, 0.6, 0.3)], ["arm-left", Vector3(0.4, 1.1, 0), Vector3(0.15, 0.7, 0.15)],
+		["arm-right", Vector3(-0.4, 1.1, 0), Vector3(0.15, 0.7, 0.15)], ["head", Vector3(0, 1.6, 0), Vector3(0.3, 0.3, 0.3)],
+	]:
+		var mesh := MeshInstance3D.new()
+		mesh.name = String(spec[0])
+		mesh.mesh = box
+		mesh.scale = spec[2]
+		mesh.position = spec[1]
+		figure.add_child(mesh)
+	var made := DotPlayerRagdoll.build(figure, self, rules, null, null)
+	if is_inside_tree():
+		for i in frames:
+			await get_tree().physics_frame
+	if is_instance_valid(made):
+		made.queue_free()
+	if is_instance_valid(figure):
+		figure.queue_free()
+
+
 ## Removes every body at once: a map change, a round reset.
 func clear() -> void:
 	for body in _live:
