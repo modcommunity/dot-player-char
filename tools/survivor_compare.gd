@@ -9,6 +9,7 @@ const MOMENTS := 6
 ## made clip, library clip
 const PAIRS := [
 	["run", "ual_sprint"], ["run", "ual_jog"], ["walk", "ual_jog"], ["crouch_walk", "ual_crouch_walk"], ["walk", "crouch_walk"],
+	["walk", "ual_walk"], ["idle", "ual_idle"], ["death", "ual_death"],
 	["hit", "ual_hit_chest"], ["hit", "ual_hit_head"], ["death", "ual_knockback"],
 ]
 
