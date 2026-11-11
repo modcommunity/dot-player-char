@@ -5,9 +5,12 @@ extends RefCounted
 
 ## Two-bone IK turning [param bones] (upper, lower, end) to reach [param target] (skeleton space) with the elbow toward [param pole_dir], blended by [param weight].
 static func two_bone(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole_dir: Vector3, weight: float) -> void:
-	var upper := global_pose(skeleton, bones[0])
-	var lower := global_pose(skeleton, bones[1])
-	var wrist := global_pose(skeleton, bones[2])
+	# One walk up the chain: each pose is its parent's times its own local pose, the same products
+	# global_pose makes, in the same order.
+	var upper_global_parent := global_pose(skeleton, skeleton.get_bone_parent(bones[0]))
+	var upper := upper_global_parent * skeleton.get_bone_pose(bones[0])
+	var lower := upper * skeleton.get_bone_pose(bones[1]) if skeleton.get_bone_parent(bones[1]) == bones[0] else global_pose(skeleton, bones[1])
+	var wrist := lower * skeleton.get_bone_pose(bones[2]) if skeleton.get_bone_parent(bones[2]) == bones[1] else global_pose(skeleton, bones[2])
 	var a := lower.origin - upper.origin
 	var b := wrist.origin - lower.origin
 	var la := a.length()
@@ -28,7 +31,7 @@ static func two_bone(skeleton: Skeleton3D, bones: Array[int], target: Vector3, p
 	var q2 := Quaternion((q1 * b).normalized(), (hand_goal - elbow).normalized())
 	var upper_rot := (q1 * upper.basis.get_rotation_quaternion()).normalized()
 	var lower_rot := (q2 * q1 * lower.basis.get_rotation_quaternion()).normalized()
-	var upper_parent := global_pose(skeleton, skeleton.get_bone_parent(bones[0])).basis.get_rotation_quaternion()
+	var upper_parent := upper_global_parent.basis.get_rotation_quaternion()
 	var upper_local := (upper_parent.inverse() * upper_rot).normalized()
 	var lower_local := (upper_rot.inverse() * lower_rot).normalized()
 	var w := clampf(weight, 0.0, 1.0)
