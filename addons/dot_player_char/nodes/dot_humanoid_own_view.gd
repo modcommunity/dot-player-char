@@ -36,13 +36,14 @@ func apply(skeleton: Skeleton3D, mesh: MeshInstance3D) -> void:
 		return
 	var want: Array[int] = []
 	var live := effective()
-	var names: Array = HIDDEN_BONES.get(live, []).duplicate()
+	# Every other person on the screen is drawn whole: nothing to look up.
 	if hide_head or live != THIRD:
+		var names: Array = HIDDEN_BONES.get(live, []).duplicate()
 		names.append("Head")
-	for bone_name: String in names:
-		var bone := skeleton.find_bone(bone_name)
-		if bone >= 0:
-			want.append(bone)
+		for bone_name: String in names:
+			var bone := skeleton.find_bone(bone_name)
+			if bone >= 0:
+				want.append(bone)
 	# Put back only what this class shrank: a head a critical took off stays off until mend.
 	for bone in _shrunk:
 		if not bone in want:
@@ -86,6 +87,8 @@ func shadow() -> Skeleton3D:
 
 ## Without the belly the hips are an open tube seen from above: a flat disc on the hips bone, as wide as the stance, closes it.
 func _sync_cap(skeleton: Skeleton3D) -> void:
+	if effective() != LEGS and _cap == null:
+		return
 	var hips := skeleton.find_bone("Hips")
 	var abdomen := skeleton.find_bone("Abdomen")
 	var left := skeleton.find_bone("UpperLeg.L")
@@ -123,7 +126,9 @@ func _sync_cap(skeleton: Skeleton3D) -> void:
 func _sync_shadow(skeleton: Skeleton3D, mesh: MeshInstance3D) -> void:
 	var wanted := effective() != THIRD and mesh != null
 	if mesh != null:
-		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if wanted else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		var cast := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if wanted else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		if mesh.cast_shadow != cast:
+			mesh.cast_shadow = cast
 	if not wanted:
 		if is_instance_valid(_shadow):
 			_shadow.queue_free()

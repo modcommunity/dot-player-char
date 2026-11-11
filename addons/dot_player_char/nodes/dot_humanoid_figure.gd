@@ -200,6 +200,10 @@ var _slide_lift := 0.0
 var support_point := Vector3.INF
 var _support_weight: float = 0.0
 var _support_cache: Dictionary = {}
+## Per Animation (a clip can be replaced under its name): the upper-body bones it rotates as [index, track] pairs, flat.
+var _overlay_tracks: Dictionary = {}
+## Per Animation: [DotHumanoidAim.plan] without and with the arm.
+var _aim_plans: Dictionary = {}
 var _crown: Node3D = null
 var _machine := DotPlayerAnimState.new()
 var _motion: Dictionary = {}
@@ -240,6 +244,8 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	_crown = null
 	_upper.clear()
 	_support_cache.clear()
+	_overlay_tracks.clear()
+	_aim_plans.clear()
 	_strides.clear()
 	_machine.forget_state()
 
@@ -811,15 +817,19 @@ func _apply_overlays() -> void:
 		weight = 1.0
 	if source == null or weight <= 0.0:
 		return
-	var prefix := String(_model.get_path_to(_skeleton))
-	for bone: String in _upper:
-		var index: int = _upper[bone]
-		var track := source.find_track(NodePath("%s:%s" % [prefix, bone]), Animation.TYPE_ROTATION_3D)
-		if track < 0:
-			continue
-		var q := source.rotation_track_interpolate(track, t)
-		var now := _skeleton.get_bone_pose_rotation(index)
-		_skeleton.set_bone_pose_rotation(index, DotHumanoidBlend.toward(now, q, clampf(weight, 0.0, 1.0), _overlay_gain))
+	var pairs: PackedInt32Array = _overlay_tracks.get(source, PackedInt32Array())
+	if not _overlay_tracks.has(source):
+		var prefix := String(_model.get_path_to(_skeleton))
+		for bone: String in _upper:
+			var track := source.find_track(NodePath("%s:%s" % [prefix, bone]), Animation.TYPE_ROTATION_3D)
+			if track >= 0:
+				pairs.append_array([_upper[bone], track])
+		_overlay_tracks[source] = pairs
+	var w := clampf(weight, 0.0, 1.0)
+	for k in range(0, pairs.size(), 2):
+		var index := pairs[k]
+		var q := source.rotation_track_interpolate(pairs[k + 1], t)
+		_skeleton.set_bone_pose_rotation(index, DotHumanoidBlend.toward(_skeleton.get_bone_pose_rotation(index), q, w, _overlay_gain))
 
 
 ## Bends the waist and chest by [member aim_pitch] after the clip and the overlays, so what the arms
@@ -831,8 +841,16 @@ func _apply_aim() -> void:
 	if state == DotPlayerAnimState.DEAD or state == DotPlayerAnimState.SWIM or state == DotPlayerAnimState.CLIMB:
 		return
 	var animation := _anim.get_animation(clip)
-	if animation != null:
-		DotHumanoidAim.apply(_skeleton, _model, animation, _to_figure(), hold != Hold.NONE, aim_pitch, sprint_blend)
+	if animation == null:
+		return
+	var arm := 1 if hold != Hold.NONE else 0
+	var plans: Variant = _aim_plans.get(animation)
+	if plans == null:
+		plans = [null, null]
+	if plans[arm] == null:
+		plans[arm] = DotHumanoidAim.plan(_skeleton, _model, animation, arm == 1)
+		_aim_plans[animation] = plans
+	DotHumanoidAim.apply_plan(_skeleton, plans[arm], _to_figure(), aim_pitch, sprint_blend)
 
 
 ## Where the support hand goes: the weapon's foregrip, [constant Vector3.INF] when the gun is held with one
