@@ -4,7 +4,7 @@ Why a dead player falls the way it does here, and why the obvious alternative is
 
 ## What it replaced
 
-Before this, every game here drew a death one of two ways, and both looked wrong. In game-arena the dead stood where they died until they respawned, upright, a statue; a critical took one limb off as a tumbling box and left the rest standing on one leg. In every other game (zombie-zone, the prop and hide-and-seek games, the minigames) the figure vanished the instant the death arrived. Neither is a body falling down.
+Before this, every game here drew a death one of two ways, and both looked wrong. In game-fatal-contact the dead stood where they died until they respawned, upright, a statue; a critical took one limb off as a tumbling box and left the rest standing on one leg. In every other game (zombie-zone, the prop and hide-and-seek games, the minigames) the figure vanished the instant the death arrived. Neither is a body falling down.
 
 ## The styles
 

@@ -362,7 +362,7 @@ func _copy_meshes(part: Part, meshes: Array[MeshInstance3D], frame: Transform3D)
 		for i in range(source.get_surface_override_material_count()):
 			copy.set_surface_override_material(i, source.get_surface_override_material(i))
 		holder.add_child(copy)
-		# Instance uniforms are how a figure is tinted per player (game-arena's team colour);
+		# Instance uniforms are how a figure is tinted per player (game-fatal-contact's team colour);
 		# a copy without them is everybody in the stock colour.
 		for prop in source.get_property_list():
 			var prop_name := String(prop["name"])
