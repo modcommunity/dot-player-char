@@ -17,11 +17,10 @@ static func table_for(animation: Animation, skeleton: Skeleton3D, model: Node3D,
 	var feet := [skeleton.find_bone("Foot.L"), skeleton.find_bone("Foot.R")]
 	if animation == null or feet.has(-1) or animation.length <= 0.0:
 		return table
-	var prefix := String(model.get_path_to(skeleton))
+	var origins := _foot_origins(animation, skeleton, String(model.get_path_to(skeleton)), feet, SAMPLES)
 	var points: Array = []
 	for i in SAMPLES + 1:
-		var t := animation.length * i / SAMPLES
-		points.append(feet.map(func(b: int) -> Vector3: return to_figure * bone_at(skeleton, animation, prefix, b, t).origin))
+		points.append([to_figure * origins[i * 2], to_figure * origins[i * 2 + 1]])
 	var steps := PackedFloat32Array()
 	var airborne: Array[bool] = []
 	var total := 0.0
@@ -92,14 +91,14 @@ static func feet_now(skeleton: Skeleton3D, to_figure: Transform3D) -> PackedVect
 
 ## The time in [param animation] whose feet sit closest to [param feet], so a clip entered there carries the planted (lower) foot on as it was.
 static func matching_time(animation: Animation, skeleton: Skeleton3D, model: Node3D, to_figure: Transform3D, feet: PackedVector3Array) -> float:
-	var prefix := String(model.get_path_to(skeleton))
 	var ids := [skeleton.find_bone("Foot.L"), skeleton.find_bone("Foot.R")]
+	var origins := _foot_origins(animation, skeleton, String(model.get_path_to(skeleton)), ids, SAMPLES * 2)
 	var low := 0 if feet[0].y <= feet[1].y else 1
 	var best := 0.0
 	var least := INF
 	for i in SAMPLES * 2:
 		var t := animation.length * i / (SAMPLES * 2)
-		var at: Array[Vector3] = [to_figure * bone_at(skeleton, animation, prefix, ids[0], t).origin, to_figure * bone_at(skeleton, animation, prefix, ids[1], t).origin]
+		var at: Array[Vector3] = [to_figure * origins[i * 2], to_figure * origins[i * 2 + 1]]
 		# The planted foot must be the clip's lower one too: a run's flight would lift it off the ground.
 		if (at[0].y <= at[1].y) != (low == 0):
 			continue
@@ -110,3 +109,30 @@ static func matching_time(animation: Animation, skeleton: Skeleton3D, model: Nod
 			least = cost
 			best = t
 	return best
+
+
+## The two feet's skeleton-space origins at [param steps] + 1 even steps through [param animation]
+## (L, R, L, R...), kept on the animation itself: a clip switch asks for 96 of them, each a
+## recursive walk of track lookups, and every figure built on the same skeleton gets the same
+## answer. Keyed by the skeleton path and the feet chains' names and rests, which is all
+## [method bone_at] reads, so a figure on a different skeleton never shares an entry.
+static func _foot_origins(animation: Animation, skeleton: Skeleton3D, prefix: String, feet: Array, steps: int) -> PackedVector3Array:
+	var chain: Array = [prefix, steps, animation.length, animation.get_track_count()]
+	for foot: int in feet:
+		var b := foot
+		while b >= 0:
+			chain.append(skeleton.get_bone_name(b))
+			chain.append(skeleton.get_bone_rest(b))
+			b = skeleton.get_bone_parent(b)
+	var key := StringName("_dot_stride_feet_%d" % hash(chain))
+	if animation.has_meta(key):
+		var kept: Variant = animation.get_meta(key)
+		if kept is Array and (kept as Array)[0] == chain:
+			return (kept as Array)[1]
+	var out := PackedVector3Array()
+	for i in steps + 1:
+		var t := animation.length * i / steps
+		for foot: int in feet:
+			out.append(bone_at(skeleton, animation, prefix, foot, t).origin)
+	animation.set_meta(key, [chain, out])
+	return out
