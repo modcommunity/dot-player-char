@@ -12,16 +12,28 @@ static func record(skeleton: Skeleton3D, model: Node3D) -> PackedFloat32Array:
 	if skeleton == null or model == null:
 		return out
 	var n := skeleton.get_bone_count()
+	var roots := _root_bones(skeleton)
+	# One allocation and indexed writes: this runs for every drawn body, several times a frame.
+	out.resize(13 + n * 4 + roots.size() * 3)
 	var t := model.transform
-	out.append(n)
-	for v: Vector3 in [t.basis.x, t.basis.y, t.basis.z, t.origin]:
-		out.append_array([v.x, v.y, v.z])
+	out[0] = n
+	var bx := t.basis.x
+	var by := t.basis.y
+	var bz := t.basis.z
+	var o := t.origin
+	out[1] = bx.x; out[2] = bx.y; out[3] = bx.z
+	out[4] = by.x; out[5] = by.y; out[6] = by.z
+	out[7] = bz.x; out[8] = bz.y; out[9] = bz.z
+	out[10] = o.x; out[11] = o.y; out[12] = o.z
+	var k := 13
 	for i in n:
 		var q := skeleton.get_bone_pose_rotation(i)
-		out.append_array([q.x, q.y, q.z, q.w])
-	for i in _root_bones(skeleton):
+		out[k] = q.x; out[k + 1] = q.y; out[k + 2] = q.z; out[k + 3] = q.w
+		k += 4
+	for i in roots:
 		var p := skeleton.get_bone_pose_position(i)
-		out.append_array([p.x, p.y, p.z])
+		out[k] = p.x; out[k + 1] = p.y; out[k + 2] = p.z
+		k += 3
 	return out
 
 
@@ -50,11 +62,17 @@ static func apply(skeleton: Skeleton3D, model: Node3D, a: PackedFloat32Array, b:
 	return true
 
 
-## Bones whose position a clip moves: those without a parent and their children (the hips).
+## Bones whose position a clip moves: those without a parent and their children (the hips). Found
+## once per skeleton and bone count (kept in its meta), since a rig's parents do not change.
 static func _root_bones(skeleton: Skeleton3D) -> PackedInt32Array:
+	var count := skeleton.get_bone_count()
+	if skeleton.has_meta(&"pose_roots") and int(skeleton.get_meta(&"pose_roots_n", -1)) == count:
+		return skeleton.get_meta(&"pose_roots")
 	var out := PackedInt32Array()
-	for i in skeleton.get_bone_count():
+	for i in count:
 		var parent := skeleton.get_bone_parent(i)
 		if parent < 0 or skeleton.get_bone_parent(parent) < 0:
 			out.append(i)
+	skeleton.set_meta(&"pose_roots", out)
+	skeleton.set_meta(&"pose_roots_n", count)
 	return out

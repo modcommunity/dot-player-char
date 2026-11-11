@@ -256,6 +256,21 @@ func run_pose_record() -> void:
 		last = rec
 	suite._check(applied and worst < 0.001, "each frame of run, crouch and aim applied to another figure is the live pose (worst %.5f rad)" % worst)
 	suite._check(off_rest > 0.5, "and none of them is the rest pose (least %.2f rad from it)" % off_rest)
+	var ref := PackedFloat32Array()
+	var n := sk.get_bone_count()
+	ref.append(n)
+	var mdl: Node3D = live.get("_model")
+	for v: Vector3 in [mdl.transform.basis.x, mdl.transform.basis.y, mdl.transform.basis.z, mdl.transform.origin]:
+		ref.append_array([v.x, v.y, v.z])
+	for i in n:
+		var q := sk.get_bone_pose_rotation(i)
+		ref.append_array([q.x, q.y, q.z, q.w])
+	for i in n:
+		var par := sk.get_bone_parent(i)
+		if par < 0 or sk.get_bone_parent(par) < 0:
+			var pp := sk.get_bone_pose_position(i)
+			ref.append_array([pp.x, pp.y, pp.z])
+	suite._check(live.pose_record() == ref, "the record is the plain layout: count, model transform, bone rotations, root positions (%d floats)" % ref.size())
 	var first := steps.size()
 	live.set_motion({"on_floor": true})
 	live.animate(0.0, 1.0 / 60.0)
