@@ -8,7 +8,7 @@ Decisions and bugs worth recognising if they come back. The lessons that still a
 
 ## Every body stood at the world origin
 
-`DotPlayerModelVisual` kept its rig as its own child, and a visual is a plain `Node`, so every body drawn through it stood at the world origin whatever its player did; `DotPlayerSpriteVisual`'s sheet stood at the canvas origin the same way. No suite could see it: every check asked what was built, none asked where it was. game-playground, the one game drawing through it, drew every player at (0, 0, 0), hidden for months because its lobby spawn *is* the origin, and worked round it from the game until `seat()` existed ([design](design.md#a-visuals-drawn-node-hangs-off-the-player-not-off-the-visual)). A check that asks *what* was built says nothing about *where*; see [docs/testing.md](../../../docs/testing.md).
+`DotPlayerModelVisual` kept its rig as its own child, and a visual is a plain `Node`, so every body drawn through it stood at the world origin whatever its player did; `DotPlayerSpriteVisual`'s sheet stood at the canvas origin the same way. No suite could see it: every check asked what was built, none asked where it was. game-playlot, the one game drawing through it, drew every player at (0, 0, 0), hidden for months because its lobby spawn *is* the origin, and worked round it from the game until `seat()` existed ([design](design.md#a-visuals-drawn-node-hangs-off-the-player-not-off-the-visual)). A check that asks *what* was built says nothing about *where*; see [docs/testing.md](../../../docs/testing.md).
 
 ## A person's face plant stood back up
 
