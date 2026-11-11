@@ -36,3 +36,4 @@ The same evening mg-prop-hunt's hunters, killed with a gun in the hand, fell lim
 - Level 16: DotPlayerHitboxes and DotPlayerHitboxPlan: optional config-driven hit zones (off by default).
 - Level 17: DotOwnBodySetting (the client-only `cl_legs` setting) and DotHumanoidFigure.own_body_shown.
 - Level 18: DotHumanoidFigure.own_look_down_back (DotHumanoidOwnView.look_down_back, back_for): in first person your own body trails behind the eye as the view tips past 40 degrees down, by default; a game that places the body itself sets it to 0.
+- Level 19: first-person arms dressed and kept clear of the gun: DotViewArmsMaterial (skin and cloth detail over the palette swap), DotViewGrip.bounds/bounds_local, DotPlayerViewArms.set_look_override/own_look (a server-chosen arm set over the player's own), detailed, keep_arms_clear, arm_radius, arm_depth_right/left, and palm_offset defaulting to the side of the grip.

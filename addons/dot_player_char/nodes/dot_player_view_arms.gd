@@ -17,6 +17,10 @@ const FINGER_ROOTS: Array[String] = ["Pinky1", "Middle1", "Index1", "Thumb1"]
 ## drawn as is, in place of the person; if it has `set_motion` and `animate` (a [DotHumanoidFigure]) they are driven.
 ## Fraction of the arm the lean aims to need, so the slide to reach never trims a hand the lean just brought in.
 const LEAN_SLACK := 0.97
+## Elbow turns tried about the shoulder-to-hand line (degrees) to take an arm out of the weapon's box, and how much
+## of the forearm next to the hand may stay inside it (the hand is on the gun).
+const CLEAR_ANGLES: Array[float] = [0.0, 15.0, -15.0, 30.0, -30.0, 45.0, -45.0, 60.0, -60.0, 80.0, -80.0]
+const CLEAR_HAND_FREE := 0.35
 
 var arms_factory: Callable = Callable()
 ## Extension point: `func(bone: StringName, rest_position: Vector3) -> bool`, true for a vertex that is carried gear
@@ -25,7 +29,18 @@ var hide_vertex_fn: Callable = Callable()
 ## Where the camera sits relative to the crawling figure's head bone, in the figure's own frame (the clip lies the
 ## person along Z; the eye is measured from the posed head, not assumed, so a game's own figure fits too).
 var eye_from_head: Vector3 = Vector3(0.0, 0.3, -0.4)
+## The look drawn: [member own_look], or the server's [method set_look_override] while one is set.
 var look: DotHumanoidLook = null
+## The look [method build] was given: the player's own avatar, so each player's arms are their own.
+var own_look: DotHumanoidLook = null
+## The arms' close-up material ([DotViewArmsMaterial]: skin and cloth detail). Off: the crowd's flat palette.
+var detailed: bool = true
+## Turn the elbows so the arms do not pass through the weapon ([member DotViewGrip.bounds]); its radius in metres.
+var keep_arms_clear: bool = true
+var arm_radius: float = 0.03
+## How deep each arm (firing, support) sat inside the weapon's box after the last solve, metres; 0 is clear.
+var arm_depth_right: float = 0.0
+var arm_depth_left: float = 0.0
 var height: float = 1.8
 var shown: bool = false
 ## Where the camera sits from the head bone when holding a weapon (upright figure, forward is -Z). A little behind it:
@@ -46,9 +61,9 @@ var show_idle_left_arm: bool = false
 var hand_scale: float = 0.5
 ## The forearm's size with a weapon (1 is the kit's own); the hand keeps [member hand_scale]. A short grip close to the eye wants a slimmer, shorter forearm.
 var forearm_scale: float = 1.0
-## Where the wrist sits from the grip point, in the arms' frame (x out to the hand's side, y up, -z forward): the grip
-## points are on a gun's centreline, so a wrist left on them lays the whole hand over the gun and its sights.
-var palm_offset: Vector3 = Vector3(0.0, -0.04, 0.07)
+## Where the wrist sits from the grip point, in the arms' frame (x out to the hand's side, y up, -z forward): just off
+## the gun's centreline, so the hand wraps the grip's side instead of covering the sights or hanging below the grip.
+var palm_offset: Vector3 = Vector3(0.015, -0.01, 0.02)
 ## How far the shoulders may lean toward a firing-hand target out of the arm's reach, metres; past it the hand stays short.
 var max_lean: float = 0.4
 ## Metres between the hand and its target after the last solve (firing hand, support hand); 0 when that hand is unused.
@@ -79,11 +94,16 @@ var _sway := Vector3.ZERO
 var _base := Vector3.ZERO
 var _right: Array[int] = []
 var _left: Array[int] = []
+var _override: DotHumanoidLook = null
+var _detail_on := false
+var _turn_right := 0.0
+var _turn_left := 0.0
 
 
 ## Builds the arms (once; a new [param p_look] rebuilds). Hidden until [method set_downed] says otherwise.
 func build(p_look: DotHumanoidLook = null, p_height: float = 1.8) -> void:
-	look = p_look if p_look != null else DotHumanoidLook.stock(0)
+	own_look = p_look if p_look != null else DotHumanoidLook.stock(0)
+	look = _override if _override != null else own_look
 	height = p_height
 	_clear()
 
@@ -112,6 +132,9 @@ func build(p_look: DotHumanoidLook = null, p_height: float = 1.8) -> void:
 					if f >= 0:
 						_fingers.append(f)
 		_strip_gear(figure)
+		if detailed and figure.mesh() != null:
+			figure.mesh().material_override = DotViewArmsMaterial.for_look(look)
+			_detail_on = true
 	else:
 		add_child(_arms)
 
@@ -164,12 +187,25 @@ func _strip_gear(figure: DotHumanoidFigure) -> void:
 				kept.append_array(index.slice(t, t + 3))
 
 		arrays[Mesh.ARRAY_INDEX] = kept
+		arrays[Mesh.ARRAY_CUSTOM0] = _rest_positions(verts)
 		if mirror_support_forearm and instance.skin != null:
 			_mirror_forearm(arrays, skeleton, instance.skin)
-		out.add_surface_from_arrays(old.surface_get_primitive_type(s), arrays)
+		out.add_surface_from_arrays(old.surface_get_primitive_type(s), arrays, [], {}, DotViewArmsMaterial.REST_FORMAT)
 		out.surface_set_material(s, old.surface_get_material(s))
 
 	instance.mesh = out
+
+
+## Each vertex's rest position for [DotViewArmsMaterial]'s pattern, four floats a vertex.
+func _rest_positions(verts: PackedVector3Array) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(verts.size() * 4)
+	for v in verts.size():
+		out[v * 4] = verts[v].x
+		out[v * 4 + 1] = verts[v].y
+		out[v * 4 + 2] = verts[v].z
+		out[v * 4 + 3] = 1.0
+	return out
 
 
 ## Replaces the support forearm and hand with the firing ones mirrored across the body (x = the forearms' midpoint).
@@ -260,6 +296,15 @@ func _is_gear(bone: StringName, rest: Vector3) -> bool:
 		return bool(hide_vertex_fn.call(bone, rest))
 
 	return bone == PACK_BONE and rest.z < PACK_BEHIND
+
+
+## A server's arm set for every player ([param p_look]), drawn in place of each one's own; null goes back to
+## [member own_look]. Rebuilds only when the drawn look changes.
+func set_look_override(p_look: DotHumanoidLook) -> void:
+	var was := look
+	_override = p_look
+	if own_look != null and (_override if _override != null else own_look) != was:
+		build(own_look, height)
 
 
 ## Shows the crawling arms while [param on]. Always the prone crawl: a player propped on their back sees the held weapon, not arms.
@@ -403,8 +448,12 @@ func _reach(skeleton: Skeleton3D) -> void:
 	hand_gap_right = 0.0
 	hand_gap_left = 0.0
 
+	arm_depth_right = 0.0
+	arm_depth_left = 0.0
+
 	if not _right.is_empty():
-		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * right_target, out, 1.0)
+		var pole := _clear_pole(skeleton, _right, to_skeleton * right_target, out, true)
+		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * right_target, pole, 1.0)
 		drawn.append([_grip.grip_world(), right_target, "Middle1.R"])
 		hand_gap_right = _gap(skeleton, _right, right_target)
 
@@ -414,7 +463,10 @@ func _reach(skeleton: Skeleton3D) -> void:
 		if _grip.is_two_hand():
 			var mirrored := global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)
 			target = _slide_to_reach(skeleton, _left, _grip.support_world() + mirrored, right_target + mirrored)
-		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, Vector3(-out.x, out.y, out.z), 1.0)
+		var left_pole := Vector3(-out.x, out.y, out.z)
+		if _grip.is_two_hand():
+			left_pole = _clear_pole(skeleton, _left, to_skeleton * target, left_pole, false)
+		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, left_pole, 1.0)
 		drawn.append([_grip.support_world() if _grip.is_two_hand() else rest, target, "Middle1.L"])
 		hand_gap_left = _gap(skeleton, _left, target)
 
@@ -423,6 +475,76 @@ func _reach(skeleton: Skeleton3D) -> void:
 			_pose_debug = DotViewArmsPoseDebug.new()
 			add_child(_pose_debug)
 		_pose_debug.draw(skeleton, drawn)
+
+
+## The elbow direction (skeleton space) for an arm reaching [param target]: [param pole], turned about the
+## shoulder-to-hand line to the least-buried of [constant CLEAR_ANGLES] when the arm would pass through the weapon.
+## Eased part way each frame, so the elbow swings across rather than snapping.
+func _clear_pole(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole: Vector3, right: bool) -> Vector3:
+	var box := _grip.bounds_local().grow(arm_radius) if keep_arms_clear and _grip.bounds_local().has_volume() else AABB()
+	var shoulder := DotHumanoidIk.global_pose(skeleton, bones[0]).origin
+	var dir := (target - shoulder).normalized()
+	if not box.has_volume() or not dir.is_normalized():
+		return pole
+	var lengths := _arm_lengths(skeleton, bones)
+	var up := skeleton.global_transform.basis.inverse() * (global_transform.basis * Vector3.UP)
+	var best := 0.0
+	var best_score := INF
+	for angle in CLEAR_ANGLES:
+		var elbow := _elbow(shoulder, target, lengths, pole.rotated(dir, deg_to_rad(angle)))
+		# Ties go to the smaller turn; an elbow raised above the shoulder crosses the view, so it scores worse.
+		var score := _arm_depth(skeleton, box, shoulder, elbow, target) + absf(angle) * 0.00005 + (0.05 if (elbow - shoulder).dot(up) > 0.0 else 0.0)
+		if score < best_score - 0.002:
+			best_score = score
+			best = angle
+	var turn := lerpf(_turn_right if right else _turn_left, best, 0.35)
+	var turned := pole.rotated(dir, deg_to_rad(turn))
+	var depth := _arm_depth(skeleton, box, shoulder, _elbow(shoulder, target, lengths, turned), target)
+	if right:
+		_turn_right = turn
+		arm_depth_right = depth
+	else:
+		_turn_left = turn
+		arm_depth_left = depth
+	return turned
+
+
+func _arm_lengths(skeleton: Skeleton3D, bones: Array[int]) -> Vector2:
+	var upper := DotHumanoidIk.global_pose(skeleton, bones[0]).origin
+	var lower := DotHumanoidIk.global_pose(skeleton, bones[1]).origin
+	var wrist := DotHumanoidIk.global_pose(skeleton, bones[2]).origin
+	return Vector2((lower - upper).length(), (wrist - lower).length())
+
+
+## Where [method DotHumanoidIk.two_bone] puts the elbow for this target and pole, without posing anything.
+func _elbow(shoulder: Vector3, target: Vector3, lengths: Vector2, pole: Vector3) -> Vector3:
+	var la := lengths.x
+	var lb := lengths.y
+	var to_target := target - shoulder
+	if la < 0.0001 or lb < 0.0001 or to_target.length() < 0.0001:
+		return shoulder
+	var reach := clampf(to_target.length(), absf(la - lb) + 0.001, la + lb - 0.001)
+	var dir := to_target.normalized()
+	var along := (la * la - lb * lb + reach * reach) / (2.0 * reach)
+	var side := pole - dir * pole.dot(dir)
+	side = side.normalized() if side.length_squared() > 0.000001 else Vector3.UP
+	return shoulder + dir * along + side * sqrt(maxf(la * la - along * along, 0.0))
+
+
+## How deep the upper arm and the forearm (all but its hand end) go into [param box] (anchor space), metres.
+func _arm_depth(skeleton: Skeleton3D, box: AABB, shoulder: Vector3, elbow: Vector3, target: Vector3) -> float:
+	var to_anchor := _grip.anchor.global_transform.affine_inverse() * skeleton.global_transform
+	var hand := target.lerp(elbow, CLEAR_HAND_FREE)
+	var deepest := 0.0
+	for i in 9:
+		var t := i / 8.0
+		for p: Vector3 in [shoulder.lerp(elbow, t), elbow.lerp(hand, t)]:
+			var q := to_anchor * p
+			if box.has_point(q):
+				var low := q - box.position
+				var high := box.end - q
+				deepest = maxf(deepest, minf(minf(minf(low.x, high.x), minf(low.y, high.y)), minf(low.z, high.z)))
+	return deepest
 
 
 ## Leans the arms toward whichever hand target (firing or support) is furthest out of its arm's reach, a step at a time, by up to [member max_lean] in all.
@@ -538,7 +660,8 @@ func hand_error(grip: DotViewGrip) -> float:
 
 
 func describe() -> Dictionary:
-	return {"built": _arms != null, "shown": shown, "held": _holding(), "custom": arms_factory.is_valid(), "hidden_bones": _bones.size()}
+	return {"built": _arms != null, "shown": shown, "held": _holding(), "custom": arms_factory.is_valid(), "hidden_bones": _bones.size(),
+		"overridden": _override != null, "detailed": _detail_on}
 
 
 func _clear() -> void:
@@ -549,3 +672,4 @@ func _clear() -> void:
 
 	_bones.clear()
 	_fingers.clear()
+	_detail_on = false

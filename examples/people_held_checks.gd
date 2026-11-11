@@ -30,7 +30,8 @@ func run_arms() -> void:
 	suite._check(arms.arms().visible and arms.describe()["held"], "shown while a grip is set")
 	var right := _bone_world(sk, "Middle1.R")
 	suite._check(right.distance_to(_palm(arms, weapon.to_global(grip))) < 0.03, "the firing hand is palm_offset from the grip (%.3f m)" % right.distance_to(_palm(arms, weapon.to_global(grip))))
-	suite._check(arms.palm_offset != Vector3.ZERO and right.distance_to(weapon.to_global(grip)) > 0.05, "by default the wrist is off the gun's centreline so the hand does not cover it (%.3f m)" % right.distance_to(weapon.to_global(grip)))
+	var off := right.distance_to(weapon.to_global(grip))
+	suite._check(arms.palm_offset != Vector3.ZERO and off > 0.015 and off < 0.05, "by default the wrist sits on the grip's side, off the centreline but not hanging below it (%.3f m)" % off)
 	var left := _bone_world(sk, "Middle1.L")
 	suite._check(left.distance_to(_palm(arms, weapon.to_global(fore), true)) < 0.05, "the support hand reaches the foregrip (%.3f m)" % left.distance_to(_palm(arms, weapon.to_global(fore), true)))
 	var held_grip := DotViewGrip.two_hand(weapon, grip, fore)
@@ -84,6 +85,77 @@ func run_arms() -> void:
 	suite._check(not DotViewGrip.new().is_valid(), "a grip with no anchor is not valid, so the arms rest")
 	arms.queue_free()
 	weapon.queue_free()
+
+
+## The arms keep out of the weapon's box, wear the detailed material, and take a server's arm set over their own.
+func run_arms_dress() -> void:
+	suite._section("your own arms clear of the weapon, dressed as you")
+	var weapon := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.08, 0.16, 0.6)
+	weapon.mesh = box
+	suite.add_child(weapon)
+	weapon.position = Vector3(0.08, -0.2, -0.4)
+	var grip := Vector3(0.0, -0.06, 0.12)
+	var fore := Vector3(0.0, -0.06, -0.15)
+	var measured := DotViewGrip.two_hand(weapon, grip, fore).bounds_local()
+	suite._check(measured.size.is_equal_approx(box.size), "a weapon's box is measured from its meshes when it gives none (%s)" % measured.size)
+	# A rifle whose stock runs back to the shoulder and whose receiver is wide: the stock elbows go through it.
+	var rifle := AABB(Vector3(-0.06, -0.22, -0.35), Vector3(0.22, 0.28, 0.75))
+	var depths := []
+	for clear in [false, true]:
+		var arms := DotPlayerViewArms.new()
+		arms.keep_arms_clear = clear
+		suite.add_child(arms)
+		arms.build(DotHumanoidLook.stock(3), 1.8)
+		var held := DotViewGrip.two_hand(weapon, grip, fore)
+		held.bounds = rifle
+		arms.set_held(held)
+		for i in 20:
+			arms.tick(0.0, 1.0 / 30.0)
+			await suite.get_tree().process_frame
+		var sk: Skeleton3D = (arms.arms() as DotHumanoidFigure).skeleton()
+		depths.append([_buried(arms, sk, held, "R"), _buried(arms, sk, held, "L"), arms.hand_error(held)])
+		arms.queue_free()
+	suite._check(depths[0][0] + depths[0][1] > 0.01, "the stock elbows put an arm through this gun (%.3f / %.3f m deep; the check can fail)" % [depths[0][0], depths[0][1]])
+	suite._check(depths[1][0] + depths[1][1] < (depths[0][0] + depths[0][1]) * 0.6, "keep_arms_clear turns the elbows out of it (%.3f / %.3f m deep)" % [depths[1][0], depths[1][1]])
+	suite._check(depths[1][2] >= 0.0 and depths[1][2] < 0.05, "and the hands still reach their grips (%.3f m)" % depths[1][2])
+
+	var own := DotHumanoidLook.stock(3)
+	var server := DotHumanoidLook.stock(9)
+	var arms := DotPlayerViewArms.new()
+	suite.add_child(arms)
+	arms.build(own, 1.8)
+	var mesh := (arms.arms() as DotHumanoidFigure).mesh()
+	var material := mesh.material_override as ShaderMaterial
+	suite._check(arms.describe()["detailed"] and material != DotHumanoidAssets.material_for(own) and material == DotViewArmsMaterial.for_look(own), "the arms wear the detailed material for their own look")
+	suite._check(material.shader.code.contains("BACKLIGHT") and int(material.get_shader_parameter(&"skin_swaps")) > 0, "with skin swaps marked for the skin detail (%s)" % material.get_shader_parameter(&"skin_swaps"))
+	var rest: PackedFloat32Array = mesh.mesh.surface_get_arrays(0)[Mesh.ARRAY_CUSTOM0]
+	suite._check(rest.size() == (mesh.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() * 4, "every vertex carries its rest position for the pattern (%d floats)" % rest.size())
+	arms.set_look_override(server)
+	suite._check(arms.look == server and arms.own_look == own and arms.describe()["overridden"], "a server's arm set is drawn over the player's own")
+	suite._check((arms.arms() as DotHumanoidFigure).mesh().material_override == DotViewArmsMaterial.for_look(server), "in the server set's colours")
+	arms.set_look_override(null)
+	suite._check(arms.look == own and not arms.describe()["overridden"], "and clearing it gives the player's own arms back")
+	arms.queue_free()
+	weapon.queue_free()
+
+
+## The deepest the arm's upper half and forearm (not its hand end) go into the grip's box, sampled from the bones.
+func _buried(arms: DotPlayerViewArms, sk: Skeleton3D, grip: DotViewGrip, side: String) -> float:
+	var box := grip.bounds_local()
+	var to_anchor := grip.anchor.global_transform.affine_inverse()
+	var shoulder := to_anchor * _bone_world(sk, "UpperArm." + side)
+	var elbow := to_anchor * _bone_world(sk, "LowerArm." + side)
+	var hand := (to_anchor * _bone_world(sk, "Middle1." + side)).lerp(elbow, DotPlayerViewArms.CLEAR_HAND_FREE)
+	var deepest := 0.0
+	for i in 9:
+		for q: Vector3 in [shoulder.lerp(elbow, i / 8.0), elbow.lerp(hand, i / 8.0)]:
+			if box.has_point(q):
+				var low := q - box.position
+				var high := box.end - q
+				deepest = maxf(deepest, minf(minf(minf(low.x, high.x), minf(low.y, high.y)), minf(low.z, high.z)))
+	return deepest
 
 
 ## Where the wrist should be for a grip point: the point shifted by palm_offset in the arms' frame (x mirrored for the support hand).

@@ -4,8 +4,8 @@ extends Node
 ## from how it moves. What a person LOOKS like is `tools/people_sheet.gd`'s contact sheets.
 ## godot --headless --path . res://examples/people_selftest.tscn
 
-const SECTIONS := 18
-const CHECKS := 176
+const SECTIONS := 19
+const CHECKS := 186
 
 var _passed := 0
 var _failed := 0
@@ -34,6 +34,7 @@ func _run() -> void:
 	await DotPeopleLegsChecks.new(self).run()
 	var held := DotPeopleHeldChecks.new(self)
 	await held.run_arms()
+	await held.run_arms_dress()
 	await held.run_gun_steady()
 	await held.run_full_body_action()
 	await held.run_pose_record()
