@@ -16,6 +16,8 @@ const TURN_RATE := 9.0
 ## How much of a foot's clip height above the lowest foot is kept off the wall.
 const WALL_LIFT := 0.6
 const LEGS := [["UpperLeg.L", "LowerLeg.L", "Foot.L"], ["UpperLeg.R", "LowerLeg.R", "Foot.R"]]
+## Steepest face [method floor_lift] stands a body on (the normal's y): a wall or a riser is not a floor.
+const FLOOR_NORMAL := 0.7
 
 ## The lower body's turn from the facing now, radians (positive to the figure's left).
 var twist: float = 0.0
@@ -30,6 +32,7 @@ var _saved: Dictionary = {}
 # The twist and up the last [method apply] turned by (NAN until one has).
 var _applied_twist: float = NAN
 var _applied_up: Vector3 = Vector3.ZERO
+var _ray := PhysicsRayQueryParameters3D.new()
 
 
 ## Reads the ground [param velocity] (world) against [param facing] (the figure's world basis) and eases the twist.
@@ -118,9 +121,9 @@ func on_wall(skeleton: Skeleton3D, wall: Plane, up: Vector3, weight: float) -> v
 ## Lifts each drawn ankle (the end of its leg: the foot bones are IK controls the mesh does not follow) that the
 ## pose puts under [param floor_y] (per leg, its rest height in the figure's frame) back up to it, by two-bone IK on
 ## the leg; the knee bends further, the foot control is left alone. [param to_figure] is skeleton space to the
-## figure's frame (y up, the floor at its origin). Drawing only: nothing a game simulates reads these bones.
-## [method restore] puts the leg back before the next clip frame, so lifts never add up.
-func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat32Array) -> void:
+## figure's frame (y up, the floor at its origin, or [param raised] above it). Drawing only: nothing a game
+## simulates reads these bones. [method restore] puts the leg back before the next clip frame, so lifts never add up.
+func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat32Array, raised: float = 0.0) -> void:
 	if skeleton == null or floor_y.size() < LEGS.size():
 		return
 	var to_skel := to_figure.affine_inverse()
@@ -135,7 +138,7 @@ func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat
 		var knee := DotHumanoidIk.global_pose(skeleton, lower)
 		var ankle := knee * end_local
 		var at := to_figure * ankle
-		var lift := floor_y[k] - at.y
+		var lift := floor_y[k] + raised - at.y
 		if lift <= 0.0:
 			continue
 		for bone in [upper, lower]:
@@ -145,6 +148,28 @@ func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat
 		if pole.length_squared() < 1e-8:
 			pole = to_skel.basis * Vector3.FORWARD
 		var _reached := DotHumanoidIk.two_bone_to(skeleton, upper, lower, end_local, to_skel * (at + Vector3.UP * lift), pole, 1.0)
+
+
+## How far the floor under [param figure]'s origin is above it, 0 to [param reach] metres: one ray straight down
+## onto [param mask] from [param reach] above the origin. Only a floor face counts ([constant FLOOR_NORMAL]); a ray
+## starting inside a solid (the player's own hull, a wall) does not see it. An origin drawn between two ticks cuts
+## across a step's riser or a slope's crest and sits under the tread its feet are over; the figure raises the body
+## by this. Drawing only: the origin, the hull and the hit zones stay where the game put them.
+func floor_lift(figure: Node3D, mask: int, reach: float) -> float:
+	if mask == 0 or reach <= 0.0 or not figure.is_inside_tree():
+		return 0.0
+	var space := figure.get_world_3d().direct_space_state
+	if space == null:
+		return 0.0
+	var at := figure.global_position
+	_ray.from = at + Vector3.UP * reach
+	_ray.to = at
+	_ray.collision_mask = mask
+	_ray.hit_back_faces = false
+	var hit := space.intersect_ray(_ray)
+	if hit.is_empty() or (hit["normal"] as Vector3).y < FLOOR_NORMAL:
+		return 0.0
+	return clampf((hit["position"] as Vector3).y - at.y, 0.0, reach)
 
 
 ## [param target] on [param plane], or the nearest point to it on the plane within [param span] of [param hip].
