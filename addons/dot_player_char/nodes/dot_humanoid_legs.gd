@@ -27,6 +27,9 @@ var along_speed: float = 0.0
 var wall_weight: float = 0.0
 
 var _saved: Dictionary = {}
+# The twist and up the last [method apply] turned by (NAN until one has).
+var _applied_twist: float = NAN
+var _applied_up: Vector3 = Vector3.ZERO
 
 
 ## Reads the ground [param velocity] (world) against [param facing] (the figure's world basis) and eases the twist.
@@ -54,8 +57,16 @@ func restore(skeleton: Skeleton3D) -> void:
 	_saved.clear()
 
 
+## Whether [method restore] then [method apply] with [param up] would write back exactly the poses already on the
+## skeleton: the same turn about the same up, over a clip that has not moved since.
+func holds(up: Vector3) -> bool:
+	return twist == _applied_twist and up == _applied_up
+
+
 ## Turns the root by [member twist] about [param up] (skeleton space) and the hips back by as much.
 func apply(skeleton: Skeleton3D, up: Vector3) -> void:
+	_applied_twist = twist
+	_applied_up = up
 	if skeleton == null or is_zero_approx(twist):
 		return
 	var root := skeleton.find_bone("Root")

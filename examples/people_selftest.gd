@@ -5,7 +5,7 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 
 const SECTIONS := 19
-const CHECKS := 187
+const CHECKS := 190
 
 var _passed := 0
 var _failed := 0
