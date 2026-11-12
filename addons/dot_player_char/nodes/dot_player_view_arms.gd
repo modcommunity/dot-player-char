@@ -487,19 +487,20 @@ func _clear_pole(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole:
 	if not box.has_volume() or not dir.is_normalized():
 		return pole
 	var lengths := _arm_lengths(skeleton, bones)
+	var to_anchor := _grip.anchor.global_transform.affine_inverse() * skeleton.global_transform
 	var up := skeleton.global_transform.basis.inverse() * (global_transform.basis * Vector3.UP)
 	var best := 0.0
 	var best_score := INF
 	for angle in CLEAR_ANGLES:
 		var elbow := _elbow(shoulder, target, lengths, pole.rotated(dir, deg_to_rad(angle)))
 		# Ties go to the smaller turn; an elbow raised above the shoulder crosses the view, so it scores worse.
-		var score := _arm_depth(skeleton, box, shoulder, elbow, target) + absf(angle) * 0.00005 + (0.05 if (elbow - shoulder).dot(up) > 0.0 else 0.0)
+		var score := _arm_depth(to_anchor, box, shoulder, elbow, target) + absf(angle) * 0.00005 + (0.05 if (elbow - shoulder).dot(up) > 0.0 else 0.0)
 		if score < best_score - 0.002:
 			best_score = score
 			best = angle
 	var turn := lerpf(_turn_right if right else _turn_left, best, 0.35)
 	var turned := pole.rotated(dir, deg_to_rad(turn))
-	var depth := _arm_depth(skeleton, box, shoulder, _elbow(shoulder, target, lengths, turned), target)
+	var depth := _arm_depth(to_anchor, box, shoulder, _elbow(shoulder, target, lengths, turned), target)
 	if right:
 		_turn_right = turn
 		arm_depth_right = depth
@@ -532,19 +533,27 @@ func _elbow(shoulder: Vector3, target: Vector3, lengths: Vector2, pole: Vector3)
 
 
 ## How deep the upper arm and the forearm (all but its hand end) go into [param box] (anchor space), metres.
-func _arm_depth(skeleton: Skeleton3D, box: AABB, shoulder: Vector3, elbow: Vector3, target: Vector3) -> float:
-	var to_anchor := _grip.anchor.global_transform.affine_inverse() * skeleton.global_transform
-	var hand := target.lerp(elbow, CLEAR_HAND_FREE)
+func _arm_depth(to_anchor: Transform3D, box: AABB, shoulder: Vector3, elbow: Vector3, target: Vector3) -> float:
+	var s := to_anchor * shoulder
+	var e := to_anchor * elbow
+	var h := to_anchor * target.lerp(elbow, CLEAR_HAND_FREE)
+	# Most elbows miss the weapon: two native segment tests rule that out before the eighteen samples.
+	if box.intersects_segment(s, e) == null and box.intersects_segment(e, h) == null:
+		return 0.0
 	var deepest := 0.0
 	for i in 9:
 		var t := i / 8.0
-		for p: Vector3 in [shoulder.lerp(elbow, t), elbow.lerp(hand, t)]:
-			var q := to_anchor * p
-			if box.has_point(q):
-				var low := q - box.position
-				var high := box.end - q
-				deepest = maxf(deepest, minf(minf(minf(low.x, high.x), minf(low.y, high.y)), minf(low.z, high.z)))
+		deepest = maxf(deepest, maxf(_depth_in(box, s.lerp(e, t)), _depth_in(box, e.lerp(h, t))))
 	return deepest
+
+
+## How far [param q] is inside [param box] from its nearest face, or 0 outside.
+static func _depth_in(box: AABB, q: Vector3) -> float:
+	if not box.has_point(q):
+		return 0.0
+	var low := q - box.position
+	var high := box.end - q
+	return minf(minf(minf(low.x, high.x), minf(low.y, high.y)), minf(low.z, high.z))
 
 
 ## Leans the arms toward whichever hand target (firing or support) is furthest out of its arm's reach, a step at a time, by up to [member max_lean] in all.
