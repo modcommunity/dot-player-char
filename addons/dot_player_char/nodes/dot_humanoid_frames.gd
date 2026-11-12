@@ -75,17 +75,38 @@ static func crown_local(skeleton: Skeleton3D, to_figure: Transform3D, height: fl
 	return head_in_figure.affine_inverse() * Transform3D(Basis.IDENTITY, top)
 
 
-## How many frames apart a figure's clip is advanced at its distance from the camera; also sets its shadow.
+## How many frames apart a figure's clip is advanced at its distance from the camera, doubled out of view or hidden
+## ([constant DotHumanoidFigure.OFFSCREEN_STEP]); also sets its shadow.
 static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
 	var viewport := figure.get_viewport() if figure.is_inside_tree() else null
 	var camera := viewport.get_camera_3d() if viewport != null else null
 	if camera == null:
 		return 1
-	var d := camera.global_position.distance_to(figure.global_position)
+	var at := figure.global_position
+	var d := camera.global_position.distance_to(at)
 	if mesh != null:
 		var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if d <= DotHumanoidFigure.SHADOW_RANGE else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY and mesh.cast_shadow != shadow:
 			mesh.cast_shadow = shadow
-	if d <= DotHumanoidFigure.ANIM_NEAR:
-		return 1
-	return 2 if d <= DotHumanoidFigure.ANIM_FAR else 4
+	var step := 1 if d <= DotHumanoidFigure.ANIM_NEAR else (2 if d <= DotHumanoidFigure.ANIM_FAR else 4)
+	var tall := (figure as DotHumanoidFigure).height if figure is DotHumanoidFigure else 1.8
+	if not figure.is_visible_in_tree() or not in_view(camera, at + figure.global_basis.y.normalized() * tall * 0.5, tall):
+		step *= DotHumanoidFigure.OFFSCREEN_STEP
+	return step
+
+
+## Whether a sphere of [param radius] about [param center] may be in [param camera]'s view. Tests a cone round the
+## view's diagonal, so a sphere near a corner counts as in view; an orthogonal camera always sees it.
+static func in_view(camera: Camera3D, center: Vector3, radius: float) -> bool:
+	if camera.projection != Camera3D.PROJECTION_PERSPECTIVE:
+		return true
+	var to := center - camera.global_position
+	var dist := to.length()
+	if dist <= radius:
+		return true
+	var size := camera.get_viewport().get_visible_rect().size
+	var aspect := size.x / maxf(size.y, 1.0)
+	var t := tan(deg_to_rad(camera.fov) * 0.5)
+	var diagonal := t * sqrt(1.0 + aspect * aspect) if camera.keep_aspect == Camera3D.KEEP_HEIGHT else t * sqrt(1.0 + 1.0 / (aspect * aspect))
+	var cosine := to.dot(-camera.global_basis.z.normalized()) / dist
+	return acos(clampf(cosine, -1.0, 1.0)) <= atan(diagonal) + asin(radius / dist)

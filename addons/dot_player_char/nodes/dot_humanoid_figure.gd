@@ -12,6 +12,10 @@ const CHANNEL := "player.humanoid"
 const ANIM_NEAR := 22.0
 const ANIM_FAR := 45.0
 
+## Out of the camera's view or hidden, the frame step is this many times its distance's: only a shadow and a kill-cam
+## recording see the pose. Hit zones are not bones, so they never lag.
+const OFFSCREEN_STEP := 2
+
 ## Below 1, the mesh switches to its simpler levels sooner; a person is small on screen past a few metres.
 const LOD_BIAS := 0.4
 
@@ -154,7 +158,7 @@ func set_run_speeds(run_speed: float, run_exit_speed: float) -> void:
 	_machine.run_exit_speed = run_exit_speed
 
 
-## Frames per advance of the clip: 1, 2 or 4, by distance from the camera.
+## Frames per advance of the clip: 1, 2 or 4 by distance from the camera, twice that out of view.
 var anim_step: int = 1
 
 ## The head (and neck) shrunk to nothing after the clip, for your own body in first person.
@@ -386,8 +390,10 @@ func animate(speed: float, delta: float) -> void:
 	# The clip is advanced less often far from the camera, with the skipped time carried.
 	_owed += delta
 	_frame += 1
+	var was_step := anim_step
 	anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
-	var skipped := _frame % anim_step != 0
+	# A figure coming into view (or nearer) is redrawn at once, not up to seven frames later.
+	var skipped := _frame % anim_step != 0 and anim_step >= was_step
 	var up := _skeleton_up()
 	# A skipped frame that changes neither the clip nor the legs' turn leaves the skeleton alone: writing the same
 	# poses back would still mark it dirty, and the engine then redoes every bone's global pose and the skin.

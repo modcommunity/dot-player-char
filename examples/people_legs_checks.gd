@@ -19,6 +19,7 @@ func run() -> void:
 	await _check_walk(Vector3(1.6, 0, 0), "strafing right")
 	await _check_walk(Vector3(0, 0, -1.6), "forward")
 	await _check_far_skip()
+	await _check_offscreen()
 	await _check_wall()
 	suite._section("your own body in first person")
 	await _check_own_view()
@@ -70,6 +71,42 @@ func _check_far_skip() -> void:
 		if g._frame % g.anim_step == 0:
 			break
 	suite._check(not sk.get_bone_pose_rotation(root).is_equal_approx(root_was), "a turn that changes on a skipped frame is redrawn")
+	g.queue_free()
+	cam.queue_free()
+	await suite.get_tree().process_frame
+
+
+## Out of view (behind the camera) or hidden, the step doubles; turning to face the figure redraws it that frame.
+func _check_offscreen() -> void:
+	var cam := Camera3D.new()
+	suite.add_child(cam)
+	cam.position = Vector3(0, 1.6, 10.0)
+	cam.make_current()
+	var g := _figure()
+	var steps := []
+	for facing in [0.0, PI]:
+		cam.rotation = Vector3(0, facing, 0)
+		g.animate(0.0, DT)
+		steps.append(g.anim_step)
+	g.visible = false
+	g.animate(0.0, DT)
+	steps.append(g.anim_step)
+	g.visible = true
+	cam.position = Vector3(0, 1.6, 60.0)
+	cam.rotation = Vector3(0, PI, 0)
+	g.animate(0.0, DT)
+	steps.append(g.anim_step)
+	suite._check(steps == [1, 2, 2, 8], "in view near 1, behind the camera 2, hidden 2, far behind 8 (got %s)" % [steps])
+	g.set_motion({"on_floor": true, "velocity": Vector3(1.6, 0, 0)})
+	for i in 40:
+		g.animate(1.6, DT)
+	while g._frame % g.anim_step != 1:
+		g.animate(1.6, DT)
+	var owed_before: float = g._owed
+	cam.rotation = Vector3.ZERO
+	g.animate(1.6, DT)
+	suite._check(g.anim_step == 4 and g._frame % 4 != 0 and owed_before > 0.0 and g._owed == 0.0,
+		"turning to face it advances the clip on a frame that would have been skipped (step %d, frame %d, owed %.3f)" % [g.anim_step, g._frame, g._owed])
 	g.queue_free()
 	cam.queue_free()
 	await suite.get_tree().process_frame
