@@ -97,15 +97,33 @@ static func library_of(scene: PackedScene) -> AnimationLibrary:
 	if scene == null:
 		return null
 	var probe := scene.instantiate()
-	var player := probe.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	var library: AnimationLibrary = null
-	if player != null:
-		library = AnimationLibrary.new()
-		for clip in player.get_animation_list():
-			var animation := player.get_animation(clip).duplicate(true) as Animation
-			animation.loop_mode = Animation.LOOP_LINEAR if LOOPING.has(StringName(clip)) else Animation.LOOP_NONE
-			var _added := library.add_animation(StringName(clip), animation)
+	var library := library_from(clips_of(probe))
 	probe.free()
+	return library
+
+
+## The clips of the first [AnimationPlayer] under [param root] (name to the scene's own [Animation]),
+## or null when it has none. Cheap: nothing is copied.
+static func clips_of(root: Node) -> Variant:
+	var player := root.find_child("AnimationPlayer", true, false) as AnimationPlayer if root != null else null
+	if player == null:
+		return null
+	var clips := {}
+	for clip in player.get_animation_list():
+		clips[StringName(clip)] = player.get_animation(clip)
+	return clips
+
+
+## [param clips] (from [method clips_of]) copied, with loop modes set, as a library; null for null.
+## Touches no node, so a worker thread may run it.
+static func library_from(clips: Variant) -> AnimationLibrary:
+	if clips == null:
+		return null
+	var library := AnimationLibrary.new()
+	for clip: StringName in clips:
+		var animation := (clips[clip] as Animation).duplicate(true) as Animation
+		animation.loop_mode = Animation.LOOP_LINEAR if LOOPING.has(clip) else Animation.LOOP_NONE
+		var _added := library.add_animation(clip, animation)
 	return library
 
 
