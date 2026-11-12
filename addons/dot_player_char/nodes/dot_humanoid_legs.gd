@@ -1,6 +1,6 @@
 ## Where a figure's legs point and where its feet land: the lower body turned toward the way it
-## moves (the chest keeps facing the aim), a backward walk played in reverse, and feet set on the
-## wall plane during a wall run. One per [DotHumanoidFigure]; it calls these around its clip.
+## moves (the chest keeps facing the aim), a backward walk played in reverse, feet set on the
+## wall plane during a wall run and kept out of the floor. One per [DotHumanoidFigure]; it calls these around its clip.
 class_name DotHumanoidLegs
 extends RefCounted
 
@@ -113,6 +113,38 @@ func on_wall(skeleton: Skeleton3D, wall: Plane, up: Vector3, weight: float) -> v
 		var reached := DotHumanoidIk.two_bone_to(skeleton, leg[0], leg[1], end_local, ankles[k].lerp(target, wall_weight), plane.normal + up_s * 0.5, 1.0)
 		var parent := skeleton.get_bone_parent(leg[2])
 		skeleton.set_bone_pose_position(leg[2], reached if parent < 0 else DotHumanoidIk.global_pose(skeleton, parent).affine_inverse() * reached)
+
+
+## Lifts each drawn ankle (the end of its leg: the foot bones are IK controls the mesh does not follow) that the
+## pose puts under [param floor_y] (per leg, its rest height in the figure's frame) back up to it, by two-bone IK on
+## the leg; the knee bends further, the foot control is left alone. [param to_figure] is skeleton space to the
+## figure's frame (y up, the floor at its origin). Drawing only: nothing a game simulates reads these bones.
+## [method restore] puts the leg back before the next clip frame, so lifts never add up.
+func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat32Array) -> void:
+	if skeleton == null or floor_y.size() < LEGS.size():
+		return
+	var to_skel := to_figure.affine_inverse()
+	for k in LEGS.size():
+		var names: Array = LEGS[k]
+		var upper := skeleton.find_bone(names[0])
+		var lower := skeleton.find_bone(names[1])
+		var foot := skeleton.find_bone(names[2])
+		if upper < 0 or lower < 0 or foot < 0:
+			return
+		var end_local := skeleton.get_bone_global_rest(lower).affine_inverse() * skeleton.get_bone_global_rest(foot).origin
+		var knee := DotHumanoidIk.global_pose(skeleton, lower)
+		var ankle := knee * end_local
+		var at := to_figure * ankle
+		var lift := floor_y[k] - at.y
+		if lift <= 0.0:
+			continue
+		for bone in [upper, lower]:
+			if not _saved.has(bone):
+				_saved[bone] = skeleton.get_bone_pose_rotation(bone)
+		var pole := knee.origin - (DotHumanoidIk.global_pose(skeleton, upper).origin + ankle) * 0.5
+		if pole.length_squared() < 1e-8:
+			pole = to_skel.basis * Vector3.FORWARD
+		var _reached := DotHumanoidIk.two_bone_to(skeleton, upper, lower, end_local, to_skel * (at + Vector3.UP * lift), pole, 1.0)
 
 
 ## [param target] on [param plane], or the nearest point to it on the plane within [param span] of [param hip].

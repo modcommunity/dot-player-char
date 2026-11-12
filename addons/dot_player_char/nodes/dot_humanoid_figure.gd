@@ -235,6 +235,9 @@ var _auto_last: Vector3 = Vector3.INF
 var _model_basis: Basis = Basis.IDENTITY
 var _strides: Dictionary = {}
 var _model_origin: Vector3 = Vector3.ZERO
+# The skeleton's frame under the model, and each leg's drawn ankle at rest in the figure's frame (the lowest it is drawn).
+var _skel_to_model: Transform3D = Transform3D.IDENTITY
+var _floor_ankles: PackedFloat32Array = PackedFloat32Array()
 
 ## Builds the figure for [param p_look], [param p_height] metres tall, feet at this node's origin,
 ## facing -Z.
@@ -305,6 +308,13 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	_model_basis = Basis(Vector3.UP, PI).scaled(Vector3.ONE * s)
 	_model_origin = Vector3.ZERO
 	_model.transform = Transform3D(_model_basis, _model_origin)
+	_floor_ankles.clear()
+	if _skeleton != null:
+		_skel_to_model = DotHumanoidFrames.to_model(_skeleton, _model)
+		for names: Array in DotHumanoidLegs.LEGS:
+			var foot := _skeleton.find_bone(names[2])
+			if foot >= 0:
+				_floor_ankles.append((_model.transform * _skel_to_model * _skeleton.get_bone_global_rest(foot).origin).y)
 
 	for bone in DotHumanoidClips.UPPER_BONES:
 		var i := _skeleton.find_bone(bone) if _skeleton != null else -1
@@ -399,11 +409,15 @@ func animate(speed: float, delta: float) -> void:
 	# poses back would still mark it dirty, and the engine then redoes every bone's global pose and the skin.
 	if skipped and wanted[0] == clip and legs.holds(up):
 		_play(wanted[0], wanted[1])
+		# The body's tilt and crouch still move between clip frames: a foot they carry under the floor is lifted
+		# (this writes only then, so a still skeleton stays clean).
+		_apply_floor()
 		return
 	legs.restore(_skeleton)
 	_play(wanted[0], wanted[1])
 	if skipped:
 		legs.apply(_skeleton, up)
+		_apply_floor()
 		return
 	var matched := _matched_rate(legs.along_speed if _motion.has("velocity") else speed, _owed)
 	if not is_nan(matched):
@@ -420,8 +434,19 @@ func animate(speed: float, delta: float) -> void:
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, advanced)
 	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
+	_apply_floor()
 	_own.cap_colour = look.top
 	_own.apply(_skeleton, _mesh)
+
+
+## Keeps a standing body's drawn feet out of the floor its origin stands on ([method DotHumanoidLegs.on_floor]):
+## a clip's stride can carry an ankle under it. Not in the air, on a wall, a ladder, a seat or the ground.
+func _apply_floor() -> void:
+	if _skeleton == null or downed or seated or driving or not bool(_motion.get("on_floor", true)) or bool(_motion.get("wall_running", false)):
+		return
+	if state in [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD, DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL]:
+		return
+	legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles)
 
 
 func _skeleton_up() -> Vector3:
@@ -613,7 +638,11 @@ func pose_record() -> PackedFloat32Array:
 ## Draws the pose between two [method pose_record]s, [param alpha] of the way to [param b]. False
 ## (and nothing changed) when either is from another skeleton.
 func pose_apply(a: PackedFloat32Array, b: PackedFloat32Array, alpha: float) -> bool:
-	return DotHumanoidPoseRecord.apply(_skeleton, _model, a, b, alpha)
+	if not DotHumanoidPoseRecord.apply(_skeleton, _model, a, b, alpha):
+		return false
+	# Two recorded rows apart the blend can carry a foot under the floor; every leg bone was just written, so the lift does not add up.
+	_apply_floor()
+	return true
 
 
 ## Shows or hides the body (the local player's own, in first person). The hand stays where it
