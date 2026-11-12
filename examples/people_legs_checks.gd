@@ -18,6 +18,7 @@ func run() -> void:
 	await _check_walk(Vector3(0, 0, 1.6), "backward")
 	await _check_walk(Vector3(1.6, 0, 0), "strafing right")
 	await _check_walk(Vector3(0, 0, -1.6), "forward")
+	await _check_far_skip()
 	await _check_wall()
 	suite._section("your own body in first person")
 	await _check_own_view()
@@ -28,6 +29,50 @@ func _figure() -> DotHumanoidFigure:
 	suite.add_child(g)
 	g.build(DotHumanoidLook.stock(9), 1.8)
 	return g
+
+
+## Far from the camera the clip advances every fourth frame; in between the legs' turn stays drawn, and a frame that
+## changes neither clip nor turn leaves the poses exactly as they were (no rewrite to dirty the skeleton).
+func _check_far_skip() -> void:
+	var cam := Camera3D.new()
+	suite.add_child(cam)
+	cam.position = Vector3(0, 1.6, 60.0)
+	cam.make_current()
+	var g := _figure()
+	var sk := g.skeleton()
+	var root := sk.find_bone("Root")
+	var hips := sk.find_bone("Hips")
+	var velocity := Vector3(1.6, 0, 0)
+	var held := 0
+	var drifted := 0
+	var steps: Array[int] = []
+	for i in 90:
+		var before := [sk.get_bone_pose_rotation(root), sk.get_bone_pose_rotation(hips)]
+		var twist := g.legs.twist
+		g.set_motion({"on_floor": true, "velocity": velocity})
+		g.animate(velocity.length(), DT)
+		if i < 60 or g.anim_step == 1:
+			continue
+		steps.append(g.anim_step)
+		if g.legs.twist == twist and g._frame % g.anim_step != 0:
+			held += 1
+			if not (sk.get_bone_pose_rotation(root) == before[0] and sk.get_bone_pose_rotation(hips) == before[1]):
+				drifted += 1
+	suite._check(steps.size() == 30 and steps.min() == 4 and held >= 15 and drifted == 0,
+		"far off, a skipped frame with a steady turn keeps the root and hips as drawn (%d of %d held, %d moved)" % [held, steps.size(), drifted])
+	var turned := absf(g.legs.twist) > 0.5
+	suite._check(turned, "and the root is still turned by the legs (twist %.2f)" % g.legs.twist)
+	# Stopping eases the twist back on skipped frames too: the drawn turn follows it.
+	var root_was := sk.get_bone_pose_rotation(root)
+	for i in 3:
+		g.set_motion({"on_floor": true, "velocity": Vector3.ZERO})
+		g.animate(0.0, DT)
+		if g._frame % g.anim_step == 0:
+			break
+	suite._check(not sk.get_bone_pose_rotation(root).is_equal_approx(root_was), "a turn that changes on a skipped frame is redrawn")
+	g.queue_free()
+	cam.queue_free()
+	await suite.get_tree().process_frame
 
 
 static func _yaw_of(basis: Basis) -> float:

@@ -374,11 +374,9 @@ func animate(speed: float, delta: float) -> void:
 
 	if _anim == null:
 		return
-	legs.restore(_skeleton)
 	var facing := global_basis if is_inside_tree() else basis
 	legs.update(facing, _motion.get("velocity", Vector3.ZERO), delta)
 	var wanted := _clip_for(state, speed)
-	_play(wanted[0], wanted[1])
 
 	if overlay != &"":
 		_overlay_time += delta * _overlay_rate
@@ -389,8 +387,17 @@ func animate(speed: float, delta: float) -> void:
 	_owed += delta
 	_frame += 1
 	anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
-	if _frame % anim_step != 0:
-		legs.apply(_skeleton, _skeleton_up())
+	var skipped := _frame % anim_step != 0
+	var up := _skeleton_up()
+	# A skipped frame that changes neither the clip nor the legs' turn leaves the skeleton alone: writing the same
+	# poses back would still mark it dirty, and the engine then redoes every bone's global pose and the skin.
+	if skipped and wanted[0] == clip and legs.holds(up):
+		_play(wanted[0], wanted[1])
+		return
+	legs.restore(_skeleton)
+	_play(wanted[0], wanted[1])
+	if skipped:
+		legs.apply(_skeleton, up)
 		return
 	var matched := _matched_rate(legs.along_speed if _motion.has("velocity") else speed, _owed)
 	if not is_nan(matched):
