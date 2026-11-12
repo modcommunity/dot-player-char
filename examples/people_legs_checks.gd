@@ -18,6 +18,7 @@ func run() -> void:
 	await _check_walk(Vector3(0, 0, 1.6), "backward")
 	await _check_walk(Vector3(1.6, 0, 0), "strafing right")
 	await _check_walk(Vector3(0, 0, -1.6), "forward")
+	await _check_floor()
 	await _check_far_skip()
 	await _check_offscreen()
 	await _check_wall()
@@ -30,6 +31,37 @@ func _figure() -> DotHumanoidFigure:
 	suite.add_child(g)
 	g.build(DotHumanoidLook.stock(9), 1.8)
 	return g
+
+
+## Holding a gun, the walk and run carry a drawn ankle (the end of the leg: the foot bones are IK controls) under
+## the floor; the legs lift it back to its rest height, walking ahead, strafing and turning, at a short body's speeds.
+func _check_floor() -> void:
+	var g := DotHumanoidFigure.new()
+	suite.add_child(g)
+	g.build(DotHumanoidLook.stock(9), 1.372)
+	g.set_hold(DotHumanoidFigure.Hold.GUN)
+	var sk := g.skeleton()
+	var legs: Array = []
+	for names: Array in DotHumanoidLegs.LEGS:
+		var lower := sk.find_bone(names[1])
+		legs.append([lower, sk.get_bone_global_rest(lower).affine_inverse() * sk.get_bone_global_rest(sk.find_bone(names[2])).origin])
+	var to_fig := g.global_transform.affine_inverse() * sk.global_transform
+	var rest: float = minf((to_fig * sk.get_bone_global_rest(sk.find_bone("Foot.L")).origin).y, (to_fig * sk.get_bone_global_rest(sk.find_bone("Foot.R")).origin).y)
+	var low := INF
+	var sunk := 0
+	for i in 240:
+		var off := deg_to_rad(90.0 * (i / 60))
+		var speed := 2.58 if (i / 30) % 2 == 0 else 5.74
+		g.set_motion({"on_floor": true, "alive": true, "velocity": Vector3(sin(off), 0, -cos(off)) * speed})
+		g.animate(speed, DT)
+		sk.force_update_all_bone_transforms()
+		for leg: Array in legs:
+			var y := (to_fig * sk.get_bone_global_pose(leg[0]) * (leg[1] as Vector3)).y - rest
+			low = minf(low, y)
+			sunk += 1 if y < -0.005 else 0
+	suite._check(sunk == 0 and low > -0.005, "a gun walk and run keep the drawn ankles out of the floor (lowest %.3f m from rest, %d frames under)" % [low, sunk])
+	g.queue_free()
+	await suite.get_tree().process_frame
 
 
 ## Far from the camera the clip advances every fourth frame; in between the legs' turn stays drawn, and a frame that

@@ -40,15 +40,18 @@ static func hand_frame(skeleton: Skeleton3D, anim: AnimationPlayer, model: Node3
 static func measure(mesh: MeshInstance3D, model: Node3D) -> float:
 	if mesh == null or mesh.mesh == null:
 		return 1.8
-	var aabb := mesh.mesh.get_aabb()
 	# The mesh's own transform under the model (the importer may scale the armature).
-	var tomodel := Transform3D.IDENTITY
-	var node: Node = mesh
+	return (to_model(mesh, model) * mesh.mesh.get_aabb()).size.y
+
+
+## [param node]'s frame to [param model]'s, from the local transforms between them (no tree needed).
+static func to_model(node: Node, model: Node3D) -> Transform3D:
+	var out := Transform3D.IDENTITY
 	while node != null and node != model:
 		if node is Node3D:
-			tomodel = (node as Node3D).transform * tomodel
+			out = (node as Node3D).transform * out
 		node = node.get_parent()
-	return (tomodel * aabb).size.y
+	return out
 
 
 static func capsule(p_height: float, colour: Color) -> Node3D:
