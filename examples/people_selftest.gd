@@ -4,8 +4,8 @@ extends Node
 ## from how it moves. What a person LOOKS like is `tools/people_sheet.gd`'s contact sheets.
 ## godot --headless --path . res://examples/people_selftest.tscn
 
-const SECTIONS := 19
-const CHECKS := 192
+const SECTIONS := 20
+const CHECKS := 200
 
 var _passed := 0
 var _failed := 0
@@ -27,6 +27,7 @@ func _run() -> void:
 	await _test_hand_and_aim()
 	_test_actions()
 	_test_materials()
+	await _test_prepared_libraries()
 	_test_arm_swatches()
 	await _test_break()
 	_test_unimported()
@@ -511,6 +512,56 @@ func _test_materials() -> void:
 	_check(DotHumanoidFigure.material_count() == 0, "clear_cache() empties the shared materials")
 	DotHumanoidFigure.material_for(look)
 	_check(DotHumanoidFigure.material_count() == 1, "and a material refills it")
+
+## The clip sets built off the frame (prepare_libraries) are the ones library_for builds in one.
+func _test_prepared_libraries() -> void:
+	_section("clip sets prepared off the frame")
+	var other := &"lis"
+	var model := DotHumanoidAssets.scene(DotHumanoidAssets.body_path(other))
+	var probe := model.instantiate()
+	var skeleton := probe.find_children("*", "Skeleton3D", true, false).front() as Skeleton3D
+	DotHumanoidAssets.clear_cache()
+	var sync_base := DotHumanoidAssets.library_for(DotHumanoidAssets.CLIP_BODY, null)
+	var sync_other := DotHumanoidAssets.library_for(other, skeleton)
+	var sync_sit := DotHumanoidAssets.sit_height()
+	DotHumanoidAssets.clear_cache()
+	_check(DotHumanoidAssets.poll_libraries(), "nothing prepared: nothing to wait for")
+	DotHumanoidAssets.prepare_libraries([other])
+	var frames := 0
+	while not DotHumanoidAssets.poll_libraries() and frames < 1200:
+		frames += 1
+		await get_tree().process_frame
+	_check(frames < 1200, "the prepared build finishes (%d frames)" % frames)
+	var base := DotHumanoidAssets.library_for(DotHumanoidAssets.CLIP_BODY, null)
+	_check(base != null and base.get_animation_list() == sync_base.get_animation_list(), "the prepared shared set has the same clips")
+	_check(is_equal_approx(DotHumanoidAssets.sit_height(), sync_sit), "and the same sit height")
+	var prepared_other := DotHumanoidAssets.library_for(other, skeleton)
+	_check(_first_key(prepared_other, DotHumanoidClips.IDLE).is_equal_approx(_first_key(sync_other, DotHumanoidClips.IDLE)), "the prepared retarget is the one library_for makes")
+	DotHumanoidAssets.clear_cache()
+	DotHumanoidAssets.prepare_libraries([other])
+	_check(DotHumanoidAssets.library_for(DotHumanoidAssets.CLIP_BODY, null).get_animation_list() == sync_base.get_animation_list(), "library_for during a prepared build answers at once, the same")
+	DotHumanoidAssets.clear_cache()
+	frames = 0
+	while not DotHumanoidAssets.poll_libraries() and frames < 1200:
+		frames += 1
+		await get_tree().process_frame
+	_check(frames < 1200 and DotHumanoidAssets.poll_libraries(), "a build cleared mid-way still ends (%d frames)" % frames)
+	DotHumanoidAssets.prepare_libraries([other])
+	while not DotHumanoidAssets.poll_libraries() and frames < 2400:
+		frames += 1
+		await get_tree().process_frame
+	_check(DotHumanoidAssets.library_for(other, skeleton) == DotHumanoidAssets.library_for(other, skeleton) and frames < 2400, "and a fresh one after it builds")
+	DotHumanoidAssets.clear_cache()
+	probe.free()
+
+
+static func _first_key(library: AnimationLibrary, clip: StringName) -> Quaternion:
+	var animation := library.get_animation(clip)
+	for t in animation.get_track_count():
+		if animation.track_get_type(t) == Animation.TYPE_ROTATION_3D and animation.track_get_key_count(t) > 0:
+			return animation.track_get_key_value(t, 0)
+	return Quaternion()
+
 
 ## An arm or hand painted a colour no WEARS role covers keeps its painted colour whatever the
 ## person wears: brown forearms, white fingers. Dark neutrals (shadows, cuffs) may stay.

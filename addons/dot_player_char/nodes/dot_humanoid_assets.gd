@@ -16,6 +16,7 @@ const WEARS := {
 
 ## The body whose file carries the clip set.
 const CLIP_BODY := &"matt"
+const BASE := &"base"
 
 const SWAPS := 12
 const SHADER := """
@@ -59,6 +60,11 @@ static var _libraries: Dictionary = {}
 static var _materials: Dictionary = {}
 static var _shader: Shader = null
 static var _atlas: Texture2D = null
+# Running prepare_libraries builds: [task id, what it writes, the _generation it was started in].
+static var _tasks: Array = []
+static var _generation := 0
+static var _later: Array[StringName] = []
+static var _queued: Dictionary = {}
 
 
 ## The directory the people's files are in, found from this script so a pack mounted under
@@ -139,27 +145,126 @@ static func load_texture(path: String) -> Texture2D:
 ## The clip set for [param id]'s body, retargeted by [method DotHumanoidClips.retarget] once per
 ## body and shared. Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made
 ## clips, then the real ones from [method real_clips_path] over the ones they replace.
+## Takes what a [method prepare_libraries] build finished; one still running is not waited for (the
+## set is built here as well), since a worker can need a main-thread step that a wait would block.
 static func library_for(id: StringName, skeleton: Skeleton3D) -> AnimationLibrary:
-	var base_key := StringName("base")
-	if not _libraries.has(base_key):
-		var scene := scene(body_path(CLIP_BODY))
-		var probe := scene.instantiate() if scene != null else null
-		var bones: Array = probe.find_children("*", "Skeleton3D", true, false) if probe != null else []
-		var clip_skeleton: Skeleton3D = bones.front() as Skeleton3D if not bones.is_empty() else null
-		var library := DotHumanoidClips.mirror(DotHumanoidClips.library_of(scene))
-		_libraries[base_key] = DotHumanoidClips.synthesise(library, clip_skeleton)
-		var real_path := real_clips_path()
-		var real: AnimationLibrary = load(real_path) as AnimationLibrary if ResourceLoader.exists(real_path) else null
-		var _adopted := DotHumanoidClips.adopt(library, real)
-		_libraries[&"rests"] = DotHumanoidClips.rests_of(clip_skeleton)
-		_libraries[&"sit_height"] = DotHumanoidClips.sit_height(library, clip_skeleton)
+	var _done := _settle()
+	if not _libraries.has(BASE):
+		_build(_inputs({CLIP_BODY: scene(body_path(CLIP_BODY))}), _libraries, _libraries)
+	if id == CLIP_BODY or skeleton == null:
+		return _libraries[BASE]
+	if not _libraries.has(id):
+		_libraries[id] = DotHumanoidClips.retarget(_libraries[BASE], _libraries[&"rests"], skeleton)
+	return _libraries[id]
+
+
+## Starts building the shared clip set and [param bodies]' retargets of it (each on its own model's
+## skeleton) off the frame: on a worker thread where there are threads, else one per
+## [method poll_libraries] call. The shared set alone is well over 100 ms in one frame.
+static func prepare_libraries(bodies: Array[StringName] = []) -> void:
+	var _done := _settle()
+	if _tasks.any(func(t: Array) -> bool: return t[2] == _generation):
+		_later.append_array(bodies)
+		return
+	var scenes := {}
+	if not _libraries.has(BASE):
+		scenes[CLIP_BODY] = scene(body_path(CLIP_BODY))
+	for id in bodies:
+		if id != CLIP_BODY and not _libraries.has(id):
+			scenes[id] = scene(body_path(id))
+	if scenes.is_empty():
+		return
+	if not DotPlatform.has_threads():
+		_queued.merge(scenes)
+		return
+	# The worker reads only what is passed and writes only its own dictionary, read here once it is done.
+	# Models are instanced here, not there: a mesh instance made off the main thread waits for the main thread.
+	var out := {}
+	var task := WorkerThreadPool.add_task(_build.bind(_inputs(scenes), out, _libraries.duplicate()), false, "DotHumanoidAssets clips")
+	_tasks.append([task, out, _generation])
+
+
+## Moves a [method prepare_libraries] build on. True when there is nothing left to wait for; false while
+## the worker runs, and false after building the next clip set where there are no threads.
+static func poll_libraries() -> bool:
+	if not _settle():
+		return false
+	if not _later.is_empty():
+		var bodies: Array[StringName] = _later.duplicate()
+		_later.clear()
+		prepare_libraries(bodies)
+		return _tasks.is_empty() and _queued.is_empty()
+	while not _queued.is_empty():
+		var id: StringName = _queued.keys().front()
+		var one := {id: _queued[id]}
+		var _e := _queued.erase(id)
+		if not _libraries.has(BASE if id == CLIP_BODY else id):
+			_build(_inputs(one), _libraries, _libraries)
+			return false
+	return true
+
+
+## Takes in every finished build (of this cache generation; an older one's is dropped). True when none is left running.
+static func _settle() -> bool:
+	var running: Array = []
+	for t: Array in _tasks:
+		if not WorkerThreadPool.is_task_completed(t[0]):
+			running.append(t)
+			continue
+		var _w := WorkerThreadPool.wait_for_task_completion(t[0])
+		if t[2] != _generation:
+			continue
+		var out: Dictionary = t[1]
+		for key: StringName in out:
+			if not _libraries.has(key):
+				_libraries[key] = out[key]
+	_tasks = running
+	return running.is_empty()
+
+
+## What [method _build] needs of each of [param scenes] (body id to model), read on the main thread:
+## a bare copy of its skeleton (names, parents, rests; no mesh, so nothing on a server) and, for the clip
+## body, its clips.
+static func _inputs(scenes: Dictionary) -> Dictionary:
+	var out := {}
+	for id: StringName in scenes:
+		var model: PackedScene = scenes[id]
+		var probe := model.instantiate() if model != null else null
+		var found: Array = probe.find_children("*", "Skeleton3D", true, false) if probe != null else []
+		var bones: Skeleton3D = null
+		if not found.is_empty():
+			var from := found.front() as Skeleton3D
+			bones = Skeleton3D.new()
+			for i in from.get_bone_count():
+				var _i := bones.add_bone(from.get_bone_name(i))
+			for i in from.get_bone_count():
+				bones.set_bone_parent(i, from.get_bone_parent(i))
+				bones.set_bone_rest(i, from.get_bone_rest(i))
+		out[id] = [bones, DotHumanoidClips.clips_of(probe) if id == CLIP_BODY else null]
 		if probe != null:
 			probe.free()
-	if id == CLIP_BODY or skeleton == null:
-		return _libraries[base_key]
-	if not _libraries.has(id):
-		_libraries[id] = DotHumanoidClips.retarget(_libraries[base_key], _libraries[&"rests"], skeleton)
-	return _libraries[id]
+	return out
+
+
+## Builds each of [param inputs] (from [method _inputs]) into [param out]: the clip body's as the shared
+## set, its rests and sit height; any other's as its retarget of the shared set in [param out] or [param from].
+## Thread-safe for a worker: it touches no node in a tree and no server, and writes nothing shared.
+static func _build(inputs: Dictionary, out: Dictionary, from: Dictionary) -> void:
+	for id: StringName in inputs:
+		var skeleton: Skeleton3D = inputs[id][0]
+		if id == CLIP_BODY:
+			var library := DotHumanoidClips.mirror(DotHumanoidClips.library_from(inputs[id][1]))
+			out[BASE] = DotHumanoidClips.synthesise(library, skeleton)
+			var real_path := real_clips_path()
+			var real: AnimationLibrary = load(real_path) as AnimationLibrary if ResourceLoader.exists(real_path) else null
+			var _adopted := DotHumanoidClips.adopt(library, real)
+			out[&"rests"] = DotHumanoidClips.rests_of(skeleton)
+			out[&"sit_height"] = DotHumanoidClips.sit_height(library, skeleton)
+		elif skeleton != null:
+			var base: AnimationLibrary = out.get(BASE, from.get(BASE))
+			out[id] = DotHumanoidClips.retarget(base, out.get(&"rests", from.get(&"rests", {})), skeleton)
+		if skeleton != null:
+			skeleton.free()
 
 
 ## One material per look: people with the same colours share it.
@@ -219,7 +324,12 @@ static func material_count() -> int:
 
 
 ## Drops every shared scene, library, material, shader and atlas so a process can exit without leaking them.
+## A build still running is not waited for; its result is dropped, and [method poll_libraries] says when it is gone.
 static func clear_cache() -> void:
+	var _done := _settle()
+	_generation += 1
+	_later.clear()
+	_queued.clear()
 	_scenes.clear()
 	_libraries.clear()
 	_materials.clear()
