@@ -126,7 +126,6 @@ var driving: bool = false
 var auto_animate: bool = false:
 	set(value):
 		auto_animate = value
-		set_process(value)
 		_auto_last = Vector3.INF
 
 ## Idles, walks and runs as a zombie does: the library's shuffling walk ([constant DotHumanoidClips.ZOMBIE_WALK]), its idle, and the real sprint for a run. Every other state is the person's own. A figure without the real clips ignores it.
@@ -199,6 +198,16 @@ var _hand: Node3D = null
 ## [constant SPRINT_SECONDS]. A held weapon ([code]ZeeWorldModel[/code]) reads it to swing to the side.
 var sprint_blend: float = 0.0
 var _slide_lift := 0.0
+
+## Physics layers the drawn body is stood on (0 = off; the default is the shooter layout's `world`). A body whose
+## origin is drawn under the floor beneath it, as one interpolated between ticks is across a step's riser or a
+## slope's crest, is raised onto it by up to [member floor_reach] metres ([method DotHumanoidLegs.floor_lift]).
+## Drawing only: the origin, the hull and the hit zones are not moved.
+var floor_mask: int = 1
+var floor_reach: float = 0.45
+## How far the body is drawn above its origin now to stand on the floor under it, metres.
+var floor_lift: float = 0.0
+var _lift_at := Vector3.INF
 
 ## Where the support hand goes, in world space, with a two-handed gun; INF for none ([method set_support_grip]).
 var support_point := Vector3.INF
@@ -326,11 +335,15 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 
 
 func _ready() -> void:
-	set_process(auto_animate)
+	# Always: between calls to [method animate] (a far body's skipped frames) the drawn origin still moves, and
+	# [method _lift_body] follows it.
+	set_process(true)
 
 
 func _process(delta: float) -> void:
 	if not auto_animate or delta <= 0.0:
+		if global_position != _lift_at:
+			_lift_body()
 		return
 	var at := global_position
 	var moved := Vector3.ZERO if _auto_last == Vector3.INF else (at - _auto_last) / delta
@@ -439,14 +452,31 @@ func animate(speed: float, delta: float) -> void:
 	_own.apply(_skeleton, _mesh)
 
 
+## Stands the drawn body on the floor its origin is drawn inside ([member floor_mask]). Whatever the clip: a body
+## interpolated across a riser is often drawn mid-hop (its drawn state is in the air) while its sim stands on the tread.
+## Raised at once, never eased: an eased rise is a body sunk into the step it just climbed. Not seated, swimming,
+## climbing or dead.
+func _lift_body() -> void:
+	_lift_at = global_position if is_inside_tree() else Vector3.INF
+	if _model == null:
+		return
+	var lift := legs.floor_lift(self, floor_mask, floor_reach) if _skeleton != null and not (seated or driving) \
+		and not state in [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD] else 0.0
+	if lift != floor_lift:
+		floor_lift = lift
+		_model.transform = _model_transform()
+
+
 ## Keeps a standing body's drawn feet out of the floor its origin stands on ([method DotHumanoidLegs.on_floor]):
-## a clip's stride can carry an ankle under it. Not in the air, on a wall, a ladder, a seat or the ground.
+## a clip's stride can carry an ankle under it; first the body is stood on the floor under its origin ([member floor_mask]).
+## Not in the air, on a wall, a ladder, a seat or the ground.
 func _apply_floor() -> void:
-	if _skeleton == null or downed or seated or driving or not bool(_motion.get("on_floor", true)) or bool(_motion.get("wall_running", false)):
-		return
-	if state in [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD, DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL]:
-		return
-	legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles)
+	_lift_body()
+	var grounded := _skeleton != null and not (downed or seated or driving) and bool(_motion.get("on_floor", true)) \
+		and not bool(_motion.get("wall_running", false)) and not state in [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB,
+		DotPlayerAnimState.DEAD, DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL]
+	if grounded:
+		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)
 
 
 func _skeleton_up() -> Vector3:
@@ -937,10 +967,15 @@ func _apply_swim(delta: float) -> void:
 	var total := _swim_pitch + _prop_pitch
 	if is_equal_approx(before, total + _slide_lift + _own_back) and total == 0.0 and _slide_lift == 0.0 and _own_back == 0.0:
 		return
+	_model.transform = _model_transform()
+
+
+## The model under the figure: laid forward or back about the hips, raised by a slide and onto the floor, set back for its own view.
+func _model_transform() -> Transform3D:
 	var hips := Vector3(0.0, height * 0.55, 0.0)
-	var tilt := Transform3D(Basis(Vector3.RIGHT, -total), Vector3.ZERO)
+	var tilt := Transform3D(Basis(Vector3.RIGHT, -(_swim_pitch + _prop_pitch)), Vector3.ZERO)
 	var about := Transform3D(Basis.IDENTITY, hips) * tilt * Transform3D(Basis.IDENTITY, -hips)
-	_model.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, _slide_lift, _own_back)) * about * Transform3D(_model_basis, _model_origin)
+	return Transform3D(Basis.IDENTITY, Vector3(0.0, _slide_lift + floor_lift, _own_back)) * about * Transform3D(_model_basis, _model_origin)
 
 
 ## The directory the people's files are in.

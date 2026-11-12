@@ -19,6 +19,7 @@ func run() -> void:
 	await _check_walk(Vector3(1.6, 0, 0), "strafing right")
 	await _check_walk(Vector3(0, 0, -1.6), "forward")
 	await _check_floor()
+	await _check_floor_lift()
 	await _check_far_skip()
 	await _check_offscreen()
 	await _check_wall()
@@ -61,6 +62,51 @@ func _check_floor() -> void:
 			sunk += 1 if y < -0.005 else 0
 	suite._check(sunk == 0 and low > -0.005, "a gun walk and run keep the drawn ankles out of the floor (lowest %.3f m from rest, %d frames under)" % [low, sunk])
 	g.queue_free()
+	await suite.get_tree().process_frame
+
+
+## An origin drawn under the tread it stands over (interpolated across a step's riser) has the body raised onto the
+## floor, at once and only by the gap, mid-hop too; past the reach, above the floor, swimming or with no mask it stays
+## where it is. Between animate calls (a far body's skipped frames) the lift follows the moved origin.
+func _check_floor_lift() -> void:
+	var step := StaticBody3D.new()
+	var box := CollisionShape3D.new()
+	box.shape = BoxShape3D.new()
+	(box.shape as BoxShape3D).size = Vector3(4.0, 0.3, 4.0)
+	step.add_child(box)
+	suite.add_child(step)
+	step.position = Vector3(40.0, 0.15, 0.0)
+	var g := _figure()
+	var body := g.get_node("Body") as Node3D
+	await suite.get_tree().physics_frame
+	await suite.get_tree().physics_frame
+	var lifts: Array[float] = []
+	var ground := {"on_floor": true, "vertical": 0.0, "velocity": Vector3.ZERO}
+	var swim := {"on_floor": false, "swimming": true, "vertical": 0.0, "velocity": Vector3.ZERO}
+	var air := {"on_floor": false, "vertical": 3.0, "velocity": Vector3.ZERO}
+	for case: Array in [[0.1, ground, 1], [-0.3, ground, 1], [0.35, ground, 1], [0.1, swim, 1], [0.1, ground, 0], [0.1, air, 1]]:
+		g.global_position = Vector3(40.0, case[0], 0.0)
+		g.floor_mask = case[2]
+		g.set_motion(case[1])
+		for i in (30 if case[1] == air else 3):
+			g.animate(0.0, DT)
+		lifts.append(g.floor_lift)
+	suite._check(is_equal_approx(snappedf(lifts[0], 0.001), 0.2) and is_equal_approx(body.position.y, lifts[0]),
+		"floor lift: an origin 0.2 m under the tread draws the body on it (%.3f m, model at %.3f)" % [lifts[0], body.position.y])
+	suite._check(lifts[1] == 0.0 and lifts[2] == 0.0 and lifts[3] == 0.0 and lifts[4] == 0.0,
+		"floor lift: none past the reach, above the floor, swimming or with no mask (%s)" % [lifts])
+	suite._check(is_equal_approx(snappedf(lifts[5], 0.001), 0.2) and g.state in [DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL],
+		"floor lift: drawn mid-hop across the riser, still on the tread (%.3f m, state %s)" % [lifts[5], g.state])
+	g.set_motion(ground)
+	g.animate(0.0, DT)
+	g.global_position = Vector3(40.0, -0.1, 0.0)
+	await suite.get_tree().process_frame
+	await suite.get_tree().process_frame
+	suite._check(is_equal_approx(snappedf(g.floor_lift, 0.001), 0.4) and is_equal_approx(body.position.y, g.floor_lift),
+		"floor lift: moved without an animate call, the lift follows (%.3f m, model at %.3f)" % [g.floor_lift, body.position.y])
+	g.floor_mask = 1
+	g.queue_free()
+	step.queue_free()
 	await suite.get_tree().process_frame
 
 
