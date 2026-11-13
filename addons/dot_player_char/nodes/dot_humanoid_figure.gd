@@ -151,6 +151,11 @@ var auto_smooth_time: float = 0.0
 const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN,
 	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK, DotHumanoidClips.SPRINT]
 const STRIDE_MAX_RATE := 4.0
+## The states whose clip is a stride (its rate is matched to the ground), no floor lift, off the floor.
+const STRIDE_STATES: Array[StringName] = [DotPlayerAnimState.WALK, DotPlayerAnimState.RUN, DotPlayerAnimState.CROUCH_WALK]
+const NO_LIFT_STATES: Array[StringName] = [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD]
+const OFF_FLOOR_STATES: Array[StringName] = [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD,
+	DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL]
 
 ## The zombie walk's and the sprint's own ground speeds (m/s), for the rate at other speeds.
 const ZOMBIE_WALK_NATURAL := 1.3
@@ -234,6 +239,8 @@ var _lift_at := Vector3.INF
 var support_point := Vector3.INF
 var _support_weight: float = 0.0
 var _support_cache: Dictionary = {}
+## The bones from the root to the support arm's parent, per upper-arm bone, for [method DotHumanoidIk.chain_pose].
+var _support_chains: Dictionary = {}
 ## Per Animation (a clip can be replaced under its name): the upper-body bones it rotates as [index, track] pairs, flat.
 var _overlay_tracks: Dictionary = {}
 ## Per Animation: [DotHumanoidAim.plan] without and with the arm.
@@ -272,6 +279,10 @@ var _strides: Dictionary = {}
 var _model_origin: Vector3 = Vector3.ZERO
 # The skeleton's frame under the model, and each leg's drawn ankle at rest in the figure's frame (the lowest it is drawn).
 var _skel_to_model: Transform3D = Transform3D.IDENTITY
+## [method _to_figure] held for the rest of one [method animate] (cleared when the model moves).
+var _frame_tf := Transform3D.IDENTITY
+var _frame_tf_on := false
+var _frame_tf_ok := false
 var _floor_ankles: PackedFloat32Array = PackedFloat32Array()
 
 ## Builds the figure for [param p_look], [param p_height] metres tall, feet at this node's origin,
@@ -286,6 +297,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	_crown = null
 	_upper.clear()
 	_support_cache.clear()
+	_support_chains.clear()
 	_overlay_tracks.clear()
 	_aim_plans.clear()
 	_strides.clear()
@@ -447,10 +459,16 @@ func frame_delta() -> float:
 ## Advances the animation by [param delta] at ground [param speed]. [method pose] calls it; a suite
 ## or a contact sheet calls it directly to step time exactly.
 func animate(speed: float, delta: float) -> void:
+	# [method _to_figure] is read several times a step and cannot change within one unless the model is moved.
+	_frame_tf_on = true
+	_animate_step(speed, delta)
+	_frame_tf_on = false
+	_frame_tf_ok = false
+
+
+func _animate_step(speed: float, delta: float) -> void:
 	_speed = speed
-	var motion := _motion.duplicate()
-	motion["speed"] = speed
-	state = _machine.advance(motion, delta)
+	state = _machine.advance(_motion, delta, speed)
 	_end_action_if_moved()
 	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
 	_sprint = move_toward(_sprint, 1.0 if carry_sprint and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
@@ -501,7 +519,7 @@ func animate(speed: float, delta: float) -> void:
 	_apply_overlays()
 	_apply_aim()
 	_ease.step(_skeleton, advanced)
-	legs.apply(_skeleton, _skeleton_up())
+	legs.apply(_skeleton, up)
 	_apply_carry()
 	_apply_support()
 	_apply_swim(delta * anim_step)
@@ -522,10 +540,11 @@ func _lift_body() -> void:
 	if _model == null:
 		return
 	var lift := legs.floor_lift(self, floor_mask, floor_reach) if _skeleton != null and not (seated or driving) \
-		and not state in [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD] else 0.0
+		and not state in NO_LIFT_STATES else 0.0
 	if lift != floor_lift:
 		floor_lift = lift
 		_model.transform = _model_transform()
+		_frame_tf_ok = false
 
 
 ## Keeps a standing body's drawn feet out of the floor its origin stands on ([method DotHumanoidLegs.on_floor]):
@@ -534,8 +553,7 @@ func _lift_body() -> void:
 func _apply_floor() -> void:
 	_lift_body()
 	var grounded := _skeleton != null and not (downed or seated or driving) and bool(_motion.get("on_floor", true)) \
-		and not bool(_motion.get("wall_running", false)) and not state in [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB,
-		DotPlayerAnimState.DEAD, DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL]
+		and not bool(_motion.get("wall_running", false)) and not state in OFF_FLOOR_STATES
 	if grounded:
 		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)
 
@@ -703,8 +721,14 @@ func _bone_mount(node_name: String, bone_name: String, fallback: Vector3) -> Nod
 ## Skeleton space to the figure's frame: the skeleton's own transform under the model, then the
 ## model's turn and scale.
 func _to_figure() -> Transform3D:
+	if _frame_tf_ok:
+		return _frame_tf
 	var skel_to_model := _model.global_transform.affine_inverse() * _skeleton.global_transform if _model.is_inside_tree() and absf(_model.global_basis.determinant()) > 1e-9 else Transform3D.IDENTITY
-	return Transform3D(_model_basis, _model_origin) * skel_to_model
+	var out := Transform3D(_model_basis, _model_origin) * skel_to_model
+	if _frame_tf_on:
+		_frame_tf = out
+		_frame_tf_ok = true
+	return out
 
 
 ## The drawn model, for [DotPlayerRagdoll] (it finds the skeleton and the skinned mesh under it).
@@ -832,7 +856,7 @@ func _sprint_clip_for(speed: float) -> bool:
 ## clip is not a stride. The clips have no root motion and sweep the planted foot back unevenly, so
 ## any constant rate skates it; the rate is read off the clip's distance table instead.
 func _matched_rate(speed: float, dt: float) -> float:
-	if dt <= 0.0 or not state in [DotPlayerAnimState.WALK, DotPlayerAnimState.RUN, DotPlayerAnimState.CROUCH_WALK]:
+	if dt <= 0.0 or not state in STRIDE_STATES:
 		return NAN
 	if not clip in STRIDE_CLIPS or _anim.current_animation != String(clip):
 		return NAN
@@ -1009,7 +1033,12 @@ func _apply_support() -> void:
 	var bones := _support_bones_for(clip)
 	if bones.is_empty():
 		return
-	DotHumanoidIk.two_bone(_skeleton, bones, target, _to_figure().basis.inverse() * SUPPORT_POLE, _support_weight)
+	var chain: Variant = _support_chains.get(bones[0])
+	if chain == null:
+		chain = DotHumanoidIk.chain_to(_skeleton, _skeleton.get_bone_parent(bones[0]))
+		_support_chains[bones[0]] = chain
+	DotHumanoidIk.two_bone_under(_skeleton, bones, DotHumanoidIk.chain_pose(_skeleton, chain), target,
+		_to_figure().basis.inverse() * SUPPORT_POLE, _support_weight)
 
 
 func _apply_carry() -> void:
@@ -1045,6 +1074,7 @@ func _apply_swim(delta: float) -> void:
 	if is_equal_approx(before, total + _slide_lift + _own_back) and total == 0.0 and _slide_lift == 0.0 and _own_back == 0.0:
 		return
 	_model.transform = _model_transform()
+	_frame_tf_ok = false
 
 
 ## The model under the figure: laid forward or back about the hips, raised by a slide and onto the floor, set back for its own view.

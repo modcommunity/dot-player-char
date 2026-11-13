@@ -63,6 +63,8 @@ var _reload_time := 0.0
 var _turns: Array[Quaternion] = []
 var _bones: Dictionary = {}
 var _chest := -1
+## The bones from the root to [member _chest], for [method DotHumanoidIk.chain_pose] every frame.
+var _chest_chain := PackedInt32Array()
 var _shoulder := -1
 var _hand_frame := Transform3D.IDENTITY
 var _hand_frame_inv := Transform3D.IDENTITY
@@ -139,7 +141,7 @@ func apply(skeleton: Skeleton3D, model: Node3D, anim: AnimationPlayer, to_figure
 	turn = turn.slerp(_turns[4], swap)
 	# Ride the chest as the clip moves it: all of its travel, part of its turn (less when aiming).
 	# One walk from the root: the arm hangs off the chest (Torso, Shoulder, UpperArm, LowerArm, hand).
-	var chest_global := DotHumanoidIk.global_pose(skeleton, _chest)
+	var chest_global := DotHumanoidIk.chain_pose(skeleton, _chest_chain)
 	var shoulder_global := chest_global * skeleton.get_bone_pose(_shoulder)
 	var chest := to_figure * chest_global
 	var chest_ref := to_figure * _chest_ref
@@ -217,6 +219,7 @@ func _measure(skeleton: Skeleton3D, model: Node3D, anim: AnimationPlayer, to_fig
 	_hand_frame = DotHumanoidFrames.hand_frame(skeleton, anim, model, to_figure)
 	_hand_frame_inv = _hand_frame.affine_inverse()
 	_chest_ref = DotHumanoidFrames.held_pose(skeleton, anim, model, _chest)
+	_chest_chain = DotHumanoidIk.chain_to(skeleton, _chest)
 
 
 func describe() -> Dictionary:

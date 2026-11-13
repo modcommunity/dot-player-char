@@ -85,8 +85,8 @@ func _run() -> void:
 ## Each phase called on its own after a normal step, timed per call. Mutates the pose (a second
 ## bend), so run after the digest; times only.
 func _parts(frames: int) -> void:
-	var names := ["motion+machine", "legs.restore", "legs.update", "clip_for+play", "step_for_distance",
-		"anim.advance", "overlays", "aim", "ease", "legs.apply", "support", "swim", "crawl", "on_wall", "own.apply", "skeleton_up"]
+	var names := ["motion+machine", "legs.restore", "legs.update", "clip_for", "play", "step_for_distance",
+		"anim.advance", "overlays", "aim", "ease", "legs.apply", "support", "swim", "crawl", "on_wall", "own.apply", "skeleton_up", "carry", "floor", "matched_rate"]
 	var sums := {}
 	for n in names:
 		sums[n] = 0
@@ -104,8 +104,9 @@ func _parts(frames: int) -> void:
 			f.legs.update(f.global_basis, f._motion.get("velocity", Vector3.ZERO), DT)
 			t = _lap(sums, "legs.update", t)
 			var w: Array = f._clip_for(f.state, 3.0)
+			t = _lap(sums, "clip_for", t)
 			f._play(w[0], w[1])
-			t = _lap(sums, "clip_for+play", t)
+			t = _lap(sums, "play", t)
 			DotHumanoidFrames.step_for_distance(f, f._mesh)
 			t = _lap(sums, "step_for_distance", t)
 			f._anim.advance(DT)
@@ -130,6 +131,12 @@ func _parts(frames: int) -> void:
 			t = _lap(sums, "own.apply", t)
 			f._skeleton_up()
 			t = _lap(sums, "skeleton_up", t)
+			f._apply_carry()
+			t = _lap(sums, "carry", t)
+			f._apply_floor()
+			t = _lap(sums, "floor", t)
+			f._matched_rate(3.0, DT)
+			t = _lap(sums, "matched_rate", t)
 	for n in names:
 		print("ANIM_PART %-18s %.2f us/call" % [n, float(sums[n]) / float(frames * COUNT)])
 

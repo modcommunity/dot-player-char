@@ -50,14 +50,15 @@ var _was_on_floor: bool = true
 
 
 ## One tick. [param motion] keys, all optional: speed, vertical (up positive), on_floor,
-## crouched, climbing, swimming, alive. A missing key defaults to "no".
-func advance(motion: Dictionary, delta: float) -> StringName:
+## crouched, climbing, swimming, alive. A missing key defaults to "no". [param speed_now], when given, stands in
+## for the `speed` key (a caller with its own speed need not copy the dictionary to add it).
+func advance(motion: Dictionary, delta: float, speed_now: float = NAN) -> StringName:
 	if not bool(motion.get("alive", true)):
 		_state = DEAD
 		return _state
 
 	var on_floor := bool(motion.get("on_floor", true))
-	var speed := float(motion.get("speed", 0.0))
+	var speed := float(motion.get("speed", 0.0)) if is_nan(speed_now) else speed_now
 	var vertical := float(motion.get("vertical", 0.0))
 	var crouched := bool(motion.get("crouched", false))
 
