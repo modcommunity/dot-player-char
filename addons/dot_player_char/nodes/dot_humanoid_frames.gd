@@ -80,6 +80,12 @@ static func crown_local(skeleton: Skeleton3D, to_figure: Transform3D, height: fl
 	return head_in_figure.affine_inverse() * Transform3D(Basis.IDENTITY, top)
 
 
+## [method _half_cone]'s last answer: for which camera, on which process frame.
+static var _cone_camera := 0
+static var _cone_frame := -1
+static var _cone := 0.0
+
+
 ## How many frames apart a figure's clip is advanced at its distance from the camera, doubled out of view or hidden
 ## ([constant DotHumanoidFigure.OFFSCREEN_STEP]); also sets its shadow.
 static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
@@ -87,15 +93,17 @@ static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
 	var camera := viewport.get_camera_3d() if viewport != null else null
 	if camera == null:
 		return 1
-	var at := figure.global_position
-	var d := camera.global_position.distance_to(at)
+	var placed := figure.global_transform
+	var at := placed.origin
+	var eye := camera.global_transform
+	var d := eye.origin.distance_to(at)
 	if mesh != null:
 		var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if d <= DotHumanoidFigure.SHADOW_RANGE else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY and mesh.cast_shadow != shadow:
 			mesh.cast_shadow = shadow
 	var step := 1 if d <= DotHumanoidFigure.ANIM_NEAR else (2 if d <= DotHumanoidFigure.ANIM_FAR else 4)
 	var tall := (figure as DotHumanoidFigure).height if figure is DotHumanoidFigure else 1.8
-	if not figure.is_visible_in_tree() or not in_view(camera, at + figure.global_basis.y.normalized() * tall * 0.5, tall):
+	if not figure.is_visible_in_tree() or not _in_cone(camera, eye, at + placed.basis.y.normalized() * tall * 0.5, tall):
 		step *= DotHumanoidFigure.OFFSCREEN_STEP
 	return step
 
@@ -103,15 +111,33 @@ static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
 ## Whether a sphere of [param radius] about [param center] may be in [param camera]'s view. Tests a cone round the
 ## view's diagonal, so a sphere near a corner counts as in view; an orthogonal camera always sees it.
 static func in_view(camera: Camera3D, center: Vector3, radius: float) -> bool:
+	return _in_cone(camera, camera.global_transform, center, radius)
+
+
+## [method in_view] with the camera's global transform [param eye] already read (a figure step reads it once).
+static func _in_cone(camera: Camera3D, eye: Transform3D, center: Vector3, radius: float) -> bool:
 	if camera.projection != Camera3D.PROJECTION_PERSPECTIVE:
 		return true
-	var to := center - camera.global_position
+	var to := center - eye.origin
 	var dist := to.length()
 	if dist <= radius:
 		return true
+	var cosine := to.dot(-eye.basis.z.normalized()) / dist
+	return acos(clampf(cosine, -1.0, 1.0)) <= _half_cone(camera) + asin(radius / dist)
+
+
+## The view cone's half angle round its diagonal: from the field of view and the viewport's aspect, worked out once
+## a frame per camera (32 figures stepping in one frame all ask for it).
+static func _half_cone(camera: Camera3D) -> float:
+	var frame := Engine.get_process_frames()
+	var id := camera.get_instance_id()
+	if id == _cone_camera and frame == _cone_frame:
+		return _cone
 	var size := camera.get_viewport().get_visible_rect().size
 	var aspect := size.x / maxf(size.y, 1.0)
 	var t := tan(deg_to_rad(camera.fov) * 0.5)
 	var diagonal := t * sqrt(1.0 + aspect * aspect) if camera.keep_aspect == Camera3D.KEEP_HEIGHT else t * sqrt(1.0 + 1.0 / (aspect * aspect))
-	var cosine := to.dot(-camera.global_basis.z.normalized()) / dist
-	return acos(clampf(cosine, -1.0, 1.0)) <= atan(diagonal) + asin(radius / dist)
+	_cone = atan(diagonal)
+	_cone_camera = id
+	_cone_frame = frame
+	return _cone

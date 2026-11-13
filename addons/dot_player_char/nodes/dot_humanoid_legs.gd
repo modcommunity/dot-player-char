@@ -38,6 +38,11 @@ var _ray := PhysicsRayQueryParameters3D.new()
 var _floor_of: int = 0
 var _floor_count: int = 0
 var _floor_legs: Array = []
+## [method apply]'s Root and Hips on the skeleton it last saw ([member _floor_of] style: by id and bone count).
+var _turn_of: int = 0
+var _turn_count: int = 0
+var _turn_root: int = -1
+var _turn_hips: int = -1
 
 
 ## Reads the ground [param velocity] (world) against [param facing] (the figure's world basis) and eases the twist.
@@ -77,8 +82,13 @@ func apply(skeleton: Skeleton3D, up: Vector3) -> void:
 	_applied_up = up
 	if skeleton == null or is_zero_approx(twist):
 		return
-	var root := skeleton.find_bone("Root")
-	var hips := skeleton.find_bone("Hips")
+	if _turn_of != skeleton.get_instance_id() or _turn_count != skeleton.get_bone_count():
+		_turn_of = skeleton.get_instance_id()
+		_turn_count = skeleton.get_bone_count()
+		_turn_root = skeleton.find_bone("Root")
+		_turn_hips = skeleton.find_bone("Hips")
+	var root := _turn_root
+	var hips := _turn_hips
 	if root < 0 or hips < 0:
 		return
 	_saved[root] = skeleton.get_bone_pose_rotation(root)
