@@ -466,8 +466,25 @@ func animate(speed: float, delta: float) -> void:
 	_frame_tf_ok = false
 
 
-func _animate_step(speed: float, delta: float) -> void:
+func _animate_step(speed: float, p_delta: float) -> void:
 	_speed = speed
+	if _anim != null:
+		# The figure is drawn less often far from the camera or out of view. A skipped frame does nothing but
+		# carry its time: the state, the carry, the legs' turn and the clip are all worked out on the next drawn
+		# frame over the whole of it, and nothing is written to the skeleton (a write marks it dirty, and the
+		# engine then redoes every bone's global pose and the skin).
+		_frame += 1
+		var was_step := anim_step
+		anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
+		# A figure coming into view (or nearer) is redrawn at once, not up to seven frames later.
+		if _frame % anim_step != 0 and anim_step >= was_step:
+			_owed += p_delta
+			# The drawn origin still moves between drawn frames: the body follows the floor under it.
+			if not is_inside_tree() or global_position != _lift_at:
+				_lift_body()
+			return
+	var delta := p_delta + _owed
+	_owed = 0.0
 	state = _machine.advance(_motion, delta, speed)
 	_end_action_if_moved()
 	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
@@ -488,43 +505,22 @@ func _animate_step(speed: float, delta: float) -> void:
 		if _overlay_stopping:
 			_stop_time += delta
 
-	# The clip is advanced less often far from the camera, with the skipped time carried.
-	_owed += delta
-	_frame += 1
-	var was_step := anim_step
-	anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
-	# A figure coming into view (or nearer) is redrawn at once, not up to seven frames later.
-	var skipped := _frame % anim_step != 0 and anim_step >= was_step
 	var up := _skeleton_up()
-	# A skipped frame that changes neither the clip nor the legs' turn leaves the skeleton alone: writing the same
-	# poses back would still mark it dirty, and the engine then redoes every bone's global pose and the skin.
-	if skipped and wanted[0] == clip and legs.holds(up):
-		_play(wanted[0], wanted[1])
-		# The body's tilt and crouch still move between clip frames: a foot they carry under the floor is lifted
-		# (this writes only then, so a still skeleton stays clean).
-		_apply_floor()
-		return
 	legs.restore(_skeleton)
 	_play(wanted[0], wanted[1])
-	if skipped:
-		legs.apply(_skeleton, up)
-		_apply_floor()
-		return
-	var matched := _matched_rate(legs.along_speed if _motion.has("velocity") else speed, _owed)
+	var matched := _matched_rate(legs.along_speed if _motion.has("velocity") else speed, delta)
 	if not is_nan(matched):
 		_anim.speed_scale = matched
-	_anim.advance(_owed)
-	var advanced := _owed
-	_owed = 0.0
+	_anim.advance(delta)
 	_apply_overlays()
 	_apply_aim()
-	_ease.step(_skeleton, advanced)
+	_ease.step(_skeleton, delta)
 	legs.apply(_skeleton, up)
 	_apply_carry()
 	_apply_support()
-	_apply_swim(delta * anim_step)
+	_apply_swim(delta)
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
-	_apply_crawl_feet(speed, advanced)
+	_apply_crawl_feet(speed, delta)
 	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
 	_apply_floor()
 	_own.cap_colour = look.top
