@@ -5,7 +5,7 @@ extends Node
 ## godot --headless --path . res://examples/people_selftest.tscn
 
 const SECTIONS := 21
-const CHECKS := 223
+const CHECKS := 225
 
 var _passed := 0
 var _failed := 0
@@ -393,6 +393,24 @@ func _test_figure_mounts(f: DotHumanoidFigure) -> void:
 		await get_tree().process_frame
 	_check(walker.clip in [DotHumanoidClips.WALK, DotHumanoidClips.RUN, DotHumanoidClips.SPRINT],
 		"a figure carried by something else animates from how far it moved (%s)" % walker.clip)
+	# Carried in physics ticks (128 a second) at 3 m/s while frames come at 355: most frames it has not moved.
+	walker.set_process(false)
+	var t := 0.0
+	var next_tick := 0.0
+	var switches := 0
+	var posed := walker._frame
+	for frame in 710:
+		t += 1.0 / 355.0
+		while next_tick <= t:
+			next_tick += 1.0 / 128.0
+			walker.position.x += 3.0 / 128.0
+		var was := walker.clip
+		walker._process(1.0 / 355.0)
+		switches += 1 if frame > 60 and walker.clip != was else 0
+	_check(walker.clip == DotHumanoidClips.WALK and switches == 0,
+		"a body moved in ticks between frames walks steadily, no clip flicker (%s, %d switches)" % [walker.clip, switches])
+	posed = walker._frame - posed
+	_check(posed >= 250 and posed <= 260, "it is posed when it steps, not on the frames between (%d poses for 256 steps)" % posed)
 	walker.free()
 	f.free()
 	await get_tree().process_frame

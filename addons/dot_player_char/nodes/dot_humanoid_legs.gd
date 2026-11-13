@@ -33,6 +33,11 @@ var _saved: Dictionary = {}
 var _applied_twist: float = NAN
 var _applied_up: Vector3 = Vector3.ZERO
 var _ray := PhysicsRayQueryParameters3D.new()
+# [method on_floor]'s bones, worked out once per skeleton: per leg [upper, lower, foot's end in lower, root-to-upper
+# chain, root-to-lower chain]; empty when a bone is missing.
+var _floor_of: int = 0
+var _floor_count: int = 0
+var _floor_legs: Array = []
 
 
 ## Reads the ground [param velocity] (world) against [param facing] (the figure's world basis) and eases the twist.
@@ -126,16 +131,17 @@ func on_wall(skeleton: Skeleton3D, wall: Plane, up: Vector3, weight: float) -> v
 func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat32Array, raised: float = 0.0) -> void:
 	if skeleton == null or floor_y.size() < LEGS.size():
 		return
+	if _floor_of != skeleton.get_instance_id() or _floor_count != skeleton.get_bone_count():
+		_floor_of = skeleton.get_instance_id()
+		_floor_count = skeleton.get_bone_count()
+		_floor_legs = _floor_bones(skeleton)
 	var to_skel := to_figure.affine_inverse()
-	for k in LEGS.size():
-		var names: Array = LEGS[k]
-		var upper := skeleton.find_bone(names[0])
-		var lower := skeleton.find_bone(names[1])
-		var foot := skeleton.find_bone(names[2])
-		if upper < 0 or lower < 0 or foot < 0:
-			return
-		var end_local := skeleton.get_bone_global_rest(lower).affine_inverse() * skeleton.get_bone_global_rest(foot).origin
-		var knee := DotHumanoidIk.global_pose(skeleton, lower)
+	for k in _floor_legs.size():
+		var leg: Array = _floor_legs[k]
+		var upper: int = leg[0]
+		var lower: int = leg[1]
+		var end_local: Vector3 = leg[2]
+		var knee := DotHumanoidIk.chain_pose(skeleton, leg[4])
 		var ankle := knee * end_local
 		var at := to_figure * ankle
 		var lift := floor_y[k] + raised - at.y
@@ -144,10 +150,24 @@ func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat
 		for bone in [upper, lower]:
 			if not _saved.has(bone):
 				_saved[bone] = skeleton.get_bone_pose_rotation(bone)
-		var pole := knee.origin - (DotHumanoidIk.global_pose(skeleton, upper).origin + ankle) * 0.5
+		var pole := knee.origin - (DotHumanoidIk.chain_pose(skeleton, leg[3]).origin + ankle) * 0.5
 		if pole.length_squared() < 1e-8:
 			pole = to_skel.basis * Vector3.FORWARD
 		var _reached := DotHumanoidIk.two_bone_to(skeleton, upper, lower, end_local, to_skel * (at + Vector3.UP * lift), pole, 1.0)
+
+
+## [method on_floor]'s legs on [param skeleton], up to the first with a bone missing.
+static func _floor_bones(skeleton: Skeleton3D) -> Array:
+	var out := []
+	for names: Array in LEGS:
+		var upper := skeleton.find_bone(names[0])
+		var lower := skeleton.find_bone(names[1])
+		var foot := skeleton.find_bone(names[2])
+		if upper < 0 or lower < 0 or foot < 0:
+			break
+		var end_local := skeleton.get_bone_global_rest(lower).affine_inverse() * skeleton.get_bone_global_rest(foot).origin
+		out.append([upper, lower, end_local, DotHumanoidIk.chain_to(skeleton, upper), DotHumanoidIk.chain_to(skeleton, lower)])
+	return out
 
 
 ## How far the floor under [param figure]'s origin is above it, 0 to [param reach] metres: one ray straight down

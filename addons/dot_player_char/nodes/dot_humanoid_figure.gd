@@ -16,6 +16,17 @@ const ANIM_FAR := 45.0
 ## recording see the pose. Hit zones are not bones, so they never lag.
 const OFFSCREEN_STEP := 2
 
+## Seconds an [member auto_animate] body may stand still between moves before it counts as stopped: longer than a
+## physics tick or a snapshot gap, short enough that a stop shows at once.
+const AUTO_HOLD := 0.1
+
+## Shortest span [member auto_animate] measures a speed over: several ticks, so the frames that fall between a stepped
+## body's moves (two or three a tick at a few hundred frames a second) shake the measure by a few percent, not a third.
+const AUTO_WINDOW := 0.05
+
+## Longest an [member auto_animate] body keeps one pose while it stands between steps (its idle still breathes).
+const AUTO_POSE_GAP := 1.0 / 60.0
+
 ## Below 1, the mesh switches to its simpler levels sooner; a person is small on screen past a few metres.
 const LOD_BIAS := 0.4
 
@@ -127,11 +138,13 @@ var auto_animate: bool = false:
 	set(value):
 		auto_animate = value
 		_auto_last = Vector3.INF
+		_auto_seen = Vector3.INF
+		_auto_pending = 0.0
 
 ## Idles, walks and runs as a zombie does: the library's shuffling walk ([constant DotHumanoidClips.ZOMBIE_WALK]), its idle, and the real sprint for a run. Every other state is the person's own. A figure without the real clips ignores it.
 var zombie_gait: bool = false
 
-## Seconds over which [member auto_animate]'s measured speed is averaged. A body carried in physics ticks or on network snapshots moves in steps, so its per-frame speed alternates between zero and double and the clip flips between idle, walk and run. 0 keeps the raw measure.
+## Seconds over which [member auto_animate]'s measured speed is averaged. The measure already spans the frames between a stepped body's moves (physics ticks, snapshots); this smooths what is left. 0 keeps the raw measure.
 var auto_smooth_time: float = 0.0
 
 ## The clips whose rate follows the planted foot ([method _matched_rate]), and the fastest they play.
@@ -249,6 +262,11 @@ var _own_back: float = 0.0
 var _own := DotHumanoidOwnView.new()
 var legs := DotHumanoidLegs.new()
 var _auto_last: Vector3 = Vector3.INF
+var _auto_since: float = 0.0
+var _auto_seen: Vector3 = Vector3.INF
+var _auto_still: float = 0.0
+var _auto_pending: float = 0.0
+var _auto_velocity: Vector3 = Vector3.ZERO
 var _model_basis: Basis = Basis.IDENTITY
 var _strides: Dictionary = {}
 var _model_origin: Vector3 = Vector3.ZERO
@@ -353,17 +371,48 @@ func _process(delta: float) -> void:
 		if global_position != _lift_at:
 			_lift_body()
 		return
+	# Measured over at least AUTO_WINDOW, not frame to frame: a body carried in physics ticks
+	# or snapshots stands still on the frames between, and a per-frame measure flips the clip
+	# (and pays its crossfade and stride match) several times a tick. A stop shows after
+	# AUTO_HOLD seconds without a move.
 	var at := global_position
-	var moved := Vector3.ZERO if _auto_last == Vector3.INF else (at - _auto_last) / delta
-	_auto_last = at
+	var stepped := at != _auto_seen
+	_auto_since += delta
+	_auto_still += delta
+	_auto_pending += delta
+	if _auto_last == Vector3.INF:
+		_auto_last = at
+		_auto_seen = at
+		_auto_since = 0.0
+		_auto_still = 0.0
+		_auto_velocity = Vector3.ZERO
+	elif stepped:
+		_auto_seen = at
+		_auto_still = 0.0
+		if _auto_since >= AUTO_WINDOW:
+			_auto_velocity = (at - _auto_last) / _auto_since
+			_auto_last = at
+			_auto_since = 0.0
+	elif _auto_still > AUTO_HOLD:
+		_auto_velocity = Vector3.ZERO
+		_auto_last = at
+		_auto_since = 0.0
+	# Posed when the body steps, so each drawn place has its own pose and none is drawn twice; a body standing
+	# between steps keeps the last pose (the skeleton untouched, so the engine skips the skin too) for at most
+	# AUTO_POSE_GAP. A body moved every frame is posed every frame.
+	if not stepped and _auto_pending < AUTO_POSE_GAP:
+		return
+	var step := _auto_pending
+	_auto_pending = 0.0
+	var moved := _auto_velocity
 	var motion := _motion.duplicate()
 	motion["vertical"] = moved.y
 	motion["on_floor"] = absf(moved.y) < 1.5
 	_motion = motion
 	var ground := Vector2(moved.x, moved.z).length()
 	if auto_smooth_time > 0.0:
-		ground = lerpf(_speed, ground, 1.0 - exp(-delta / auto_smooth_time))
-	animate(ground, delta)
+		ground = lerpf(_speed, ground, 1.0 - exp(-step / auto_smooth_time))
+	animate(ground, step)
 
 
 ## The look changed colours only: a new material, no rebuild.
