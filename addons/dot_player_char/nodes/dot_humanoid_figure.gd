@@ -48,7 +48,7 @@ const PROP_LEAN := 1.2
 ## The clip a downed pose plays; a game with better clips assigns its own names.
 var downed_clips: Dictionary = {&"propped": &"", &"crawl": DotHumanoidClips.CRAWL}
 
-## Whether the person is sprinting (from [method set_motion]); the carry eases via [member sprint_blend].
+## Whether the person is sprinting (from [method set_motion]); the carry eases into it over [constant SPRINT_SECONDS].
 var sprinting: bool = false
 
 ## What the hand holds, which decides the arms: nothing, a gun (gun clips and overlay) or a melee weapon.
@@ -194,9 +194,17 @@ var _mesh: MeshInstance3D = null
 var _anim: AnimationPlayer = null
 var _hand: Node3D = null
 
-## How far the sprint carry is blended in, 0 to 1: set by `sprinting` in [method set_motion], eased over
-## [constant SPRINT_SECONDS]. A held weapon ([code]ZeeWorldModel[/code]) reads it to swing to the side.
-var sprint_blend: float = 0.0
+## How far a held weapon should add its own sprint carry, 0 to 1: set by `sprinting` in [method set_motion], eased
+## over [constant SPRINT_SECONDS]. A held weapon ([code]ZeeWorldModel[/code]) reads it to swing to the side. While
+## the figure draws the carry itself ([member carry]) the sprint is in the arms and this falls to 0.
+var sprint_blend: float:
+	get:
+		return _sprint * (1.0 - carry.weight)
+var _sprint: float = 0.0
+## The gun as others see it carried: [method DotHumanoidCarryPose.set_class], [method DotHumanoidCarryPose.fired],
+## and its raised / reloading / switching flags. A rifle unless set; drawn only, never the hit zones.
+var carry := DotHumanoidCarryPose.new()
+var _overlay_weight := 0.0
 var _slide_lift := 0.0
 
 ## Physics layers the drawn body is stood on (0 = off; the default is the shooter layout's `world`). A body whose
@@ -396,8 +404,11 @@ func animate(speed: float, delta: float) -> void:
 	state = _machine.advance(motion, delta)
 	_end_action_if_moved()
 	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
-	sprint_blend = move_toward(sprint_blend, 1.0 if carry_sprint and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
-	_support_weight = move_toward(_support_weight, 1.0 if support_point.is_finite() and hold == Hold.GUN and not downed else 0.0, delta / 0.15)
+	_sprint = move_toward(_sprint, 1.0 if carry_sprint and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
+	var standing := not (downed or seated or driving) and _action_full == &"" and state != DotPlayerAnimState.DEAD
+	carry.step(delta, hold == Hold.GUN and standing and state != DotPlayerAnimState.SWIM and state != DotPlayerAnimState.CLIMB)
+	var grip := support_point.is_finite() or carry.support_grip.is_finite()
+	_support_weight = move_toward(_support_weight, 1.0 if grip and hold == Hold.GUN and not downed else 0.0, delta / 0.15)
 
 	if _anim == null:
 		return
@@ -442,6 +453,7 @@ func animate(speed: float, delta: float) -> void:
 	_apply_aim()
 	_ease.step(_skeleton, advanced)
 	legs.apply(_skeleton, _skeleton_up())
+	_apply_carry()
 	_apply_support()
 	_apply_swim(delta * anim_step)
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
@@ -862,6 +874,7 @@ func _apply_overlays() -> void:
 	var source: Animation = null
 	var t := 0.0
 	var weight := 0.0
+	_overlay_weight = 0.0
 	if overlay != &"":
 		source = _anim.get_animation(overlay)
 		if source == null or (not _overlay_loop and _overlay_time >= source.length):
@@ -883,6 +896,8 @@ func _apply_overlays() -> void:
 		else:
 			t = _overlay_time
 			weight = minf(1.0, _overlay_time / _overlay_blend) * minf(1.0, (source.length - _overlay_time) / BLEND_OUT)
+	if source != null:
+		_overlay_weight = clampf(weight, 0.0, 1.0)
 	if source == null and hold == Hold.GUN and not downed and _action_full == &"" and not String(clip).ends_with("_gun") and clip != DotHumanoidClips.DEATH and clip != DotHumanoidClips.SWIM:
 		source = _anim.get_animation(DotHumanoidClips.IDLE_GUN)
 		t = 0.0
@@ -935,12 +950,25 @@ func set_support_grip(point: Vector3) -> void:
 ## the overlays and the aim so it lands on the gun wherever they put it. Only on bones the clip keys (a bone no
 ## track writes keeps last frame's pose, and the turn would add up).
 func _apply_support() -> void:
-	if _skeleton == null or _support_weight <= 0.0 or not support_point.is_finite() or downed:
+	if _skeleton == null or _support_weight <= 0.0 or downed:
+		return
+	var target := carry.support_grip
+	if support_point.is_finite():
+		target = _skeleton.global_transform.affine_inverse() * support_point
+	if not target.is_finite():
 		return
 	var bones := _support_bones_for(clip)
 	if bones.is_empty():
 		return
-	DotHumanoidIk.two_bone(_skeleton, bones, _skeleton.global_transform.affine_inverse() * support_point, _to_figure().basis.inverse() * SUPPORT_POLE, _support_weight)
+	DotHumanoidIk.two_bone(_skeleton, bones, target, _to_figure().basis.inverse() * SUPPORT_POLE, _support_weight)
+
+
+func _apply_carry() -> void:
+	if _skeleton == null or clip == DotHumanoidClips.DEATH or clip == DotHumanoidClips.SWIM:
+		carry.support_grip = Vector3.INF
+		return
+	carry.apply(_skeleton, _model, _anim, _to_figure(), _anim.get_animation(clip), _stride_fraction(), aim_pitch,
+		height / 1.8, _sprint, _speed, _overlay_weight)
 
 
 ## The support arm's bone indices if [param clip_id] keys them (a bone no track writes keeps last frame's pose), else empty; cached per clip.
@@ -1034,6 +1062,7 @@ func describe() -> Dictionary:
 		"seated": seated,
 		"driving": driving,
 		"hold": hold,
+		"carry": carry.describe(),
 		"downed": downed,
 		"anim_step": anim_step,
 		"visible": visible,

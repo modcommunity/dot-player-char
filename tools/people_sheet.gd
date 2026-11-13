@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## Renders contact sheets of the people: every clip at six moments, per body, and one of looks.
-## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--actions] [--crowd=N] [--compare[=FILE.res]]
+## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--actions] [--carry[=CLASS]] [--crowd=N] [--compare[=FILE.res]]
 ## Needs xvfb-run, not --headless (blank frame); add `--rendering-method gl_compatibility` for a browser's view.
 
 const CELL := Vector2i(256, 320)
@@ -18,6 +18,7 @@ var _aim := false
 var _swim := false
 var _actions := false
 var _crowd := 0
+var _carry := ""
 var _compare := ""
 var _root: Node3D
 var _camera: Camera3D
@@ -50,6 +51,10 @@ func _initialize() -> void:
 			_compare = DotHumanoidFigure.real_clips_path()
 		elif arg.begins_with("--compare="):
 			_compare = arg.trim_prefix("--compare=")
+		elif arg == "--carry":
+			_carry = "rifle"
+		elif arg.begins_with("--carry="):
+			_carry = arg.trim_prefix("--carry=")
 		elif arg.begins_with("--crowd="):
 			_crowd = int(arg.trim_prefix("--crowd="))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out))
@@ -127,6 +132,8 @@ func _run() -> void:
 		await _sheet_swim()
 	elif _actions:
 		await _sheet_actions()
+	elif _carry != "":
+		await _sheet_carry(StringName(_carry))
 	elif _compare != "":
 		await _sheet_compare(_compare)
 	elif _crowd > 0:
@@ -506,6 +513,54 @@ func _sheet_hand() -> void:
 	print("SHEET ", path)
 
 
+## The gun carry of [param kind] as others see it, a row per case and eight moments a tenth of a second apart, from
+## the side (carry_<kind>_side.png) and the front (carry_<kind>_front.png). The last row is the clip alone.
+func _sheet_carry(kind: StringName) -> void:
+	var rows: Array[Dictionary] = [
+		{"name": "walk", "speed": 1.8},
+		{"name": "run", "speed": 4.5},
+		{"name": "sprint", "speed": 6.5, "sprinting": true},
+		{"name": "fire", "speed": 4.5, "fire": true},
+		{"name": "reload", "speed": 1.8, "reload": true},
+		{"name": "swap", "speed": 0.0, "swap": true},
+		{"name": "idle", "speed": 0.0},
+		{"name": "clip", "speed": 4.5, "off": true},
+	]
+	var views: Array[Vector3] = [Vector3(3.6, 1.1, 0.0), Vector3(0.8, 1.1, -3.6)]
+	var sheets: Array[Image] = []
+	for v in views:
+		sheets.append(Image.create(CELL.x * 8, CELL.y * rows.size(), false, Image.FORMAT_RGBA8))
+	for row in rows.size():
+		var r: Dictionary = rows[row]
+		var f := _figure(DotHumanoidLook.stock(3))
+		f.set_hold(DotHumanoidFigure.Hold.GUN)
+		f.carry.set_class(null if r.get("off", false) else kind)
+		f.set_motion({"sprinting": r.get("sprinting", false)})
+		_stand_in_gun(f.attachment(&"right_hand"))
+		for i in 30:
+			f.animate(r.speed, 1.0 / 60.0)
+		f.carry.reloading = r.get("reload", false)
+		f.carry.switching = r.get("swap", false)
+		for col in 8:
+			for i in 6:
+				if r.get("fire", false) and (col * 6 + i) % 9 == 0:
+					f.carry.fired()
+				f.animate(r.speed, 1.0 / 60.0)
+			for v in views.size():
+				_camera.position = views[v]
+				_camera.look_at(Vector3(0, 0.9, 0))
+				var img := await _frame()
+				img.convert(Image.FORMAT_RGBA8)
+				sheets[v].blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
+		print("CARRY %s %s" % [r.name, f.describe().get("carry")])
+		f.queue_free()
+		await process_frame
+	for v in views.size():
+		var path := "%s/carry_%s_%s.png" % [_out, kind, ["side", "front"][v]]
+		sheets[v].save_png(ProjectSettings.globalize_path(path))
+		print("SHEET ", path)
+
+
 ## [param count] people running in a ring in front of the camera, each a different stock look:
 ## frame time, script time per person, draw calls and primitives, averaged over 120 frames. The
 ## numbers in docs/people.md came from this.
@@ -522,6 +577,9 @@ func _measure_crowd(count: int) -> void:
 			f.mesh().lod_bias = float(OS.get_environment("PEOPLE_LOD_BIAS"))
 		if OS.get_environment("PEOPLE_NO_SHADOW") != "":
 			f.mesh().cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# Set to none, the clip's arms alone are timed; set to a class, the carry with the foregrip hand.
+		if OS.get_environment("PEOPLE_CARRY") != "":
+			f.carry.set_class(null if OS.get_environment("PEOPLE_CARRY") == "none" else StringName(OS.get_environment("PEOPLE_CARRY")))
 		people.append(f)
 	_camera.position = Vector3(0, 1.7, 4)
 	_camera.look_at(Vector3(0, 1.0, -12))

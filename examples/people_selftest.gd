@@ -4,8 +4,8 @@ extends Node
 ## from how it moves. What a person LOOKS like is `tools/people_sheet.gd`'s contact sheets.
 ## godot --headless --path . res://examples/people_selftest.tscn
 
-const SECTIONS := 20
-const CHECKS := 205
+const SECTIONS := 21
+const CHECKS := 221
 
 var _passed := 0
 var _failed := 0
@@ -33,6 +33,7 @@ func _run() -> void:
 	_test_unimported()
 	await DotPeopleViewChecks.new(self).run()
 	await DotPeopleLegsChecks.new(self).run()
+	await DotPeopleCarryChecks.new(self).run()
 	var held := DotPeopleHeldChecks.new(self)
 	await held.run_arms()
 	await held.run_arms_dress()
@@ -216,11 +217,11 @@ func _test_figure() -> void:
 	_check(f.clip == DotHumanoidClips.RUN_GUN, "running with a gun: the gun run")
 	for _i in 5:
 		f.animate(6.0, 0.1)
-	_check(f.sprint_blend > 0.99, "a game that never sends `sprinting` still carries the gun sprinting when it runs (%.2f)" % f.sprint_blend)
+	_check(f._sprint > 0.99, "a game that never sends `sprinting` still carries the gun sprinting when it runs (%.2f)" % f._sprint)
 	f.set_motion({"sprinting": false})
 	for _i in 5:
 		f.animate(6.0, 0.1)
-	_check(f.sprint_blend < 0.01, "an explicit sprinting=false wins over the run state (%.2f)" % f.sprint_blend)
+	_check(f._sprint < 0.01, "an explicit sprinting=false wins over the run state (%.2f)" % f._sprint)
 	_check(f.clip == DotHumanoidClips.SPRINT, "sprinting=false does not bring the hovering run clip back above its pace (%s)" % f.clip)
 	var hold_anim: Animation = f._anim.get_animation(DotHumanoidClips.IDLE_GUN)
 	var track := hold_anim.find_track(NodePath("%s:LowerArm.L" % f._model.get_path_to(f.skeleton())), Animation.TYPE_ROTATION_3D)
