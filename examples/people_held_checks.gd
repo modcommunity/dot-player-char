@@ -55,6 +55,8 @@ func run_arms() -> void:
 		worst = maxf(worst, _bone_world(sk, "Middle1.R").distance_to(_palm(arms, weapon.to_global(grip))))
 		worst = maxf(worst, _bone_world(sk, "LowerArm.R").distance_to(weapon.to_global(grip)) - 0.6)
 	suite._check(worst < 0.03, "the hand stays on the grip through a long walk (worst %.3f m)" % worst)
+	var step := _swap_step(arms, sk, grip, fore)
+	suite._check(step < 0.08, "swapping from a two-hand grip at arm's length to a one-hand one glides the shoulder and elbow in, no jump (worst step %.3f m; was 0.26)" % step)
 	arms.set_held(DotViewGrip.one_hand(weapon, grip))
 	arms.tick(0.0, 1.0 / 30.0)
 	var rest_left := _bone_world(sk, "Middle1.L")
@@ -162,6 +164,32 @@ func _buried(arms: DotPlayerViewArms, sk: Skeleton3D, grip: DotViewGrip, side: S
 func _palm(arms: DotPlayerViewArms, point: Vector3, support := false) -> Vector3:
 	var o := arms.palm_offset
 	return point + arms.global_transform.basis * Vector3(-o.x if support else o.x, o.y, o.z)
+
+
+## The worst per-frame move of the firing shoulder and elbow over the frames after a swap from one weapon held two-handed
+## at arm's length (the arms lean for the support hand) to another in the same place, one-handed (the lean it needs is less).
+func _swap_step(arms: DotPlayerViewArms, sk: Skeleton3D, grip: Vector3, fore: Vector3) -> float:
+	var far := Node3D.new()
+	suite.add_child(far)
+	far.position = Vector3(0.15, -0.2, -0.75)
+	arms.set_held(DotViewGrip.two_hand(far, grip, fore))
+	for i in 30:
+		arms.tick(0.0, 1.0 / 30.0)
+	var next := Node3D.new()
+	suite.add_child(next)
+	next.position = far.position
+	arms.set_held(DotViewGrip.one_hand(next, grip))
+	var worst := 0.0
+	var last := [_bone_world(sk, "UpperArm.R"), _bone_world(sk, "LowerArm.R")]
+	for i in 6:
+		arms.tick(0.0, 1.0 / 30.0)
+		var now := [_bone_world(sk, "UpperArm.R"), _bone_world(sk, "LowerArm.R")]
+		for b in 2:
+			worst = maxf(worst, (now[b] as Vector3).distance_to(last[b]))
+		last = now
+	far.queue_free()
+	next.queue_free()
+	return worst
 
 
 func _bone_world(sk: Skeleton3D, bone: String) -> Vector3:
