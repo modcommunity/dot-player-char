@@ -19,6 +19,9 @@ const FINGER_ROOTS: Array[String] = ["Pinky1", "Middle1", "Index1", "Thumb1"]
 const LEAN_SLACK := 0.97
 ## How fast the drawn forearm scale follows a new [member forearm_scale], per second.
 const FORE_RATE := 2.0
+## How fast the drawn lean follows the lean a grip needs, metres per second: a swap from a two-hand grip (the support
+## hand far out) to a one-hand one moved the shoulder 0.27 m in one frame and the elbow with it, the hand still.
+const LEAN_RATE := 1.2
 ## Elbow turns tried about the shoulder-to-hand line (degrees) to take an arm out of the weapon's box, and how much
 ## of the forearm next to the hand may stay inside it (the hand is on the gun).
 const CLEAR_ANGLES: Array[float] = [0.0, 15.0, -15.0, 30.0, -30.0, 45.0, -45.0, 60.0, -60.0, 80.0, -80.0]
@@ -102,6 +105,10 @@ var _turn_right := 0.0
 var _turn_left := 0.0
 ## The forearm scale drawn, eased toward [member forearm_scale] (or 1 without a weapon) at [constant FORE_RATE].
 var _fore := 1.0
+## The lean drawn, eased toward the one the grip needs at [constant LEAN_RATE]; [member _delta] is this tick's step.
+var _leaned := Vector3.ZERO
+var _delta := 1.0 / 60.0
+var _was_holding := false
 
 
 ## Builds the arms (once; a new [param p_look] rebuilds). Hidden until [method set_downed] says otherwise.
@@ -336,17 +343,22 @@ func _apply_mode() -> void:
 		return
 
 	_arms.visible = shown
+	var held := _holding()
 
 	if _arms.has_method("set_motion"):
 		_arms.call("set_motion", {"downed": _downed, "propped": false})
 	if _arms.has_method("set_hold"):
 		_arms.call("set_hold", DotHumanoidFigure.Hold.GUN if _grip != null and not _downed else DotHumanoidFigure.Hold.NONE)
 
-	if was != shown or _grip != null or not _right.is_empty():
+	# Only a change of mode refits (the fit depends on nothing else): a refit on every weapon swap let two
+	# unfitted ticks lean from where the last frame left the arms, then snapped them back, and the elbow jumped.
+	if was != shown or held != _was_holding:
 		_fitted = false
 		_ticks = 0
+	if was != shown or _grip != null or not _right.is_empty():
 		_right.clear()
 		_left.clear()
+	_was_holding = held
 
 
 ## Advances the arms; [param speed] is the player's ground speed, which drives the crawl.
@@ -377,6 +389,7 @@ func tick(speed: float, delta: float) -> void:
 			skeleton.set_bone_pose_scale(i, Vector3.ONE * ((hand_scale if _holding() else 1.0) / fore))
 
 		_scale_left(skeleton, fore)
+		_delta = delta
 		_reach(skeleton)
 
 
@@ -564,7 +577,8 @@ static func _depth_in(box: AABB, q: Vector3) -> float:
 
 ## Leans the arms toward whichever hand target (firing or support) is furthest out of its arm's reach, a step at a time, by up to [member max_lean] in all.
 func _lean(skeleton: Skeleton3D, figure: DotHumanoidFigure, target: Vector3) -> void:
-	if _right.is_empty() or max_lean <= 0.0:
+	if _right.is_empty() or max_lean <= 0.0 or not _fitted:
+		_leaned = Vector3.ZERO
 		return
 
 	var goals: Array = [[_right, target]]
@@ -605,7 +619,8 @@ func _lean(skeleton: Skeleton3D, figure: DotHumanoidFigure, target: Vector3) -> 
 			lean = lean.normalized() * max_lean
 			break
 
-	figure.global_position += lean
+	_leaned = _leaned.move_toward(lean, LEAN_RATE * _delta)
+	figure.global_position += _leaned
 
 ## The point on the segment from [param from] to [param to] nearest [param from] that the arm can reach, or the point nearest the shoulder when none is.
 ## The point on the segment from [param from] to [param to] nearest [param from] that the arm can reach (or [param to]).
