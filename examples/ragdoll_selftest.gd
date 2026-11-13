@@ -544,6 +544,7 @@ func _test_skinned() -> void:
 ## (the default 9.8 never showed it).
 func _test_faceplant_sweep() -> void:
 	_section("a skinned face plant onto open floor always lies down")
+	_line("   (52 falls of up to 6 s of simulated time each, in wall time: about 5 minutes, not a hang)")
 	var yard := DotPlayerRagdolls.new()
 	yard.rules.lifetime = 60.0
 	_world.add_child(yard)
@@ -587,6 +588,8 @@ func _sweep_open_floor(yard: DotPlayerRagdolls, upright: Array[String]) -> int:
 		var body := yard.spawn(person, _death(&"face_plant"))
 		await _settle(body, 6.0)
 		falls += 1
+		if falls % 12 == 0:
+			_line("   ... %d of 36 open-floor falls" % falls)
 		var c := body.centre()
 		if not (c.y < 0.6 and body.lowest_point() > -0.25):
 			upright.append("%d: centre.y=%.2f lowest=%.2f" % [s, c.y, body.lowest_point()])
