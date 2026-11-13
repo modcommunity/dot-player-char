@@ -170,43 +170,51 @@ static func bake_bones(mesh: MeshInstance3D, skeleton: Skeleton3D, bones: Packed
 	for b in skin.get_bind_count():
 		var bone := skin.get_bind_bone(b)
 		bind_bone.append(bone if bone >= 0 else skeleton.find_bone(skin.get_bind_name(b)))
+	# A lookup per bind, not a search of the bones per corner; triangles come from the kept arrays.
+	var wanted := PackedByteArray()
+	var _r := wanted.resize(bind_bone.size())
+	for b in bind_bone.size():
+		wanted[b] = 1 if bind_bone[b] >= 0 and bones.has(bind_bone[b]) else 0
 	var to_world := skeleton.global_transform
 	var out_v := PackedVector3Array()
 	var out_n := PackedVector3Array()
 	var out_uv := PackedVector2Array()
-	for surface in mesh.mesh.get_surface_count():
-		var arrays := mesh.mesh.surface_get_arrays(surface)
-		if arrays.size() <= Mesh.ARRAY_WEIGHTS or arrays[Mesh.ARRAY_VERTEX] == null or arrays[Mesh.ARRAY_BONES] == null:
-			continue
-		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL] if arrays[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
-		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV] if arrays[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
-		var vb: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
-		var vw: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
-		var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(verts.size()))
-		if verts.is_empty() or vb.is_empty():
-			continue
-		var per := vb.size() / verts.size()
+	for surface: Dictionary in DotSkinSurfaces.of(mesh.mesh):
+		var verts: PackedVector3Array = surface["verts"]
+		var normals: PackedVector3Array = surface["normals"]
+		var uvs: PackedVector2Array = surface["uvs"]
+		var vb: PackedInt32Array = surface["bones"]
+		var vw: PackedFloat32Array = surface["weights"]
+		var index: PackedInt32Array = surface["index"]
+		var strongest: PackedInt32Array = surface["strongest"]
+		var by_bind: Array[PackedInt32Array] = surface["by_bind"]
+		var per: int = surface["per"]
 		var poses := {}
-		for t in range(0, index.size() - 2, 3):
-			var corners := [index[t], index[t + 1], index[t + 2]]
-			var keep := true
-			for v: int in corners:
-				var best := 0
-				for k in per:
-					if vw[v * per + k] > vw[v * per + best]:
-						best = k
-				var bind := vb[v * per + best]
-				if bind < 0 or bind >= bind_bone.size() or not bones.has(bind_bone[bind]):
-					keep = false
-					break
-			if not keep:
+		# Each vertex skinned once, though about six triangles share it.
+		var seen := PackedByteArray()
+		var at := PackedVector3Array()
+		var facing := PackedVector3Array()
+		var _s := seen.resize(verts.size())
+		var _a := at.resize(verts.size())
+		var _f := facing.resize(verts.size())
+		for first in mini(wanted.size(), by_bind.size()):
+			if wanted[first] == 0:
 				continue
-			for v: int in corners:
-				var skinned_at := _skinning(v, per, vb, vw, bind_bone, skin, skeleton, poses)
-				out_v.append(to_world * (skinned_at * verts[v]))
-				out_n.append(((to_world.basis * skinned_at.basis) * (normals[v] if v < normals.size() else Vector3.UP)).normalized())
-				out_uv.append(uvs[v] if v < uvs.size() else Vector2.ZERO)
+			for t in by_bind[first]:
+				var b1 := strongest[index[t + 1]]
+				var b2 := strongest[index[t + 2]]
+				if b1 < 0 or b1 >= wanted.size() or wanted[b1] == 0 or b2 < 0 or b2 >= wanted.size() or wanted[b2] == 0:
+					continue
+				for c in 3:
+					var v := index[t + c]
+					if seen[v] == 0:
+						var skinned_at := _skinning(v, per, vb, vw, bind_bone, skin, skeleton, poses)
+						at[v] = to_world * (skinned_at * verts[v])
+						facing[v] = ((to_world.basis * skinned_at.basis) * (normals[v] if v < normals.size() else Vector3.UP)).normalized()
+						seen[v] = 1
+					out_v.append(at[v])
+					out_n.append(facing[v])
+					out_uv.append(uvs[v] if v < uvs.size() else Vector2.ZERO)
 	if out_v.is_empty():
 		return null
 	var arrays_out := []

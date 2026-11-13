@@ -28,6 +28,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `core/dot_player_sprite_facing.gd` | angle to row offset and flip, static |
 | `core/dot_player_anim_state.gd`, `dot_player_anim_clip.gd`, `dot_player_anim_set.gd` | the locomotion state machine (pure), one clip for a rig and a sheet, the clip table |
 | `core/dot_player_break_rules.gd` | how a body comes apart on death: none, limbs, explode |
+| `core/dot_skin_surfaces.gd` | a skinned mesh's arrays read once per mesh and grouped by bone for the death path; `warm(figure)` under a loading cover |
 | `nodes/dot_player_char.gd` | the component: metrics, stance, body, visuals |
 | `nodes/dot_player_char_visual.gd` | the abstract seam; `seat()` |
 | `nodes/dot_player_model_rig.gd`, `dot_player_model_visual.gd` | a built rig (mount lookup, measured eye height), and the 3D visual |
@@ -55,7 +56,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `core/dot_own_body_setting.gd` | `DotOwnBodySetting`: the client-only `cl_legs` option (default on, never server-enforced): `def()` for a dot-settings schema (null without dot-settings), `follow(figure, settings)`; off draws nothing of your own body in first person, only its shadow |
 | `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py`; `people_ual.res`, the real sit (Universal Animation Library, CC0) |
 | `tools/` | `build_people.py` (Blender), `ual_retarget.gd` (library clips onto the rig: `people_ual.res`), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`, `--compare`), `survivor_compare.gd` (made vs real clip strips), `crowd_bench.tscn` (a browser crowd measurement), `view_arms_web.tscn` (the arms materials side by side in a browser) |
-| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 21 since `DotHumanoidFigure.floor_mask` and `floor_lift` (20: `DotHumanoidAssets.prepare_libraries` and `poll_libraries`) (19: `DotViewArmsMaterial`, `set_look_override`, `keep_arms_clear`) (14 to 18: [docs/history.md](docs/history.md#api-levels)) (13: `DotHumanoidLegs` and `first_person`) (12: `pose_record` / `pose_apply`) (11: `frame_delta`) (10: `DotFootPlant`) (9: `sprint_speed`) (8: `DotViewGrip`) (7: `DotPlayerViewArms`) (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
+| `dot_player_char_api.gd` | the API level (`DotAddonApi`): 23 since `DotSkinSurfaces` (22: `DotHumanoidCarry`) (21: `DotHumanoidFigure.floor_mask` and `floor_lift`) (20: `DotHumanoidAssets.prepare_libraries` and `poll_libraries`) (19: `DotViewArmsMaterial`, `set_look_override`, `keep_arms_clear`) (14 to 18: [docs/history.md](docs/history.md#api-levels)) (13: `DotHumanoidLegs` and `first_person`) (12: `pose_record` / `pose_apply`) (11: `frame_delta`) (10: `DotFootPlant`) (9: `sprint_speed`) (8: `DotViewGrip`) (7: `DotPlayerViewArms`) (5: `play_action`) (4: the `driving` motion; 3: the people and the skinned ragdoll) |
 | `examples/` | seven suites: `hitbox_selftest`, `char_selftest` (the main scene), `model_selftest`, `sprite_selftest`, `anim_selftest`, `ragdoll_selftest`, `people_selftest` |
 
 Paths under `core/`, `nodes/` and `people/` are in `addons/dot_player_char/`; `tools/` is at the repository root and does not ship.

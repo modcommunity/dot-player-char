@@ -5,7 +5,7 @@ extends Node
 ## Run: godot --headless --path . res://examples/ragdoll_selftest.tscn
 
 const SECTIONS := 15
-const CHECKS := 129
+const CHECKS := 130
 
 var _passed := 0
 var _failed := 0
@@ -459,6 +459,14 @@ func _test_skinned() -> void:
 		"six parts, five joints, from the skeleton (%s)" % (str(body.describe()) if body != null else "none"))
 	_check(not person.visible and body.skeleton_copy() != null and body.skeleton_copy().get_child_count() >= 1,
 		"the figure is hidden and its skinned mesh is drawn on a copied skeleton")
+	var skin_mesh := DotPlayerRagdoll.skinned_meshes(person, true)[0].mesh
+	var read := DotSkinSurfaces.of(skin_mesh)
+	var sampled := 0
+	for surface: Dictionary in read:
+		for picked: PackedVector3Array in surface["samples"]:
+			sampled += picked.size()
+	_check(not read.is_empty() and is_same(read, DotSkinSurfaces.of(skin_mesh)) and sampled > 0,
+		"the skin's arrays are read once and kept for the next death (%d surfaces, %d samples)" % [read.size(), sampled])
 	var copies := 0
 	for part in body.part_nodes():
 		for child in part.get_children():
