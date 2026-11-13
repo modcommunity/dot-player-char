@@ -5,9 +5,14 @@ extends RefCounted
 
 ## Two-bone IK turning [param bones] (upper, lower, end) to reach [param target] (skeleton space) with the elbow toward [param pole_dir], blended by [param weight].
 static func two_bone(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole_dir: Vector3, weight: float) -> void:
-	# One walk up the chain: each pose is its parent's times its own local pose, the same products
+	two_bone_under(skeleton, bones, global_pose(skeleton, skeleton.get_bone_parent(bones[0])), target, pole_dir, weight)
+
+
+## [method two_bone] with the upper bone's parent's skeleton-space pose given, for a caller that already has it.
+static func two_bone_under(skeleton: Skeleton3D, bones: Array[int], upper_global_parent: Transform3D, target: Vector3,
+		pole_dir: Vector3, weight: float) -> void:
+	# One walk down the chain: each pose is its parent's times its own local pose, the same products
 	# global_pose makes, in the same order.
-	var upper_global_parent := global_pose(skeleton, skeleton.get_bone_parent(bones[0]))
 	var upper := upper_global_parent * skeleton.get_bone_pose(bones[0])
 	var lower := upper * skeleton.get_bone_pose(bones[1]) if skeleton.get_bone_parent(bones[1]) == bones[0] else global_pose(skeleton, bones[1])
 	var wrist := lower * skeleton.get_bone_pose(bones[2]) if skeleton.get_bone_parent(bones[2]) == bones[1] else global_pose(skeleton, bones[2])

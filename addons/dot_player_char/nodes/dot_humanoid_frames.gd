@@ -7,11 +7,18 @@ extends RefCounted
 ## The hand's frame in its bone's, from the held-gun pose: forward is the figure's forward and up
 ## is up there, so a weapon model made pointing down -Z points where the gun clips aim.
 static func hand_frame(skeleton: Skeleton3D, anim: AnimationPlayer, model: Node3D, to_figure: Transform3D) -> Transform3D:
-	var bone := skeleton.find_bone(DotHumanoidFigure.HAND_BONE)
+	var bone_global := held_pose(skeleton, anim, model, skeleton.find_bone(DotHumanoidFigure.HAND_BONE))
+	var bone_in_figure := to_figure * bone_global
+	# Wanted: in the figure's frame, -Z forward, +Y up, metres; at the bone plus the grip offset.
+	var wanted := Transform3D(Basis.IDENTITY, bone_in_figure.origin + DotHumanoidFigure.HAND_OFFSET)
+	return bone_in_figure.affine_inverse() * wanted
+
+
+## Bone [param bone]'s pose in skeleton space at the held-gun pose (the first key of
+## [constant DotHumanoidClips.IDLE_GUN]; the rest pose for a bone it does not key).
+static func held_pose(skeleton: Skeleton3D, anim: AnimationPlayer, model: Node3D, bone: int) -> Transform3D:
 	var library := anim.get_animation_library(&"")
 	var gun := library.get_animation(DotHumanoidClips.IDLE_GUN) if library != null and library.has_animation(DotHumanoidClips.IDLE_GUN) else null
-	# The bone's pose in skeleton space at the held-gun pose, computed from the clip's keys.
-	var poses: Dictionary = {}
 	var chain: Array[int] = []
 	var i := bone
 	while i >= 0:
@@ -28,12 +35,7 @@ static func hand_frame(skeleton: Skeleton3D, anim: AnimationPlayer, model: Node3
 			var p := local.origin if pt < 0 else gun.position_track_interpolate(pt, 0.0)
 			local = Transform3D(Basis(q).scaled(local.basis.get_scale()), p)
 		global = global * local
-		poses[b] = global
-	var bone_global: Transform3D = poses[bone]
-	var bone_in_figure := to_figure * bone_global
-	# Wanted: in the figure's frame, -Z forward, +Y up, metres; at the bone plus the grip offset.
-	var wanted := Transform3D(Basis.IDENTITY, bone_in_figure.origin + DotHumanoidFigure.HAND_OFFSET)
-	return bone_in_figure.affine_inverse() * wanted
+	return global
 
 
 ## The body's height at rest, from its mesh (the unposed bind shape, which is standing).

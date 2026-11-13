@@ -122,6 +122,16 @@ A replay that only knows where a body stood and how fast it moved cannot redraw 
 
 `set_motion` reads `"sprinting"`; `sprint_blend` eases over `SPRINT_SECONDS` and `_apply_aim` drops the gun arm by `SPRINT_DROP`. `set_support_grip(global_transform)` makes `_apply_support` reach the left hand there (two-bone IK, pole `SUPPORT_POLE`, weighted by `_support_weight`); a one-handed weapon passes none. `held_scale` is 1.7, times the weapon pose's world factor.
 
+## Carrying a gun
+
+Others see a held gun carried, not held out: `DotHumanoidCarryPose` (the figure's `carry`) writes the gun arm over the clip after the legs. Each `DotHumanoidCarry` class (`for_class`: rifle, smg, shotgun, sniper, heavy, pistol; null for melee or thrown) gives the gun hand's grip and the muzzle's turn for five stances: the low ready, a sprint across the body, the aim (shouldered, level with the view), a reload (pulled in and rolled to the other hand) and a swap (lowered). Between them it eases; it rides the chest's lean, sways and bobs with the stride (`walk_sway`/`run_sway`, damped when aiming), follows the view's pitch about the shoulder, and kicks on a shot.
+
+- Until a game calls `carry.set_class(kind)` a gun is carried as a rifle with the clip's other hand; a class the game chose also puts the other hand on the foregrip (and along the magazine path while reloading). `set_class(null)` leaves the clip's arms alone.
+- Per frame the game sets `carry.raised`, `carry.reloading` and `carry.switching`, and calls `carry.fired()` on a shot (shouldered for `AIM_HOLD` seconds). `sprint_blend` falls to 0 while the carry is drawn, so a weapon model that swings itself on a sprint does not do it twice.
+- Drawn only: hit zones are scaled from the height, not bones, and the shot leaves from the view, so neither follows the carry. It runs on the clip's distance LOD frames only.
+- Cost (`PEOPLE_CARRY=none|rifle tools/people_sheet.gd --crowd=32`, 2026-11-12, software renderer): 3 µs of script per person for the default carry, 7 µs with the foregrip hand (about 0.2 ms for 32 near people).
+- `tools/people_sheet.gd --carry[=CLASS]` renders walk, run, sprint, fire, reload, swap and idle rows, side and front, with the carry off at the bottom for comparison.
+
 ## Your own arms holding a weapon
 
 `DotPlayerViewArms` (under the camera's yaw pivot, API 8) draws the first-person hands on a weapon mesh the host supplies. A game calls, once, `arms.build(look, height)`, then each time the weapon changes `arms.set_held(DotViewGrip.one_hand(anchor, grip))` or `DotViewGrip.two_hand(anchor, grip, support)` (`anchor` is the weapon's node or a marker on it, the points are in its space, `Vector3.INF` for the support means one hand), and every frame `arms.tick(ground_speed, delta)` then `weapon_mount.position = rest_position + arms.sway()`. `arms.set_held(null)` puts it away. `arms.hand_error(grip)` (API 15) is the metres from each hand to its grip point plus `palm_offset`, -1 when not holding: for a test or a tool. While downed the crawl wins; `set_downed` is unchanged. Hide the backpack with `hide_vertex_fn`, as for the crawl.
