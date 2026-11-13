@@ -57,6 +57,8 @@ func run_arms() -> void:
 	suite._check(worst < 0.03, "the hand stays on the grip through a long walk (worst %.3f m)" % worst)
 	var step := _swap_step(arms, sk, grip, fore)
 	suite._check(step < 0.08, "swapping from a two-hand grip at arm's length to a one-hand one glides the shoulder and elbow in, no jump (worst step %.3f m; was 0.26)" % step)
+	var short := _grow_error(arms, grip, fore)
+	suite._check(short < 0.06, "swapping from a one-hand grip to a two-hand one at arm's length leans at once: the support hand is on its grip the next frame (%.3f m off; eased it was short)" % short)
 	arms.set_held(DotViewGrip.one_hand(weapon, grip))
 	arms.tick(0.0, 1.0 / 30.0)
 	var rest_left := _bone_world(sk, "Middle1.L")
@@ -189,6 +191,29 @@ func _swap_step(arms: DotPlayerViewArms, sk: Skeleton3D, grip: Vector3, fore: Ve
 		last = now
 	far.queue_free()
 	next.queue_free()
+	return worst
+
+
+## The worst hand_error over the frames after a swap from a one-hand grip to a two-hand one held at arm's length,
+## whose support hand needs more lean than the one-hand grip had (a launcher drawn after a grenade).
+func _grow_error(arms: DotPlayerViewArms, grip: Vector3, fore: Vector3) -> float:
+	var near := Node3D.new()
+	suite.add_child(near)
+	near.position = Vector3(0.15, -0.2, -0.75)
+	arms.set_held(DotViewGrip.one_hand(near, grip))
+	for i in 30:
+		arms.tick(0.0, 1.0 / 30.0)
+	var far := Node3D.new()
+	suite.add_child(far)
+	far.position = near.position
+	var held := DotViewGrip.two_hand(far, grip, fore)
+	arms.set_held(held)
+	var worst := 0.0
+	for i in 6:
+		arms.tick(0.0, 1.0 / 30.0)
+		worst = maxf(worst, arms.hand_error(held))
+	near.queue_free()
+	far.queue_free()
 	return worst
 
 
