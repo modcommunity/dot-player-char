@@ -50,13 +50,21 @@ const ALL: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CR
 const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN, CROUCH, CROUCH_WALK, FALL, CRAWL, SIT, DRIVE, CLIMB, SWIM, SPRINT,
 	ZOMBIE_IDLE, ZOMBIE_WALK, &"ual_jog", &"ual_crouch_walk"]
 
-## How much of the duck's bend a crouch walk keeps (the full bend left no room for a stride), and
-## how far the hips dip at each step, in the clip body's units.
+## How much of the duck's bend a crouch walk's upper body keeps (its hips' height and legs are
+## solved: [method _crouch_walking]), and how far the hips dip at each step, in the clip body's units.
 const CROUCH_WALK_BEND := 1.0
 
 ## The idle crouch goes past the kit's duck (1.0) so it reads lower than a crouch walk.
 const CROUCH_IDLE_BEND := 1.4
 const CROUCH_WALK_BOB := 0.03
+
+## How far a crouch walk's hips ride over the idle crouch's, in the clip body's units: a crouch walk
+## reads a little taller than a crouch held still, and no taller than that.
+const CROUCH_WALK_RISE := 0.02
+
+## How much of the walk's step (each ankle's reach ahead of and behind the hips) a crouch walk
+## keeps: short steps on bent legs.
+const CROUCH_WALK_STRIDE := 0.8
 
 ## The bones a crouch bends: the body's height and the legs. The arms and head keep what the
 ## walk does with them.
@@ -219,7 +227,13 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 		# The bob goes in first so the lift to the feet takes its dip out too.
 		if walking:
 			_bob(made, CROUCH_WALK_BOB)
-		if skeleton != null:
+		if walking and skeleton != null and library.has_animation(CROUCH):
+			# The walk's straight stance leg, bent and lifted back onto its feet, carried the hips to
+			# the standing walk's height: the head was drawn above standing while the game's hit zones
+			# had squeezed to crouch height (dpc-crouch-walk-pose-fit-1). So the hips are held at the
+			# crouch's and the legs are solved to reach the walk's footfalls.
+			made = _crouch_walking(made, library.get_animation(pair[0]), library.get_animation(CROUCH), skeleton)
+		elif skeleton != null:
 			_lift_to_feet(made, library.get_animation(pair[0]), skeleton)
 		if library.has_animation(pair[1]):
 			library.remove_animation(pair[1])
@@ -559,6 +573,87 @@ static func _skeleton_prefix(animation: Animation) -> String:
 		if path.get_subname_count() > 0:
 			return String(path.get_concatenated_names())
 	return "Skeleton3D"
+
+
+## [param bent] (the walk with the duck's bend and bob) with its hips held at [param crouch]'s height
+## plus [constant CROUCH_WALK_RISE] and the bob, and each leg solved (knee ahead) so its ankle lands
+## where [param walk]'s does, the step cut to [constant CROUCH_WALK_STRIDE]. The upper body, arms
+## and feet's turn are the bent walk's.
+static func _crouch_walking(bent: Animation, walk: Animation, crouch: Animation, skeleton: Skeleton3D) -> Animation:
+	var body := skeleton.find_bone("Body")
+	if body < 0:
+		return bent
+	var made := Animation.new()
+	made.length = bent.length
+	made.loop_mode = Animation.LOOP_LINEAR
+	var prefix := _skeleton_prefix(bent)
+	var tracks := {}
+	for i in skeleton.get_bone_count():
+		var path := NodePath("%s:%s" % [prefix, skeleton.get_bone_name(i)])
+		var rt := made.add_track(Animation.TYPE_ROTATION_3D)
+		made.track_set_path(rt, path)
+		var pt := made.add_track(Animation.TYPE_POSITION_3D)
+		made.track_set_path(pt, path)
+		tracks[i] = [rt, pt]
+	var crouched := _globals(_locals(crouch, 0.0, skeleton), skeleton)
+	var hips_y: float = (crouched[body] as Transform3D).origin.y + CROUCH_WALK_RISE
+	var bob_track := _body_track(bent)
+	var frames := 24
+	for frame in frames + 1:
+		var time := made.length * float(frame) / float(frames)
+		var g := _globals(_locals(bent, time, skeleton), skeleton)
+		var w := _globals(_locals(walk, time, skeleton), skeleton)
+		var dip := 0.0
+		if bob_track >= 0:
+			var at := time / maxf(made.length, 0.01)
+			dip = CROUCH_WALK_BOB * (0.5 * cos(at * TAU * 2.0) - 0.5)
+		var drop := hips_y + dip - (g[body] as Transform3D).origin.y
+		_move_subtree(g, skeleton, body, Transform3D(Basis.IDENTITY, Vector3(0.0, drop, 0.0)))
+		for side: String in [".L", ".R"]:
+			_reach(g, skeleton, side, w, crouched)
+		var locals := _back_to_locals(g, skeleton)
+		for i in locals.size():
+			var local: Transform3D = locals[i]
+			var _r := made.rotation_track_insert_key(tracks[i][0], time, local.basis.get_rotation_quaternion().normalized())
+			var _p := made.position_track_insert_key(tracks[i][1], time, local.origin)
+	return made
+
+
+## Bends one leg of pose [param g] (knee ahead, along +Z) so its ankle reaches where pose [param w]'s
+## does, the reach ahead of or behind the hip cut to [constant CROUCH_WALK_STRIDE]. The leg starts
+## from [param bent]'s (the crouch's), so it turns only a little and its twist holds from key to key.
+static func _reach(g: Array, skeleton: Skeleton3D, side: String, w: Array, bent: Array) -> void:
+	var thigh := skeleton.find_bone("UpperLeg" + side)
+	var knee := skeleton.find_bone("LowerLeg" + side)
+	var foot := skeleton.find_bone("Foot" + side)
+	if thigh < 0 or knee < 0 or foot < 0:
+		return
+	var hip: Vector3 = (g[thigh] as Transform3D).origin
+	var onto := Transform3D(Basis.IDENTITY, hip - (bent[thigh] as Transform3D).origin)
+	for i in g.size():
+		var j := i
+		while j >= 0 and j != thigh:
+			j = skeleton.get_bone_parent(j)
+		if j == thigh:
+			g[i] = onto * (bent[i] as Transform3D)
+	g[foot] = Transform3D((g[foot] as Transform3D).basis, (g[knee] as Transform3D).origin \
+			+ ((bent[foot] as Transform3D).origin - (bent[knee] as Transform3D).origin))
+	var upper: float = ((g[knee] as Transform3D).origin - hip).length()
+	var lower: float = ((g[foot] as Transform3D).origin - (g[knee] as Transform3D).origin).length()
+	var walk_hip: Vector3 = (w[thigh] as Transform3D).origin
+	var walk_ankle: Vector3 = (w[foot] as Transform3D).origin
+	var ahead := Vector3(walk_ankle.x - walk_hip.x, 0.0, walk_ankle.z - walk_hip.z) * CROUCH_WALK_STRIDE
+	var target := Vector3(hip.x, walk_ankle.y, hip.z) + ahead
+	var to := target - hip
+	var reach := clampf(to.length(), 0.001, (upper + lower) * 0.999)
+	var along := to.normalized()
+	var cos_hip := clampf((upper * upper + reach * reach - lower * lower) / (2.0 * upper * reach), -1.0, 1.0)
+	var pole := Vector3.BACK - along * along.dot(Vector3.BACK)
+	if pole.is_zero_approx():
+		pole = Vector3.UP
+	var knee_at := hip + (along * cos_hip + pole.normalized() * sqrt(1.0 - cos_hip * cos_hip)) * upper
+	var ankle := hip + along * reach
+	_place_leg(g, skeleton, side, knee_at - hip, ankle - knee_at, lower)
 
 
 ## [param base] with the duck's bend at [param low] added on [constant CROUCH_BONES], looping.
