@@ -16,6 +16,15 @@ const ANIM_FAR := 45.0
 ## recording see the pose. Hit zones are not bones, so they never lag.
 const OFFSCREEN_STEP := 2
 
+## Frames apart a figure is posed when nothing of it is drawn: hidden, or out of view past [constant SHADOW_RANGE]
+## (no shadow either). It is redrawn the frame it comes back into view.
+const UNSEEN_STEP := 8
+
+## Past this distance a figure in view draws no support hand on the foregrip, and past [constant ANIM_FAR] no carry
+## pose on the gun arm (the clip's own arm is drawn). Out of view only its shadow is drawn: no aim, carry or support,
+## and the feet are not kept out of the floor. With no camera (a server, a suite) every layer is drawn.
+const SUPPORT_RANGE := ANIM_NEAR
+
 ## Seconds an [member auto_animate] body may stand still between moves before it counts as stopped: longer than a
 ## physics tick or a snapshot gap, short enough that a stop shows at once.
 const AUTO_HOLD := 0.1
@@ -485,6 +494,9 @@ func _animate_step(speed: float, p_delta: float) -> void:
 			return
 	var delta := p_delta + _owed
 	_owed = 0.0
+	# The layers drawn this frame ([constant SUPPORT_RANGE]), from the step just worked out.
+	var seen := DotHumanoidFrames.last_seen if _anim != null else true
+	var far := DotHumanoidFrames.last_distance if _anim != null else 0.0
 	state = _machine.advance(_motion, delta, speed)
 	_end_action_if_moved()
 	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
@@ -513,16 +525,19 @@ func _animate_step(speed: float, p_delta: float) -> void:
 		_anim.speed_scale = matched
 	_anim.advance(delta)
 	_apply_overlays()
-	_apply_aim()
+	if seen:
+		_apply_aim()
 	_ease.step(_skeleton, delta)
 	legs.apply(_skeleton, up)
-	_apply_carry()
-	_apply_support()
+	if seen and far <= ANIM_FAR:
+		_apply_carry()
+	if seen and far <= SUPPORT_RANGE:
+		_apply_support()
 	_apply_swim(delta)
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, delta)
 	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
-	_apply_floor()
+	_apply_floor(seen)
 	_own.cap_colour = look.top
 	_own.apply(_skeleton, _mesh)
 
@@ -546,9 +561,9 @@ func _lift_body() -> void:
 ## Keeps a standing body's drawn feet out of the floor its origin stands on ([method DotHumanoidLegs.on_floor]):
 ## a clip's stride can carry an ankle under it; first the body is stood on the floor under its origin ([member floor_mask]).
 ## Not in the air, on a wall, a ladder, a seat or the ground.
-func _apply_floor() -> void:
+func _apply_floor(feet: bool = true) -> void:
 	_lift_body()
-	var grounded := _skeleton != null and not (downed or seated or driving) and bool(_motion.get("on_floor", true)) \
+	var grounded := feet and _skeleton != null and not (downed or seated or driving) and bool(_motion.get("on_floor", true)) \
 		and not bool(_motion.get("wall_running", false)) and not state in OFF_FLOOR_STATES
 	if grounded:
 		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)

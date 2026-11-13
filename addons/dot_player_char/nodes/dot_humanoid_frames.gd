@@ -86,9 +86,18 @@ static var _cone_frame := -1
 static var _cone := 0.0
 
 
-## How many frames apart a figure's clip is advanced at its distance from the camera, doubled out of view or hidden
-## ([constant DotHumanoidFigure.OFFSCREEN_STEP]); also sets its shadow.
+## What the last [method step_for_distance] found: the figure's distance from the camera (0 with no camera) and
+## whether it may be in view (true with no camera: a server or a suite draws every layer).
+static var last_distance := 0.0
+static var last_seen := true
+
+
+## How many frames apart a figure's clip is advanced at its distance from the camera, doubled out of view
+## ([constant DotHumanoidFigure.OFFSCREEN_STEP]), and [constant DotHumanoidFigure.UNSEEN_STEP] when nothing of it is
+## drawn (hidden, or out of view past its shadow's range); also sets its shadow.
 static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
+	last_distance = 0.0
+	last_seen = true
 	var viewport := figure.get_viewport() if figure.is_inside_tree() else null
 	var camera := viewport.get_camera_3d() if viewport != null else null
 	if camera == null:
@@ -103,8 +112,11 @@ static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
 			mesh.cast_shadow = shadow
 	var step := 1 if d <= DotHumanoidFigure.ANIM_NEAR else (2 if d <= DotHumanoidFigure.ANIM_FAR else 4)
 	var tall := (figure as DotHumanoidFigure).height if figure is DotHumanoidFigure else 1.8
-	if not figure.is_visible_in_tree() or not _in_cone(camera, eye, at + placed.basis.y.normalized() * tall * 0.5, tall):
-		step *= DotHumanoidFigure.OFFSCREEN_STEP
+	last_distance = d
+	var shown := figure.is_visible_in_tree()
+	last_seen = shown and _in_cone(camera, eye, at + placed.basis.y.normalized() * tall * 0.5, tall)
+	if not last_seen:
+		step = DotHumanoidFigure.UNSEEN_STEP if not shown or d > DotHumanoidFigure.SHADOW_RANGE else step * DotHumanoidFigure.OFFSCREEN_STEP
 	return step
 
 
