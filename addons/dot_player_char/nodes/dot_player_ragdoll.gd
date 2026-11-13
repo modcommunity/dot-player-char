@@ -541,37 +541,23 @@ func _skeletal_points() -> Dictionary:
 			if bone < 0:
 				bone = _skel.find_bone(skin.get_bind_name(b))
 			bind_bones.append(bone)
-		var poses := {}
-		for surface in mesh.mesh.get_surface_count():
-			var arrays := mesh.mesh.surface_get_arrays(surface)
-			if arrays.size() <= Mesh.ARRAY_WEIGHTS or arrays[Mesh.ARRAY_VERTEX] == null or arrays[Mesh.ARRAY_BONES] == null:
-				continue
-			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-			var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
-			var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
-			if verts.is_empty() or bones.is_empty():
-				continue
-			var per := bones.size() / verts.size()
-			for v in range(0, verts.size(), 3):
-				var best := 0
-				for k in per:
-					if weights[v * per + k] > weights[v * per + best]:
-						best = k
-				var bind := bones[v * per + best]
-				if bind < 0 or bind >= bind_bones.size() or bind_bones[bind] < 0:
+		# Every third vertex, grouped by the bind that moves it most: one pose per bind, not per vertex.
+		for surface: Dictionary in DotSkinSurfaces.of(mesh.mesh):
+			var samples: Array[PackedVector3Array] = surface["samples"]
+			for bind in samples.size():
+				var picked: PackedVector3Array = samples[bind]
+				if picked.is_empty() or bind >= bind_bones.size() or bind_bones[bind] < 0:
 					continue
 				var bone := bind_bones[bind]
-				if not poses.has(bind):
-					poses[bind] = _skel_base * _skel.get_bone_global_pose(bone) * skin.get_bind_pose(bind)
-				var at: Vector3 = (poses[bind] as Transform3D) * verts[v]
+				var pose := _skel_base * _skel.get_bone_global_pose(bone) * skin.get_bind_pose(bind)
 				var role := _bone_roles[bone]
 				if not points.has(role):
 					# An Array, not a PackedVector3Array: a packed array is a value, and appending
 					# to one read out of a Dictionary appends to a copy (every box came out empty).
 					points[role] = []
 					counts[role] = {}
-				(points[role] as Array).append(at)
-				counts[role][bone] = int(counts[role].get(bone, 0)) + 1
+				(points[role] as Array).append_array(Array(pose * picked))
+				counts[role][bone] = int(counts[role].get(bone, 0)) + picked.size()
 
 	if points.is_empty():
 		# Nothing readable: the joints, each bone to each of its children.
