@@ -22,6 +22,7 @@ func run() -> void:
 	await _check_floor_lift()
 	await _check_far_skip()
 	await _check_offscreen()
+	await _check_layers()
 	await _check_wall()
 	suite._section("your own body in first person")
 	await _check_own_view()
@@ -154,7 +155,8 @@ func _check_far_skip() -> void:
 	await suite.get_tree().process_frame
 
 
-## Out of view (behind the camera) or hidden, the step doubles; turning to face the figure redraws it that frame.
+## Out of view (behind the camera) the step doubles; hidden, or out of view past the shadow's range, nothing of it is
+## drawn and it is posed every [constant DotHumanoidFigure.UNSEEN_STEP] frames.
 func _check_offscreen() -> void:
 	var cam := Camera3D.new()
 	suite.add_child(cam)
@@ -174,7 +176,7 @@ func _check_offscreen() -> void:
 	cam.rotation = Vector3(0, PI, 0)
 	g.animate(0.0, DT)
 	steps.append(g.anim_step)
-	suite._check(steps == [1, 2, 2, 8], "in view near 1, behind the camera 2, hidden 2, far behind 8 (got %s)" % [steps])
+	suite._check(steps == [1, 2, 8, 8], "in view near 1, behind the camera 2, hidden 8, far behind 8 (got %s)" % [steps])
 	g.set_motion({"on_floor": true, "velocity": Vector3(1.6, 0, 0)})
 	for i in 40:
 		g.animate(1.6, DT)
@@ -238,6 +240,48 @@ func _check_walk(velocity: Vector3, who: String) -> void:
 	suite._check(is_equal_approx(g.legs.twist, expect) and absf(absf(turn) - absf(want_turn)) < 12.0,
 		"%s: the hips turn %.0f degrees from the chest (twist %.0f, wanted %.0f)" % [who, turn, want_turn, rad_to_deg(expect)])
 	g.queue_free()
+	await suite.get_tree().process_frame
+
+
+## A figure in view near the camera is posed bone for bone as with no camera at all (a server's); one behind the
+## camera, only its shadow drawn, is posed without the aim, the carry and the support hand.
+func _check_layers() -> void:
+	var cam := Camera3D.new()
+	suite.add_child(cam)
+	cam.position = Vector3(0, 1.6, 10.0)
+	cam.make_current()
+	var near := _figure()
+	var behind := _figure()
+	var plain := _figure()
+	for g: DotHumanoidFigure in [near, behind, plain]:
+		g.set_hold(DotHumanoidFigure.Hold.GUN)
+		g.aim_pitch = 0.5
+	var steps := []
+	for i in 12:
+		cam.rotation = Vector3.ZERO
+		near.animate(1.5, DT)
+		steps.append(near.anim_step)
+		cam.rotation = Vector3(0, PI, 0)
+		behind.animate(1.5, DT)
+	suite.remove_child(cam)
+	var none := suite.get_viewport().get_camera_3d() == null
+	for i in 12:
+		plain.animate(1.5, DT)
+	suite.add_child(cam)
+	var sk_near: Skeleton3D = near._skeleton
+	var sk_plain: Skeleton3D = plain._skeleton
+	var sk_behind: Skeleton3D = behind._skeleton
+	var worst := 0.0
+	var apart := 0.0
+	for b in sk_plain.get_bone_count():
+		worst = maxf(worst, sk_near.get_bone_pose_rotation(b).angle_to(sk_plain.get_bone_pose_rotation(b)))
+		apart = maxf(apart, sk_behind.get_bone_pose_rotation(b).angle_to(sk_plain.get_bone_pose_rotation(b)))
+	suite._check(none and steps.max() == 1 and worst < 0.002,
+		"in view near, every bone is posed as with no camera, to the 0.001 rad two figures differ by anyway (worst %.6f rad, no camera %s)" % [worst, none])
+	suite._check(apart > 0.05, "behind the camera the aim and the gun arm are not posed (%.3f rad off at most)" % apart)
+	for g: DotHumanoidFigure in [near, behind, plain]:
+		g.queue_free()
+	cam.queue_free()
 	await suite.get_tree().process_frame
 
 
