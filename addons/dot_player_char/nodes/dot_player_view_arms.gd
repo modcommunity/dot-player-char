@@ -19,8 +19,9 @@ const FINGER_ROOTS: Array[String] = ["Pinky1", "Middle1", "Index1", "Thumb1"]
 const LEAN_SLACK := 0.97
 ## How fast the drawn forearm scale follows a new [member forearm_scale], per second.
 const FORE_RATE := 2.0
-## How fast the drawn lean follows the lean a grip needs, metres per second: a swap from a two-hand grip (the support
-## hand far out) to a one-hand one moved the shoulder 0.27 m in one frame and the elbow with it, the hand still.
+## How fast the drawn lean shrinks to the lean a grip needs, metres per second: a swap from a two-hand grip (the support
+## hand far out) to a one-hand one moved the shoulder 0.27 m in one frame and the elbow with it, the hand still. A lean
+## that has to grow is taken at once (a hand short of its grip is worse than a step).
 const LEAN_RATE := 1.2
 ## Elbow turns tried about the shoulder-to-hand line (degrees) to take an arm out of the weapon's box, and how much
 ## of the forearm next to the hand may stay inside it (the hand is on the gun).
@@ -619,7 +620,12 @@ func _lean(skeleton: Skeleton3D, figure: DotHumanoidFigure, target: Vector3) -> 
 			lean = lean.normalized() * max_lean
 			break
 
-	_leaned = _leaned.move_toward(lean, LEAN_RATE * _delta)
+	# Eased only as the lean shrinks: more lean than needed still reaches. A lean that has to grow is taken at once,
+	# or the support hand slid off a two-hand grip drawn after a one-hand one (grenade_launcher draw 0.26 m for 4 frames).
+	if lean.length() >= _leaned.length():
+		_leaned = lean
+	else:
+		_leaned = _leaned.move_toward(lean, LEAN_RATE * _delta)
 	figure.global_position += _leaned
 
 ## The point on the segment from [param from] to [param to] nearest [param from] that the arm can reach, or the point nearest the shoulder when none is.
