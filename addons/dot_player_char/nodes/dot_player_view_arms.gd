@@ -17,6 +17,8 @@ const FINGER_ROOTS: Array[String] = ["Pinky1", "Middle1", "Index1", "Thumb1"]
 ## drawn as is, in place of the person; if it has `set_motion` and `animate` (a [DotHumanoidFigure]) they are driven.
 ## Fraction of the arm the lean aims to need, so the slide to reach never trims a hand the lean just brought in.
 const LEAN_SLACK := 0.97
+## How fast the drawn forearm scale follows a new [member forearm_scale], per second.
+const FORE_RATE := 2.0
 ## Elbow turns tried about the shoulder-to-hand line (degrees) to take an arm out of the weapon's box, and how much
 ## of the forearm next to the hand may stay inside it (the hand is on the gun).
 const CLEAR_ANGLES: Array[float] = [0.0, 15.0, -15.0, 30.0, -30.0, 45.0, -45.0, 60.0, -60.0, 80.0, -80.0]
@@ -98,6 +100,8 @@ var _override: DotHumanoidLook = null
 var _detail_on := false
 var _turn_right := 0.0
 var _turn_left := 0.0
+## The forearm scale drawn, eased toward [member forearm_scale] (or 1 without a weapon) at [constant FORE_RATE].
+var _fore := 1.0
 
 
 ## Builds the arms (once; a new [param p_look] rebuilds). Hidden until [method set_downed] says otherwise.
@@ -365,7 +369,9 @@ func tick(speed: float, delta: float) -> void:
 		for i in _bones:
 			skeleton.set_bone_pose_scale(i, Vector3.ONE * 0.001)
 
-		var fore := clampf(forearm_scale, 0.2, 1.5) if _holding() else 1.0
+		# Eased: a weapon swap set the next weapon's scale in one frame, and the elbow jumped 0.1 m mid-holster.
+		_fore = move_toward(_fore, clampf(forearm_scale, 0.2, 1.5) if _holding() else 1.0, FORE_RATE * delta)
+		var fore := _fore
 
 		for i in _fingers:
 			skeleton.set_bone_pose_scale(i, Vector3.ONE * ((hand_scale if _holding() else 1.0) / fore))
@@ -601,7 +607,7 @@ func _lean(skeleton: Skeleton3D, figure: DotHumanoidFigure, target: Vector3) -> 
 
 	figure.global_position += lean
 
-
+## The point on the segment from [param from] to [param to] nearest [param from] that the arm can reach, or the point nearest the shoulder when none is.
 ## The point on the segment from [param from] to [param to] nearest [param from] that the arm can reach (or [param to]).
 func _slide_to_reach(skeleton: Skeleton3D, bones: Array[int], from: Vector3, to: Vector3) -> Vector3:
 	if bones.is_empty():
@@ -620,8 +626,11 @@ func _slide_to_reach(skeleton: Skeleton3D, bones: Array[int], from: Vector3, to:
 	var b := 2.0 * f.dot(d)
 	var disc := b * b - 4.0 * a * (f.length_squared() - radius * radius)
 
+	# A line that misses the reach ends at its nearest point to the shoulder, where the hit point would be as the line
+	# grazes the reach. Answering [param to] there jumped the hand to the firing hand whenever the sway took the line
+	# off the reach, and it flickered between the two from frame to frame.
 	if disc < 0.0:
-		return to
+		return from + (to - from) * clampf(-b / (2.0 * a), 0.0, 1.0)
 
 	return from + (to - from) * clampf((-b - sqrt(disc)) / (2.0 * a), 0.0, 1.0)
 
