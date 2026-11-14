@@ -429,7 +429,7 @@ func _test_cap_and_life() -> void:
 		waited += get_physics_process_delta_time()
 	_check(yard.live().is_empty(), "every body fades and is gone after its lifetime (%.1f s)" % waited)
 	var fps := DotPlayerRagdolls.default_local_cap()
-	_check(fps >= 4, "a machine's own cap is never below four (%d)" % fps)
+	_check(fps == 0 or fps >= 4, "a machine's own cap is unlimited (0) or never below four (%d)" % fps)
 
 
 func _person(at: Vector3) -> DotHumanoidFigure:

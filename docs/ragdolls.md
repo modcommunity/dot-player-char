@@ -44,7 +44,7 @@ The stock set: `limp` (4), `headshot_launch` (6, headshots only), `power_launch`
 | `sv_ragdoll` | 1 | 0: no physics, the topple fallback |
 | `sv_ragdoll_style` | ragdoll | ragdoll, stiff, topple, hide |
 | `sv_ragdoll_time` | 10 | seconds a body lies there before the fade |
-| `sv_ragdoll_max` | 8 | most bodies at once (up to 256; a browser keeps its own lower local cap) |
+| `sv_ragdoll_max` | 8 | most bodies at once (default 8, 0 = unlimited; a browser keeps its own lower local cap) |
 | `sv_ragdoll_force` | 1 | multiplies every push and launch; 0 drops bodies where they stood |
 | `sv_ragdoll_torque` | 1 | multiplies the spin a fall gets |
 | `sv_ragdoll_exaggerate` | 0 | 1 allows the launch reactions and flips; 0 is a heavy drop with no throw |
@@ -55,7 +55,7 @@ The stock set: `limp` (4), `headshot_launch` (6, headshots only), `power_launch`
 
 ## The cap
 
-The server's `max_count` and the machine's `local_cap` (`default_local_cap()`: four on a machine without threads or a phone, so a browser tab, which simulates on its one thread), the lower. **The oldest body fades out quickly to make room, rather than the new one not appearing**, because the new one is the death somebody is looking at. Bodies that are fading do not count.
+The server's `max_count` and the machine's `local_cap` (`default_local_cap()`: four on a machine without threads or a phone, so a browser tab, which simulates on its one thread; 0, no local limit, elsewhere), the lower; 0 on either side is no limit from that side, so `sv_ragdoll_max 0` on a desktop keeps every body until it fades. Times and scales have a floor (a negative is refused with a warning, not clamped) and no ceiling. **The oldest body fades out quickly to make room, rather than the new one not appearing**, because the new one is the death somebody is looking at. Bodies that are fading do not count.
 
 A settled body is frozen (`freeze_mode = STATIC`), which is what makes eight bodies on a floor cost nothing; one still moving after `max_sim_time` (wedged, jittering against a wall) is frozen anyway.
 
