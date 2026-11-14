@@ -243,6 +243,9 @@ var floor_reach: float = 0.45
 ## How far the body is drawn above its origin now to stand on the floor under it, metres.
 var floor_lift: float = 0.0
 var _lift_at := Vector3.INF
+var _lift_allowed := false
+var _lift_mask := -1
+var _lift_reach := -1.0
 
 ## Where the support hand goes, in world space, with a two-handed gun; INF for none ([method set_support_grip]).
 var support_point := Vector3.INF
@@ -319,6 +322,7 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 		_skeleton = null
 		_mesh = null
 		_anim = null
+	_lift_at = Vector3.INF
 
 	var scene := DotHumanoidAssets.scene(body_path(look.body))
 	if scene != null:
@@ -547,11 +551,21 @@ func _animate_step(speed: float, p_delta: float) -> void:
 ## Raised at once, never eased: an eased rise is a body sunk into the step it just climbed. Not seated, swimming,
 ## climbing or dead.
 func _lift_body() -> void:
-	_lift_at = global_position if is_inside_tree() else Vector3.INF
+	var at := global_position if is_inside_tree() else Vector3.INF
 	if _model == null:
+		_lift_at = at
 		return
-	var lift := legs.floor_lift(self, floor_mask, floor_reach) if _skeleton != null and not (seated or driving) \
-		and not state in NO_LIFT_STATES else 0.0
+	var allowed := _skeleton != null and not (seated or driving) and not state in NO_LIFT_STATES
+	# Unmoved, with the same mask, reach and state: the floor under it is the one already found (the world is
+	# taken as still under a still body, as between drawn frames), so no ray is cast again.
+	if at == _lift_at and at.is_finite() and allowed == _lift_allowed and floor_mask == _lift_mask \
+			and floor_reach == _lift_reach:
+		return
+	_lift_at = at
+	_lift_allowed = allowed
+	_lift_mask = floor_mask
+	_lift_reach = floor_reach
+	var lift := legs.floor_lift(self, floor_mask, floor_reach) if allowed else 0.0
 	if lift != floor_lift:
 		floor_lift = lift
 		_model.transform = _model_transform()
