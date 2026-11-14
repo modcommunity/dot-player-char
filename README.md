@@ -83,7 +83,7 @@ The server picks the reaction and sends it with the kill, so every screen shows 
 | `sv_ragdoll` | Ragdolls on or off. |
 | `sv_ragdoll_style` | Physics ragdoll, one stiff piece, scripted fall, or none. |
 | `sv_ragdoll_time` | How long a ragdoll lasts before fading. |
-| `sv_ragdoll_max` | How many ragdolls at once (default 8; the oldest is removed first). |
+| `sv_ragdoll_max` | How many ragdolls at once (default 8, 0 = unlimited; the oldest is removed first). Each machine also has its own cap: unlimited on desktop, 4 on mobile or without threads. |
 | `sv_ragdoll_force`, `sv_ragdoll_torque` | How hard shots push bodies. |
 | `sv_ragdoll_reactions` | Which reactions are allowed, with weights. |
 
