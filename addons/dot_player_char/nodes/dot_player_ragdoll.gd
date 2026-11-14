@@ -110,6 +110,17 @@ var _skinned_rest: Array[Transform3D] = []
 var _bone_roles: PackedInt32Array = PackedInt32Array()
 var _bone_order: PackedInt32Array = PackedInt32Array()
 
+## dot-sim's class that poses the bones natively (bit-identical to [method _pose_bones_script]),
+## reached by name so this addon loads without the extension.
+const NATIVE_POSE_CLASS := &"DotSimRagdollPose"
+## Pose a skinned body's bones in [constant NATIVE_POSE_CLASS] when it is loaded; false keeps the
+## script (the A/B baseline). The web never has it.
+static var native_pose := true
+static var _native_known := -1
+# This body's native poser, planned from its parts' bones on the first native pose; dropped when
+# the parts change ([method _carry_bones], [method _become_jointed]).
+var _poser: Object = null
+
 
 ## Builds a body from [param figure] under [param world], or null when the style is HIDE or the
 ## figure has no meshes. [param velocity] is how the player was moving, carried into the fall.
@@ -639,6 +650,7 @@ func _top_of(bones: Array, torso_at: Vector3) -> Vector3:
 ## a box round the middle nine tenths of their points: a hair spike or shoulder pad is not what the
 ## body lands on. [param column] (one-piece body) boxes head, torso and legs only; held-out arms tip too deep.
 func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, column: bool = false) -> void:
+	_poser = null
 	var frame := part.body.global_transform
 	var inverse := frame.affine_inverse()
 	for bone: int in bones:
@@ -684,9 +696,45 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, co
 		part.local_centre = bounds.get_center()
 
 
-## Puts every carried bone where its part now is. Bones are written parents first, because a
-## bone's global pose is stored as a local one under its parent's.
+## Puts every carried bone where its part now is, natively when dot-sim has it ([member native_pose]).
 func _pose_bones() -> void:
+	if _skel == null:
+		return
+	if native_pose and native_pose_available():
+		_pose_bones_native()
+	else:
+		_pose_bones_script()
+
+
+## Whether the dot_sim extension provides [constant NATIVE_POSE_CLASS]; asked once.
+static func native_pose_available() -> bool:
+	if _native_known < 0:
+		_native_known = 1 if ClassDB.class_exists(NATIVE_POSE_CLASS) else 0
+	return _native_known == 1
+
+
+## [method _pose_bones_script] in dot-sim: the same writes from the same transforms, to the bit.
+func _pose_bones_native() -> void:
+	if _poser == null:
+		_poser = ClassDB.instantiate(NATIVE_POSE_CLASS)
+		var bodies: Array[Node3D] = []
+		var part_of := PackedInt32Array()
+		var bones := PackedInt32Array()
+		var offsets: Array[Transform3D] = []
+		for p in _parts.size():
+			var part := _parts[p]
+			bodies.append(part.body)
+			for i in part.bones.size():
+				part_of.append(p)
+				bones.append(part.bones[i])
+				offsets.append(part.bone_offsets[i])
+		var _writes: int = _poser.plan(bodies, part_of, bones, offsets, _bone_order)
+	_poser.pose(_skel, _skel_base.affine_inverse())
+
+
+## The specification and the fallback. Bones are written parents first, because a bone's global
+## pose is stored as a local one under its parent's; a bone two parts carry takes the later part's.
+func _pose_bones_script() -> void:
 	if _skel == null:
 		return
 	var base_inverse := _skel_base.affine_inverse()
@@ -1071,6 +1119,7 @@ func _become_jointed() -> void:
 	if not groups.has(Role.TORSO) and _skel == null:
 		return
 	_parts.clear()
+	_poser = null
 	_build_jointed(groups)
 	for part in _parts:
 		var body := part.body as RigidBody3D
