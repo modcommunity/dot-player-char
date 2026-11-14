@@ -2,6 +2,27 @@
 class_name DotHumanoidIk
 extends RefCounted
 
+## The dot_sim extension's class doing [method two_bone_under], [method DotHumanoidAim.apply_plan] and
+## [method DotHumanoidCarryPose.apply] natively. Without it (the web build, a missing library) the
+## script does the same maths; the two agree to float rounding (examples/figure_native_checks.gd).
+const NATIVE_CLASS := &"DotSimFigurePose"
+
+## Whether the pose layers use [constant NATIVE_CLASS] when the extension provides it; a parity check turns it off.
+static var native_enabled := true
+static var _native: Object = null
+static var _native_known := -1
+
+
+## The native pose object, or null for the script path.
+static func native() -> Object:
+	if not native_enabled:
+		return null
+	if _native_known < 0:
+		_native_known = 1 if ClassDB.class_exists(NATIVE_CLASS) else 0
+		if _native_known == 1:
+			_native = ClassDB.instantiate(NATIVE_CLASS)
+	return _native
+
 
 ## Two-bone IK turning [param bones] (upper, lower, end) to reach [param target] (skeleton space) with the elbow toward [param pole_dir], blended by [param weight].
 static func two_bone(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole_dir: Vector3, weight: float) -> void:

@@ -61,6 +61,11 @@ var _fire_hold := 0.0
 var _kick := 0.0
 var _reload_time := 0.0
 var _turns: Array[Quaternion] = []
+# The style as the native pose takes it: grips, sways and foregrip; the turns as x, y, z, w.
+var _stance := PackedVector3Array()
+var _turns_packed := PackedFloat32Array()
+# Per clip: the gun arm, the shoulder and the chain to the chest, for the native pose.
+var _native_bones: Dictionary = {}
 var _bones: Dictionary = {}
 var _chest := -1
 ## The bones from the root to [member _chest], for [method DotHumanoidIk.chain_pose] every frame.
@@ -85,11 +90,17 @@ func set_class(kind: Variant) -> void:
 func _set_style(p_style: DotHumanoidCarry) -> void:
 	style = p_style
 	_turns.clear()
+	_stance.clear()
+	_turns_packed.clear()
 	if style == null:
 		return
 	var turns: Array[Vector3] = [style.ready_turn, style.sprint_turn, style.aim_turn, style.reload_turn, style.swap_turn]
 	for turn in turns:
-		_turns.append(Quaternion.from_euler(turn * (PI / 180.0)))
+		var q := Quaternion.from_euler(turn * (PI / 180.0))
+		_turns.append(q)
+		_turns_packed.append_array([q.x, q.y, q.z, q.w])
+	_stance = PackedVector3Array([style.ready_grip, style.sprint_grip, style.aim_grip, style.reload_grip, style.swap_grip,
+		style.walk_sway, style.run_sway, style.support])
 
 
 ## A shot: the gun goes to the shoulder, kicks, and stays up for [constant AIM_HOLD] seconds.
@@ -128,6 +139,16 @@ func apply(skeleton: Skeleton3D, model: Node3D, anim: AnimationPlayer, to_figure
 		_bones[animation] = DotHumanoidIk.keyed_bones(skeleton, model, animation, ARM_BONES)
 	var bones: Array[int] = _bones[animation]
 	if bones.is_empty() or _chest < 0:
+		return
+	var fast := DotHumanoidIk.native()
+	if fast != null:
+		var packed: Variant = _native_bones.get(animation)
+		if packed == null:
+			packed = PackedInt32Array([bones[0], bones[1], bones[2], _shoulder]) + _chest_chain
+			_native_bones[animation] = packed
+		var values := PackedFloat64Array([style.follow, style.kick, style.kick_climb, w, sprint, aim, reload, swap, _kick,
+			_reload_time, phase, pitch, size, speed, 1.0 if style.two_handed and explicit and swap < 0.5 else 0.0])
+		support_grip = fast.carry(skeleton, packed, to_figure, _hand_frame, _hand_frame_inv, _chest_ref, _stance, _turns_packed, values)
 		return
 	var s := style
 	# The stance, blended: sprint over ready, the aim over both, reload and swap over all.
@@ -207,6 +228,7 @@ func _support(hand_global: Transform3D, to_figure: Transform3D, chest: Vector3, 
 func _measure(skeleton: Skeleton3D, model: Node3D, anim: AnimationPlayer, to_figure: Transform3D) -> void:
 	_skeleton_id = skeleton.get_instance_id()
 	_bones.clear()
+	_native_bones.clear()
 	_chest = skeleton.find_bone(CHEST_BONE)
 	var upper := skeleton.find_bone(ARM_BONES[0])
 	_shoulder = skeleton.get_bone_parent(upper) if upper >= 0 else -1

@@ -38,6 +38,9 @@ var _ray := PhysicsRayQueryParameters3D.new()
 var _floor_of: int = 0
 var _floor_count: int = 0
 var _floor_legs: Array = []
+# The same legs as the native pose ([method DotHumanoidIk.native]) takes them (DotSimFigurePose.floor): each chain after its length; the ends.
+var _floor_chains := PackedInt32Array()
+var _floor_ends := PackedVector3Array()
 ## [method apply]'s Root and Hips on the skeleton it last saw ([member _floor_of] style: by id and bone count).
 var _turn_of: int = 0
 var _turn_count: int = 0
@@ -145,6 +148,21 @@ func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat
 		_floor_of = skeleton.get_instance_id()
 		_floor_count = skeleton.get_bone_count()
 		_floor_legs = _floor_bones(skeleton)
+		_floor_chains.clear()
+		_floor_ends.clear()
+		for leg: Array in _floor_legs:
+			for chain: PackedInt32Array in [leg[3], leg[4]]:
+				_floor_chains.append(chain.size())
+				_floor_chains.append_array(chain)
+			_floor_ends.append(leg[2])
+	var fast := DotHumanoidIk.native()
+	if fast != null:
+		var before: PackedFloat32Array = fast.floor(skeleton, _floor_chains, _floor_ends, to_figure, floor_y, raised)
+		for i in range(0, before.size(), 5):
+			var bone := int(before[i])
+			if not _saved.has(bone):
+				_saved[bone] = Quaternion(before[i + 1], before[i + 2], before[i + 3], before[i + 4])
+		return
 	var to_skel := to_figure.affine_inverse()
 	for k in _floor_legs.size():
 		var leg: Array = _floor_legs[k]

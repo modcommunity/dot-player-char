@@ -7,6 +7,7 @@
 # Consumers copy every one of them into their own project.
 /addons/dot_core
 /addons/dot_player
+/addons/dot_sim
 
 # Exports
 build/

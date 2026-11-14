@@ -28,8 +28,22 @@ static func plan(skeleton: Skeleton3D, model: Node3D, animation: Animation, arm:
 	return out
 
 
-## [method apply] with a [method plan] made earlier.
-static func apply_plan(skeleton: Skeleton3D, bones: Array, to_figure: Transform3D, pitch: float, sprint_blend: float) -> void:
+## A [method plan] as the native pose takes it (the arm flag as 1 or 0).
+static func packed(bones: Array) -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	for k in range(0, bones.size(), 4):
+		out.append_array([float(bones[k]), float(bones[k + 1]), float(bones[k + 2]), 1.0 if bones[k + 3] else 0.0])
+	return out
+
+
+## [method apply] with a [method plan] made earlier; [param packed_plan], the same plan [method packed], lets the
+## native pose ([method DotHumanoidIk.native]) do it.
+static func apply_plan(skeleton: Skeleton3D, bones: Array, to_figure: Transform3D, pitch: float, sprint_blend: float,
+		packed_plan: PackedFloat64Array = PackedFloat64Array()) -> void:
+	var fast := DotHumanoidIk.native()
+	if fast != null and packed_plan.size() == bones.size():
+		fast.aim(skeleton, packed_plan, to_figure, pitch, sprint_blend, DotHumanoidFigure.SPRINT_DROP)
+		return
 	# Figure right in skeleton space. A collapsed basis (a figure popping in or out) has no inverse:
 	# keep the clip's pose rather than hand Quaternion a zero or NaN axis.
 	var axis := Vector3.ZERO

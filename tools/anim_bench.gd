@@ -3,7 +3,9 @@ extends Node3D
 ## 32 armed people moving like a match's remote players (gun held, aim pitch, support grip, mixed
 ## distances), stepped with a fixed delta. Prints `ANIM_BENCH us_per_call=` (median of rounds), the
 ## phases with `--parts 1`, and `ANIM_DIGEST` (a hash of every pose_record every frame) to prove a
-## change leaves the pose bit-identical. Args after `--`: --frames N --rounds N --parts 0|1.
+## change leaves the pose bit-identical. Args after `--`: --frames N --rounds N --parts 0|1 --native 0|1
+## (the dot_sim pose layers when loaded, default 1; 0 times the script path) --ab 1 (script and native
+## interleaved in one process).
 
 const COUNT := 32
 const DT := 1.0 / 60.0
@@ -59,6 +61,8 @@ func _run() -> void:
 	var frames := _arg("frames", 600)
 	var rounds := _arg("rounds", 5)
 	var parts := _arg("parts", 0) == 1
+	DotHumanoidIk.native_enabled = _arg("native", 1) == 1
+	print("ANIM_NATIVE %s" % (DotHumanoidIk.native() != null))
 	# Digest: one fixed run from frame 0, every pose hashed every frame.
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_SHA256)
@@ -77,14 +81,50 @@ func _run() -> void:
 		per_round.append(float(total) / float(frames * COUNT))
 	per_round.sort()
 	print("ANIM_BENCH us_per_call=%.2f rounds=%s" % [per_round[per_round.size() / 2], str(per_round)])
-	if parts:
-		_parts(frames)
+	if _arg("ab", 0) == 1:
+		_ab(frames, rounds)
+	if parts and _arg("ab", 0) == 1:
+		for side in 2:
+			DotHumanoidIk.native_enabled = side == 1
+			_parts(frames, "native" if side == 1 else "script")
+		DotHumanoidIk.native_enabled = true
+	elif parts:
+		_parts(frames, "")
 	get_tree().quit()
 
 
+## Script and native pose layers in one process, interleaved: each round times both, the order
+## swapped every round, so box load drifts onto both alike. Prints `ANIM_AB` medians and the median
+## of per-round native minus script.
+func _ab(frames: int, rounds: int) -> void:
+	var times: Array = [[], []]
+	var deltas: Array[float] = []
+	var at := frames * (rounds + 2)
+	for r in rounds * 2:
+		var pair := [0.0, 0.0]
+		for k in 2:
+			var side := k if r % 2 == 0 else 1 - k
+			DotHumanoidIk.native_enabled = side == 1
+			var total := 0
+			for frame in frames:
+				var t0 := Time.get_ticks_usec()
+				_step(at + frame)
+				total += Time.get_ticks_usec() - t0
+			at += frames
+			pair[side] = float(total) / float(frames * COUNT)
+			times[side].append(pair[side])
+		deltas.append(pair[1] - pair[0])
+	DotHumanoidIk.native_enabled = true
+	for side in 2:
+		times[side].sort()
+	deltas.sort()
+	print("ANIM_AB script=%.2f native=%.2f delta_median=%.2f us/call deltas=%s" % [times[0][times[0].size() / 2],
+		times[1][times[1].size() / 2], deltas[deltas.size() / 2], str(deltas)])
+
+
 ## Each phase called on its own after a normal step, timed per call. Mutates the pose (a second
-## bend), so run after the digest; times only.
-func _parts(frames: int) -> void:
+## bend), so run after the digest; times only. `label` (with --ab, which path) prefixes each line.
+func _parts(frames: int, label: String) -> void:
 	var names := ["motion+machine", "legs.restore", "legs.update", "clip_for", "play", "step_for_distance",
 		"anim.advance", "overlays", "aim", "ease", "legs.apply", "support", "swim", "crawl", "on_wall", "own.apply", "skeleton_up", "carry", "floor", "matched_rate"]
 	var sums := {}
@@ -138,7 +178,7 @@ func _parts(frames: int) -> void:
 			f._matched_rate(3.0, DT)
 			t = _lap(sums, "matched_rate", t)
 	for n in names:
-		print("ANIM_PART %-18s %.2f us/call" % [n, float(sums[n]) / float(frames * COUNT)])
+		print("ANIM_PART %s%-18s %.2f us/call" % [label + " " if label != "" else "", n, float(sums[n]) / float(frames * COUNT)])
 
 
 func _lap(sums: Dictionary, key: String, since: int) -> int:

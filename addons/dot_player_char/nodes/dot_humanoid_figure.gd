@@ -1017,11 +1017,12 @@ func _apply_aim() -> void:
 	var arm := 1 if hold != Hold.NONE else 0
 	var plans: Variant = _aim_plans.get(animation)
 	if plans == null:
-		plans = [null, null]
+		plans = [null, null, null, null]
 	if plans[arm] == null:
 		plans[arm] = DotHumanoidAim.plan(_skeleton, _model, animation, arm == 1)
+		plans[arm + 2] = DotHumanoidAim.packed(plans[arm])
 		_aim_plans[animation] = plans
-	DotHumanoidAim.apply_plan(_skeleton, plans[arm], _to_figure(), aim_pitch, sprint_blend)
+	DotHumanoidAim.apply_plan(_skeleton, plans[arm], _to_figure(), aim_pitch, sprint_blend, plans[arm + 2])
 
 
 ## Where the support hand goes: the weapon's foregrip, [constant Vector3.INF] when the gun is held with one
@@ -1046,10 +1047,14 @@ func _apply_support() -> void:
 		return
 	var chain: Variant = _support_chains.get(bones[0])
 	if chain == null:
-		chain = DotHumanoidIk.chain_to(_skeleton, _skeleton.get_bone_parent(bones[0]))
+		chain = [DotHumanoidIk.chain_to(_skeleton, _skeleton.get_bone_parent(bones[0])), PackedInt32Array(bones)]
 		_support_chains[bones[0]] = chain
-	DotHumanoidIk.two_bone_under(_skeleton, bones, DotHumanoidIk.chain_pose(_skeleton, chain), target,
-		_to_figure().basis.inverse() * SUPPORT_POLE, _support_weight)
+	var pole := _to_figure().basis.inverse() * SUPPORT_POLE
+	var fast := DotHumanoidIk.native()
+	if fast != null:
+		fast.two_bone_chain(_skeleton, chain[1], chain[0], target, pole, _support_weight)
+	else:
+		DotHumanoidIk.two_bone_under(_skeleton, bones, DotHumanoidIk.chain_pose(_skeleton, chain[0]), target, pole, _support_weight)
 
 
 func _apply_carry() -> void:
