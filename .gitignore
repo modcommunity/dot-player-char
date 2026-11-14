@@ -7,6 +7,8 @@
 # Consumers copy every one of them into their own project.
 /addons/dot_core
 /addons/dot_player
+# dot-sim, for the ragdoll's native pose (examples/ragdoll_pose_native_checks.gd).
+/addons/dot_sim
 
 # Exports
 build/
