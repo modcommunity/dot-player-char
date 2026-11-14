@@ -38,21 +38,21 @@ const CVAR_WEAPON_TIME := "sv_ragdoll_weapon_time"
 @export var style: Style = Style.RAGDOLL
 
 ## Seconds a body lies there before it starts to fade.
-@export_range(0.0, 600.0, 0.5) var lifetime: float = 10.0
+@export_range(0.0, 600.0, 0.5, "or_greater") var lifetime: float = 10.0
 
 ## Seconds the fade takes.
 @export_range(0.05, 10.0, 0.05) var fade: float = 1.0
 
-## How many bodies may lie about at once. The oldest goes (quickly faded) when a new one
-## would pass it. A client may hold fewer: see [member DotPlayerRagdolls.local_cap].
-@export_range(1, 256, 1) var max_count: int = 8
+## How many bodies may lie about at once: default 8, 0 = unlimited. The oldest goes (quickly
+## faded) when a new one would pass it. A client may hold fewer: see [member DotPlayerRagdolls.local_cap].
+@export_range(0, 256, 1, "or_greater") var max_count: int = 8
 
 ## Multiplies every push a reaction gives. 0 drops them all where they stood.
-@export_range(0.0, 5.0, 0.05) var force_scale: float = 1.0
+@export_range(0.0, 5.0, 0.05, "or_greater") var force_scale: float = 1.0
 
 ## Multiplies the spin a fall gets (tip, tumble, flip). 1 is the stock weight; 0 drops bodies
 ## without any turn.
-@export_range(0.0, 5.0, 0.05) var torque_scale: float = 1.0
+@export_range(0.0, 5.0, 0.05, "or_greater") var torque_scale: float = 1.0
 
 ## Off (the default): a heavy drop, no launches and no flips; the launch reactions are not drawn.
 ## On: the exaggerated, thrown body.
@@ -65,7 +65,7 @@ const CVAR_WEAPON_TIME := "sv_ragdoll_weapon_time"
 @export var weapon_drop: bool = true
 
 ## Seconds a dropped weapon lies before it fades.
-@export_range(0.5, 120.0, 0.5) var weapon_lifetime: float = 8.0
+@export_range(0.5, 120.0, 0.5, "or_greater") var weapon_lifetime: float = 8.0
 
 ## Gravity on a falling body, so the drop has weight.
 @export_range(0.5, 4.0, 0.05) var gravity_scale: float = 1.4
@@ -118,8 +118,8 @@ func effective_style() -> Style:
 
 
 func validate() -> DotResult:
-	if max_count < 1:
-		return DotResult.fail(DotError.CODE_INVALID, "max_count must be at least 1.")
+	if max_count < 0:
+		return DotResult.fail(DotError.CODE_INVALID, "max_count is a body count, 0 = unlimited.")
 	return DotResult.success(self)
 
 
@@ -138,21 +138,21 @@ static func style_from(text: String) -> int:
 	return at
 
 
-## The cvars [method bind_cvars] makes: name, current value, description, and a range when it
-## has one.
+## The cvars [method bind_cvars] makes: name, current value, description, a "min" when it has one
+## and a "max" only where a larger value means nothing (a switch); counts, times and scales are open above.
 func cvar_specs() -> Array[Dictionary]:
 	return [
 		{"name": CVAR_ENABLED, "value": "1" if enabled else "0", "min": 0.0, "max": 1.0,
 			"description": "Dead bodies: 1 physically simulated (sv_ragdoll_style), 0 a scripted fall with no physics"},
 		{"name": CVAR_STYLE, "value": style_name(style),
 			"description": "How a dead body goes down: ragdoll (jointed), stiff (one piece), topple (no physics), hide (vanishes)"},
-		{"name": CVAR_TIME, "value": String.num(lifetime), "min": 0.0, "max": 600.0,
+		{"name": CVAR_TIME, "value": String.num(lifetime), "min": 0.0,
 			"description": "Seconds a dead body lies there before it fades"},
-		{"name": CVAR_MAX, "value": str(max_count), "min": 1.0, "max": 256.0,
-			"description": "Most dead bodies at once; the oldest fades when another would pass it"},
-		{"name": CVAR_FORCE, "value": String.num(force_scale), "min": 0.0, "max": 5.0,
+		{"name": CVAR_MAX, "value": str(max_count), "min": 0.0,
+			"description": "Most dead bodies at once (default 8, 0 = unlimited); the oldest fades when another would pass it"},
+		{"name": CVAR_FORCE, "value": String.num(force_scale), "min": 0.0,
 			"description": "Multiplies every death push and launch; 0 drops bodies where they stood"},
-		{"name": CVAR_TORQUE, "value": String.num(torque_scale), "min": 0.0, "max": 5.0,
+		{"name": CVAR_TORQUE, "value": String.num(torque_scale), "min": 0.0,
 			"description": "Multiplies the spin a dead body gets"},
 		{"name": CVAR_EXAGGERATE, "value": "1" if exaggerate else "0", "min": 0.0, "max": 1.0,
 			"description": "1 allows launches and flips; 0 (default) is a heavy drop"},
@@ -160,7 +160,7 @@ func cvar_specs() -> Array[Dictionary]:
 			"description": "1 lets shots push a lying body"},
 		{"name": CVAR_WEAPON_DROP, "value": "1" if weapon_drop else "0", "min": 0.0, "max": 1.0,
 			"description": "1 drops the dead player's weapon as a prop"},
-		{"name": CVAR_WEAPON_TIME, "value": String.num(weapon_lifetime), "min": 0.5, "max": 120.0,
+		{"name": CVAR_WEAPON_TIME, "value": String.num(weapon_lifetime), "min": 0.5,
 			"description": "Seconds a dropped weapon lies before it fades"},
 		{"name": CVAR_REACTIONS, "value": reaction_weights,
 			"description": "Death reaction weights, id=weight,... (limp, headshot_launch, power_launch, face_plant, crumple); 0 turns one off"},
@@ -178,8 +178,10 @@ func bind_cvars(add: Callable, flags: int = 0) -> Array:
 		if not (made_cvar is Object) or made_cvar == null:
 			continue
 		var cv := made_cvar as Object
-		if spec.has("min") and cv.has_method(&"with_range"):
+		if spec.has("min") and spec.has("max") and cv.has_method(&"with_range"):
 			cv.call(&"with_range", float(spec["min"]), float(spec["max"]))
+		elif spec.has("min") and cv.has_method(&"with_min"):
+			cv.call(&"with_min", float(spec["min"]))
 		if cv.has_signal(&"changed"):
 			cv.connect(&"changed", _on_cvar_changed.bind(cvar_name))
 		if cv.has_method(&"get_string"):
@@ -224,19 +226,27 @@ func set_cvar(cvar_name: String, value: String) -> bool:
 		CVAR_TIME:
 			if not text.is_valid_float():
 				return _refuse(cvar_name, value)
-			lifetime = clampf(text.to_float(), 0.0, 600.0)
+			if text.to_float() < 0.0:
+				return _refuse(cvar_name, value)
+			lifetime = text.to_float()
 		CVAR_MAX:
 			if not text.is_valid_int():
 				return _refuse(cvar_name, value)
-			max_count = clampi(text.to_int(), 1, 256)
+			if text.to_int() < 0:
+				return _refuse(cvar_name, value)
+			max_count = text.to_int()
 		CVAR_FORCE:
 			if not text.is_valid_float():
 				return _refuse(cvar_name, value)
-			force_scale = clampf(text.to_float(), 0.0, 5.0)
+			if text.to_float() < 0.0:
+				return _refuse(cvar_name, value)
+			force_scale = text.to_float()
 		CVAR_TORQUE:
 			if not text.is_valid_float():
 				return _refuse(cvar_name, value)
-			torque_scale = clampf(text.to_float(), 0.0, 5.0)
+			if text.to_float() < 0.0:
+				return _refuse(cvar_name, value)
+			torque_scale = text.to_float()
 		CVAR_EXAGGERATE:
 			if not text.is_valid_int():
 				return _refuse(cvar_name, value)
@@ -252,7 +262,9 @@ func set_cvar(cvar_name: String, value: String) -> bool:
 		CVAR_WEAPON_TIME:
 			if not text.is_valid_float():
 				return _refuse(cvar_name, value)
-			weapon_lifetime = clampf(text.to_float(), 0.5, 120.0)
+			if text.to_float() < 0.5:
+				return _refuse(cvar_name, value)
+			weapon_lifetime = text.to_float()
 		CVAR_REACTIONS:
 			reaction_weights = text
 		_:

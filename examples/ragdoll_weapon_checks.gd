@@ -23,6 +23,23 @@ func run() -> void:
 		suite._check(specs.has(name), "%s is a cvar" % name)
 	suite._check(r.set_cvar("sv_ragdoll_exaggerate", "1") and r.reactions().find(&"headshot_launch").weight > 0.0, "exaggerate brings the launches back")
 	suite._check(r.set_cvar("sv_ragdoll_max", "200") and r.max_count == 200, "the body cap goes past 64")
+	suite._check(r.set_cvar("sv_ragdoll_max", "5000") and r.max_count == 5000, "and past the old 256, unclamped")
+	suite._check(not r.set_cvar("sv_ragdoll_max", "-1") and r.max_count == 5000, "a negative body cap is refused, not clamped")
+	suite._check(r.set_cvar("sv_ragdoll_time", "3600") and r.lifetime == 3600.0, "a body may lie past the old 600 s")
+	suite._check(r.set_cvar("sv_ragdoll_force", "12") and r.force_scale == 12.0, "force past the old 5")
+	suite._check(not r.set_cvar("sv_ragdoll_weapon_time", "0.1") and r.set_cvar("sv_ragdoll_weapon_time", "600") and r.weapon_lifetime == 600.0,
+		"a dropped weapon's time is refused below 0.5 s and open above")
+	suite._check(r.set_cvar("sv_ragdoll_force", "1") and r.set_cvar("sv_ragdoll_time", "10") and r.set_cvar("sv_ragdoll_weapon_time", "8"), "(restored)")
+	var unl := DotPlayerRagdolls.new()
+	unl.rules.max_count = 0
+	unl.local_cap = 0
+	suite._check(unl.cap() == 0, "max 0 and local 0: no cap at all (0 = unlimited)")
+	unl.local_cap = 6
+	suite._check(unl.cap() == 6, "max 0 (unlimited) with a local cap of 6: six")
+	unl.rules.max_count = 3
+	unl.local_cap = 0
+	suite._check(unl.cap() == 3, "max 3 with an unlimited machine: three")
+	unl.free()
 
 	var yard := DotPlayerRagdolls.new()
 	yard.local_cap = 64

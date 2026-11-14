@@ -16,7 +16,7 @@ var rules: DotPlayerRagdollRules = DotPlayerRagdollRules.new()
 ## weights here do not matter on a client (the server picked), only the poses and sounds.
 var reactions: DotPlayerDeathReactions = DotPlayerDeathReactions.stock()
 
-## This machine's own limit, or -1 for [method default_local_cap].
+## This machine's own limit: -1 for [method default_local_cap], 0 = unlimited, else a body count.
 var local_cap: int = -1
 
 ## Called as [code]sound_fn.call(id, position, volume)[/code] for each body's sound; dot-audio's
@@ -33,17 +33,30 @@ var _live: Array[DotPlayerRagdoll] = []
 var _props: Array[RigidBody3D] = []
 
 
-## Fewer on a machine that simulates physics on its only thread or is a phone.
+## Four on a machine that simulates physics on its only thread or is a phone; 0 (unlimited,
+## the server's [member DotPlayerRagdollRules.max_count] decides) otherwise.
 static func default_local_cap() -> int:
 	if not DotPlatform.has_threads() or DotPlatform.is_mobile():
 		return 4
-	return 256
+	return 0
 
 
-## The cap in force: the rules' and this machine's, the lower.
+## The cap in force: the rules' and this machine's, the lower, where 0 on either side is no
+## limit from that side. 0 = unlimited.
 func cap() -> int:
-	var mine := local_cap if local_cap > 0 else default_local_cap()
-	return mini(rules.max_count if rules != null else 8, mine)
+	return cap_of(rules.max_count if rules != null else 8, local_cap)
+
+
+## [param server_max] ([member DotPlayerRagdollRules.max_count]) and [param machine]
+## ([member local_cap]: -1 for [method default_local_cap]) combined: the lower, 0 on either side
+## meaning no limit from it. 0 = unlimited. For a game keeping its own bodies (a 2D fall).
+static func cap_of(server_max: int, machine: int) -> int:
+	var mine := machine if machine >= 0 else default_local_cap()
+	if mine <= 0:
+		return maxi(server_max, 0)
+	if server_max <= 0:
+		return mine
+	return mini(server_max, mine)
 
 
 ## Builds a body for [param figure] dying as [param death] says. Returns it, or null when the
@@ -54,9 +67,12 @@ func spawn(figure: Node3D, death: DotPlayerDeath, velocity: Vector3 = Vector3.ZE
 		return null
 
 	_reap()
-	var room := cap() - 1
-	# Make room: the oldest go first, quickly. Those already fading do not count.
-	var standing := _standing()
+	var limit := cap()
+	var room := limit - 1
+	# Make room: the oldest go first, quickly. Those already fading do not count. 0 = no cap.
+	var standing: Array[DotPlayerRagdoll] = []
+	if limit > 0:
+		standing = _standing()
 	while standing.size() > room and not standing.is_empty():
 		standing.pop_front().expire(EVICT_FADE)
 		DotLog.debug(CHANNEL, "cap reached, oldest body fading", {"cap": cap()})
@@ -126,7 +142,8 @@ func drop_prop(model: Node3D, velocity: Vector3 = Vector3.ZERO) -> RigidBody3D:
 	body.linear_velocity = velocity + Vector3.DOWN * 1.5
 	body.angular_velocity = Vector3(0.0, 0.0, 2.0) * (1.0 if velocity.x >= 0.0 else -1.0)
 
-	while _props.size() >= maxi(cap(), 1):
+	var prop_cap := cap()
+	while prop_cap > 0 and _props.size() >= prop_cap:
 		var oldest := _props.pop_front()
 		if is_instance_valid(oldest):
 			oldest.queue_free()
