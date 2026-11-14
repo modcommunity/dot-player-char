@@ -25,8 +25,9 @@ const FORE_RATE := 2.0
 const LEAN_RATE := 1.2
 ## Elbow turns tried about the shoulder-to-hand line (degrees) to take an arm out of the weapon's box, and how much
 ## of the forearm next to the hand may stay inside it (the hand is on the gun).
-const CLEAR_ANGLES: Array[float] = [0.0, 15.0, -15.0, 30.0, -30.0, 45.0, -45.0, 60.0, -60.0, 80.0, -80.0]
-const CLEAR_HAND_FREE := 0.35
+## The scan itself is [DotViewArmsClear], native when dot-sim's "arms" module is loaded.
+const CLEAR_ANGLES: Array[float] = DotViewArmsClear.ANGLES
+const CLEAR_HAND_FREE := DotViewArmsClear.HAND_FREE
 
 var arms_factory: Callable = Callable()
 ## Extension point: `func(bone: StringName, rest_position: Vector3) -> bool`, true for a vertex that is carried gear
@@ -47,6 +48,9 @@ var arm_radius: float = 0.03
 ## How deep each arm (firing, support) sat inside the weapon's box after the last solve, metres; 0 is clear.
 var arm_depth_right: float = 0.0
 var arm_depth_left: float = 0.0
+## Run the elbow clearance scan in dot-sim's native [code]DotSimViewArms[/code] when it is loaded (bit-identical to
+## [DotViewArmsClear]); false keeps the script (the A/B baseline). Read once, on the first scan.
+var native_clear: bool = true
 var height: float = 1.8
 var shown: bool = false
 ## Where the camera sits from the head bone when holding a weapon (upright figure, forward is -Z). A little behind it:
@@ -104,6 +108,10 @@ var _override: DotHumanoidLook = null
 var _detail_on := false
 var _turn_right := 0.0
 var _turn_left := 0.0
+## dot-sim's DotSimViewArms, made on the first scan when [member native_clear] and the class exists; reached by name
+## (never typed) so this addon loads without the extension. [member _native_tried] keeps it to one probe.
+var _native: Object = null
+var _native_tried := false
 ## The forearm scale drawn, eased toward [member forearm_scale] (or 1 without a weapon) at [constant FORE_RATE].
 var _fore := 1.0
 ## The lean drawn, eased toward the one the grip needs at [constant LEAN_RATE]; [member _delta] is this tick's step.
@@ -509,18 +517,19 @@ func _clear_pole(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole:
 	var lengths := _arm_lengths(skeleton, bones)
 	var to_anchor := _grip.anchor.global_transform.affine_inverse() * skeleton.global_transform
 	var up := skeleton.global_transform.basis.inverse() * (global_transform.basis * Vector3.UP)
-	var best := 0.0
-	var best_score := INF
-	for angle in CLEAR_ANGLES:
-		var elbow := _elbow(shoulder, target, lengths, pole.rotated(dir, deg_to_rad(angle)))
-		# Ties go to the smaller turn; an elbow raised above the shoulder crosses the view, so it scores worse.
-		var score := _arm_depth(to_anchor, box, shoulder, elbow, target) + absf(angle) * 0.00005 + (0.05 if (elbow - shoulder).dot(up) > 0.0 else 0.0)
-		if score < best_score - 0.002:
-			best_score = score
-			best = angle
-	var turn := lerpf(_turn_right if right else _turn_left, best, 0.35)
-	var turned := pole.rotated(dir, deg_to_rad(turn))
-	var depth := _arm_depth(to_anchor, box, shoulder, _elbow(shoulder, target, lengths, turned), target)
+	if not _native_tried:
+		_native_tried = true
+		if native_clear and ClassDB.class_exists(&"DotSimViewArms"):
+			_native = ClassDB.instantiate(&"DotSimViewArms")
+	var prev := _turn_right if right else _turn_left
+	var r: PackedFloat64Array
+	if _native != null:
+		r = _native.clear_pole(shoulder, target, lengths, pole, dir, to_anchor, box, up, prev)
+	else:
+		r = DotViewArmsClear.scan(shoulder, target, lengths, pole, dir, to_anchor, box, up, prev)
+	var turned := Vector3(r[0], r[1], r[2])
+	var turn := r[3]
+	var depth := r[4]
 	if right:
 		_turn_right = turn
 		arm_depth_right = depth
@@ -535,45 +544,6 @@ func _arm_lengths(skeleton: Skeleton3D, bones: Array[int]) -> Vector2:
 	var lower := DotHumanoidIk.global_pose(skeleton, bones[1]).origin
 	var wrist := DotHumanoidIk.global_pose(skeleton, bones[2]).origin
 	return Vector2((lower - upper).length(), (wrist - lower).length())
-
-
-## Where [method DotHumanoidIk.two_bone] puts the elbow for this target and pole, without posing anything.
-func _elbow(shoulder: Vector3, target: Vector3, lengths: Vector2, pole: Vector3) -> Vector3:
-	var la := lengths.x
-	var lb := lengths.y
-	var to_target := target - shoulder
-	if la < 0.0001 or lb < 0.0001 or to_target.length() < 0.0001:
-		return shoulder
-	var reach := clampf(to_target.length(), absf(la - lb) + 0.001, la + lb - 0.001)
-	var dir := to_target.normalized()
-	var along := (la * la - lb * lb + reach * reach) / (2.0 * reach)
-	var side := pole - dir * pole.dot(dir)
-	side = side.normalized() if side.length_squared() > 0.000001 else Vector3.UP
-	return shoulder + dir * along + side * sqrt(maxf(la * la - along * along, 0.0))
-
-
-## How deep the upper arm and the forearm (all but its hand end) go into [param box] (anchor space), metres.
-func _arm_depth(to_anchor: Transform3D, box: AABB, shoulder: Vector3, elbow: Vector3, target: Vector3) -> float:
-	var s := to_anchor * shoulder
-	var e := to_anchor * elbow
-	var h := to_anchor * target.lerp(elbow, CLEAR_HAND_FREE)
-	# Most elbows miss the weapon: two native segment tests rule that out before the eighteen samples.
-	if box.intersects_segment(s, e) == null and box.intersects_segment(e, h) == null:
-		return 0.0
-	var deepest := 0.0
-	for i in 9:
-		var t := i / 8.0
-		deepest = maxf(deepest, maxf(_depth_in(box, s.lerp(e, t)), _depth_in(box, e.lerp(h, t))))
-	return deepest
-
-
-## How far [param q] is inside [param box] from its nearest face, or 0 outside.
-static func _depth_in(box: AABB, q: Vector3) -> float:
-	if not box.has_point(q):
-		return 0.0
-	var low := q - box.position
-	var high := box.end - q
-	return minf(minf(minf(low.x, high.x), minf(low.y, high.y)), minf(low.z, high.z))
 
 
 ## Leans the arms toward whichever hand target (firing or support) is furthest out of its arm's reach, a step at a time, by up to [member max_lean] in all.
