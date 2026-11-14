@@ -1,5 +1,3 @@
-# dot-player-char
-
 What a player looks like. It has four parts in one addon:
 
 | Part | What it gives you |
