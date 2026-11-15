@@ -1,9 +1,7 @@
 extends SceneTree
 
-## Foot skate and pop/jerk per stance, headless; FLAG marks lines over the limits.
-## godot --headless --fixed-fps 60 --path . --script res://tools/clip_metrics.gd
-## Skate: speed ratio of a planted foot against the ground. Pop: biggest one-frame head step. Jerk: peak third difference of head height.
-## Sole: the lowest foot's sole against the floor the figure stands on (absolute metres; its drawn ankle, the end of the leg as [DotClipMetrics] finds it, less the ankle's rest
+## Foot skate and pop/jerk per stance, headless; FLAG marks lines over the limits. godot --headless --fixed-fps 60 --path . --script res://tools/clip_metrics.gd
+## Skate: speed ratio of a planted foot against the ground. Pop: biggest one-frame head step. Jerk: peak third difference of head height. Sole: the lowest foot's sole against the floor the figure stands on (absolute metres; its drawn ankle, the end of the leg as [DotClipMetrics] finds it, less the ankle's rest
 ## height over the mesh bottom), its minimum and the share of frames under -1 cm. `-- --height 1.372 --body sam` draws a shorter body, or another one.
 
 const SCENARIOS := [

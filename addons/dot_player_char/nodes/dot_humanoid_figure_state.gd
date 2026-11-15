@@ -231,10 +231,8 @@ var carry := DotHumanoidCarryPose.new()
 var _overlay_weight := 0.0
 var _slide_lift := 0.0
 
-## Physics layers the drawn body is stood on (0 = off; the default is the shooter layout's `world`). A body whose
-## origin is drawn under the floor beneath it, as one interpolated between ticks is across a step's riser or a
-## slope's crest, is raised onto it by up to [member floor_reach] metres ([method DotHumanoidLegs.floor_lift]).
-## Drawing only: the origin, the hull and the hit zones are not moved.
+## Physics layers the drawn body is stood on (0 = off; the default is the shooter layout's `world`). A body whose origin is drawn under the floor beneath it, as one interpolated between ticks is across a step's riser or a
+## slope's crest, is raised onto it by up to [member floor_reach] metres ([method DotHumanoidLegs.floor_lift]). Drawing only: the origin, the hull and the hit zones are not moved.
 var floor_mask: int = 1
 var floor_reach: float = 0.45
 ## How far the body is drawn above its origin now to stand on the floor under it, metres.

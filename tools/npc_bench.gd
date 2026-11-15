@@ -1,9 +1,7 @@
 extends Node3D
 
-## Eight unarmed people with `auto_animate` on, 4 to 10 m in front of the camera, carried by a body that moves only on
-## physics ticks (128 Hz) while frames come faster (the frame rate a windowed sandbox runs at), as game-playground's NPCs
-## are. Prints `NPC_BENCH us_per_figure=` (median of rounds), `NPC_CLIP_CHANGES` (clip switches a second, per figure)
-## and `NPC_POSES` (poses a second, per figure).
+## Eight unarmed people with `auto_animate` on, 4 to 10 m in front of the camera, carried by a body that moves only on physics ticks (128 Hz) while frames come faster (the frame rate a windowed sandbox runs at), as Playlot's NPCs
+## are. Prints `NPC_BENCH us_per_figure=` (median of rounds), `NPC_CLIP_CHANGES` (clip switches a second, per figure) and `NPC_POSES` (poses a second, per figure).
 ## Args after `--`: --frames N --rounds N --fps F --tick T.
 
 const COUNT := 8

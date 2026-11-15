@@ -111,10 +111,8 @@ static func matching_time(animation: Animation, skeleton: Skeleton3D, model: Nod
 	return best
 
 
-## The two feet's skeleton-space origins at [param steps] + 1 even steps through [param animation]
-## (L, R, L, R...), kept on the animation itself: a clip switch asks for 96 of them, each a
-## recursive walk of track lookups, and every figure built on the same skeleton gets the same
-## answer. Keyed by the skeleton path and the feet chains' names and rests, which is all
+## The two feet's skeleton-space origins at [param steps] + 1 even steps through [param animation] (L, R, L, R...), kept on the animation itself: a clip switch asks for 96 of them, each a
+## recursive walk of track lookups, and every figure built on the same skeleton gets the same answer. Keyed by the skeleton path and the feet chains' names and rests, which is all
 ## [method bone_at] reads, so a figure on a different skeleton never shares an entry.
 static func _foot_origins(animation: Animation, skeleton: Skeleton3D, prefix: String, feet: Array, steps: int) -> PackedVector3Array:
 	var chain: Array = [prefix, steps, animation.length, animation.get_track_count()]

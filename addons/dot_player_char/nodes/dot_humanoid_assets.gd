@@ -142,10 +142,8 @@ static func load_texture(path: String) -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 
-## The clip set for [param id]'s body, retargeted by [method DotHumanoidClips.retarget] once per
-## body and shared. Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made
-## clips, then the real ones from [method real_clips_path] over the ones they replace.
-## Takes what a [method prepare_libraries] build finished; one still running is not waited for (the
+## The clip set for [param id]'s body, retargeted by [method DotHumanoidClips.retarget] once per body and shared. Mirrored first (the kit is left-handed; [constant HAND_BONE]), then the made
+## clips, then the real ones from [method real_clips_path] over the ones they replace. Takes what a [method prepare_libraries] build finished; one still running is not waited for (the
 ## set is built here as well), since a worker can need a main-thread step that a wait would block.
 static func library_for(id: StringName, skeleton: Skeleton3D) -> AnimationLibrary:
 	var _done := _settle()

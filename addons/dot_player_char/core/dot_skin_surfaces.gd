@@ -13,10 +13,8 @@ const MAX_KEPT := 64
 static var _kept: Dictionary = {}
 
 
-## The readable surfaces of [param mesh] (skinned: vertices, bones and weights present), each a
-## Dictionary with [code]verts normals uvs index bones weights per strongest by_bind samples[/code].
-## [code]by_bind[b][/code] holds the first index (into [code]index[/code]) of every triangle whose first
-## corner [code]b[/code] moves most; [code]samples[b][/code] every third vertex [code]b[/code] moves most.
+## The readable surfaces of [param mesh] (skinned: vertices, bones and weights present), each a Dictionary with [code]verts normals uvs index bones weights per strongest by_bind samples[/code].
+## [code]by_bind[b][/code] holds the first index (into [code]index[/code]) of every triangle whose first corner [code]b[/code] moves most; [code]samples[b][/code] every third vertex [code]b[/code] moves most.
 static func of(mesh: Mesh) -> Array:
 	if mesh == null:
 		return []

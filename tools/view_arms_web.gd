@@ -1,10 +1,8 @@
 extends Node3D
 
-## The first-person arms' materials side by side in a browser (nightly web-view-arms-white): the main scene of a
-## scratch web export, shot through `gpu.sh browser-shot`. Columns left to right:
-##   0 crowd material, plain mesh          1 DotViewArmsMaterial, arms mesh (CUSTOM0)
-##   2 DotViewArmsMaterial, plain mesh     3 crowd material, arms mesh (CUSTOM0)
-##   4 StandardMaterial3D with the atlas, plain mesh
+## The first-person arms' materials side by side in a browser (nightly web-view-arms-white): the main scene of a scratch web export, shot through `gpu.sh browser-shot`. Columns left to right:
+## 0 crowd material, plain mesh; 1 DotViewArmsMaterial, arms mesh (CUSTOM0); 2 DotViewArmsMaterial, plain mesh; 3 crowd material, arms mesh (CUSTOM0);
+## 4 StandardMaterial3D with the atlas, plain mesh
 
 const COLUMNS := ["crowd", "arms+custom0", "arms plain", "crowd+custom0", "standard"]
 

@@ -110,10 +110,8 @@ func _process(delta: float) -> void:
 		if global_position != _lift_at:
 			_lift_body()
 		return
-	# Measured over at least AUTO_WINDOW, not frame to frame: a body carried in physics ticks
-	# or snapshots stands still on the frames between, and a per-frame measure flips the clip
-	# (and pays its crossfade and stride match) several times a tick. A stop shows after
-	# AUTO_HOLD seconds without a move.
+	# Measured over at least AUTO_WINDOW, not frame to frame: a body carried in physics ticks or snapshots stands still on the frames between, and a per-frame measure flips the clip
+	# (and pays its crossfade and stride match) several times a tick. A stop shows after AUTO_HOLD seconds without a move.
 	var at := global_position
 	var stepped := at != _auto_seen
 	_auto_since += delta
@@ -196,10 +194,8 @@ func animate(speed: float, delta: float) -> void:
 func _animate_step(speed: float, p_delta: float) -> void:
 	_speed = speed
 	if _anim != null:
-		# The figure is drawn less often far from the camera or out of view. A skipped frame does nothing but
-		# carry its time: the state, the carry, the legs' turn and the clip are all worked out on the next drawn
-		# frame over the whole of it, and nothing is written to the skeleton (a write marks it dirty, and the
-		# engine then redoes every bone's global pose and the skin).
+		# The figure is drawn less often far from the camera or out of view. A skipped frame does nothing but carry its time: the state, the carry, the legs' turn and the clip are all worked out on the next drawn
+		# frame over the whole of it, and nothing is written to the skeleton (a write marks it dirty, and the engine then redoes every bone's global pose and the skin).
 		_frame += 1
 		var was_step := anim_step
 		anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
@@ -260,10 +256,8 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	_own.apply(_skeleton, _mesh)
 
 
-## Stands the drawn body on the floor its origin is drawn inside ([member floor_mask]). Whatever the clip: a body
-## interpolated across a riser is often drawn mid-hop (its drawn state is in the air) while its sim stands on the tread.
-## Raised at once, never eased: an eased rise is a body sunk into the step it just climbed. Not seated, swimming,
-## climbing or dead.
+## Stands the drawn body on the floor its origin is drawn inside ([member floor_mask]). Whatever the clip: a body interpolated across a riser is often drawn mid-hop (its drawn state is in the air) while its sim stands on the tread.
+## Raised at once, never eased: an eased rise is a body sunk into the step it just climbed. Not seated, swimming, climbing or dead.
 func _lift_body() -> void:
 	var at := global_position if is_inside_tree() else Vector3.INF
 	if _model == null:

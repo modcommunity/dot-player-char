@@ -1,9 +1,7 @@
 extends Node3D
 
-## 32 armed people moving like a match's remote players (gun held, aim pitch, support grip, mixed
-## distances), stepped with a fixed delta. Prints `ANIM_BENCH us_per_call=` (median of rounds), the
-## phases with `--parts 1`, and `ANIM_DIGEST` (a hash of every pose_record every frame) to prove a
-## change leaves the pose bit-identical. Args after `--`: --frames N --rounds N --parts 0|1.
+## 32 armed people moving like a match's remote players (gun held, aim pitch, support grip, mixed distances), stepped with a fixed delta. Prints `ANIM_BENCH us_per_call=` (median of rounds), the
+## phases with `--parts 1`, and `ANIM_DIGEST` (a hash of every pose_record every frame) to prove a change leaves the pose bit-identical. Args after `--`: --frames N --rounds N --parts 0|1.
 
 const COUNT := 32
 const DT := 1.0 / 60.0

@@ -228,10 +228,8 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 		if walking:
 			_bob(made, CROUCH_WALK_BOB)
 		if walking and skeleton != null and library.has_animation(CROUCH):
-			# The walk's straight stance leg, bent and lifted back onto its feet, carried the hips to
-			# the standing walk's height: the head was drawn above standing while the game's hit zones
-			# had squeezed to crouch height (dpc-crouch-walk-pose-fit-1). So the hips are held at the
-			# crouch's and the legs are solved to reach the walk's footfalls.
+			# The walk's straight stance leg, bent and lifted back onto its feet, carried the hips to the standing walk's height: the head was drawn above standing while the game's hit zones
+			# had squeezed to crouch height (dpc-crouch-walk-pose-fit-1). So the hips are held at the crouch's and the legs are solved to reach the walk's footfalls.
 			made = _crouch_walking(made, library.get_animation(pair[0]), library.get_animation(CROUCH), skeleton)
 		elif skeleton != null:
 			_lift_to_feet(made, library.get_animation(pair[0]), skeleton)
@@ -575,10 +573,8 @@ static func _skeleton_prefix(animation: Animation) -> String:
 	return "Skeleton3D"
 
 
-## [param bent] (the walk with the duck's bend and bob) with its hips held at [param crouch]'s height
-## plus [constant CROUCH_WALK_RISE] and the bob, and each leg solved (knee ahead) so its ankle lands
-## where [param walk]'s does, the step cut to [constant CROUCH_WALK_STRIDE]. The upper body, arms
-## and feet's turn are the bent walk's.
+## [param bent] (the walk with the duck's bend and bob) with its hips held at [param crouch]'s height plus [constant CROUCH_WALK_RISE] and the bob, and each leg solved (knee ahead) so its ankle lands
+## where [param walk]'s does, the step cut to [constant CROUCH_WALK_STRIDE]. The upper body, arms and feet's turn are the bent walk's.
 static func _crouch_walking(bent: Animation, walk: Animation, crouch: Animation, skeleton: Skeleton3D) -> Animation:
 	var body := skeleton.find_bone("Body")
 	if body < 0:

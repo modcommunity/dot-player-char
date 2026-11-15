@@ -133,10 +133,8 @@ func on_wall(skeleton: Skeleton3D, wall: Plane, up: Vector3, weight: float) -> v
 		skeleton.set_bone_pose_position(leg[2], reached if parent < 0 else DotHumanoidIk.global_pose(skeleton, parent).affine_inverse() * reached)
 
 
-## Lifts each drawn ankle (the end of its leg: the foot bones are IK controls the mesh does not follow) that the
-## pose puts under [param floor_y] (per leg, its rest height in the figure's frame) back up to it, by two-bone IK on
-## the leg; the knee bends further, the foot control is left alone. [param to_figure] is skeleton space to the
-## figure's frame (y up, the floor at its origin, or [param raised] above it). Drawing only: nothing a game
+## Lifts each drawn ankle (the end of its leg: the foot bones are IK controls the mesh does not follow) that the pose puts under [param floor_y] (per leg, its rest height in the figure's frame) back up to it, by two-bone IK on
+## the leg; the knee bends further, the foot control is left alone. [param to_figure] is skeleton space to the figure's frame (y up, the floor at its origin, or [param raised] above it). Drawing only: nothing a game
 ## simulates reads these bones. [method restore] puts the leg back before the next clip frame, so lifts never add up.
 func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat32Array, raised: float = 0.0) -> void:
 	if skeleton == null or floor_y.size() < LEGS.size():
@@ -180,10 +178,8 @@ static func _floor_bones(skeleton: Skeleton3D) -> Array:
 	return out
 
 
-## How far the floor under [param figure]'s origin is above it, 0 to [param reach] metres: one ray straight down
-## onto [param mask] from [param reach] above the origin. Only a floor face counts ([constant FLOOR_NORMAL]); a ray
-## starting inside a solid (the player's own hull, a wall) does not see it. An origin drawn between two ticks cuts
-## across a step's riser or a slope's crest and sits under the tread its feet are over; the figure raises the body
+## How far the floor under [param figure]'s origin is above it, 0 to [param reach] metres: one ray straight down onto [param mask] from [param reach] above the origin. Only a floor face counts ([constant FLOOR_NORMAL]); a ray
+## starting inside a solid (the player's own hull, a wall) does not see it. An origin drawn between two ticks cuts across a step's riser or a slope's crest and sits under the tread its feet are over; the figure raises the body
 ## by this. Drawing only: the origin, the hull and the hit zones stay where the game put them.
 func floor_lift(figure: Node3D, mask: int, reach: float) -> float:
 	if mask == 0 or reach <= 0.0 or not figure.is_inside_tree():

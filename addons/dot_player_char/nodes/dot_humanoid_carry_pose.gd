@@ -5,8 +5,6 @@ extends RefCounted
 ## says, eased between ready, sprint, aim, reload and swap, swaying with the gait, and gives the other hand the
 ## foregrip. Written over the clip after the legs; drawn only, so hit zones and the shot never follow it.
 
-const CHANNEL := "player.humanoid"
-
 ## The gun arm (upper, lower, hand) and the bone the stance rides on.
 const ARM_BONES: Array[String] = ["UpperArm.R", "LowerArm.R", "Middle1.R"]
 const CHEST_BONE := "Torso"
@@ -112,10 +110,8 @@ func step(delta: float, active: bool) -> void:
 	_kick = move_toward(_kick, 0.0, delta / KICK_SECONDS)
 
 
-## Writes the gun arm over the pose. [param to_figure] is the skeleton's frame in the figure's; [param animation]
-## the clip playing; [param phase] how far through its stride (0 to 1, or negative for none); [param pitch] the
-## view's, radians; [param size] the figure's height over 1.8; [param sprint] the sprint blend; [param speed] m/s;
-## [param under] how much an overlay (a swing, a flinch, a gesture) holds the arms instead.
+## Writes the gun arm over the pose. [param to_figure] is the skeleton's frame in the figure's; [param animation] the clip playing; [param phase] how far through its stride (0 to 1, or negative for none); [param pitch] the
+## view's, radians; [param size] the figure's height over 1.8; [param sprint] the sprint blend; [param speed] m/s; [param under] how much an overlay (a swing, a flinch, a gesture) holds the arms instead.
 func apply(skeleton: Skeleton3D, model: Node3D, anim: AnimationPlayer, to_figure: Transform3D, animation: Animation,
 		phase: float, pitch: float, size: float, sprint: float, speed: float, under: float) -> void:
 	support_grip = Vector3.INF

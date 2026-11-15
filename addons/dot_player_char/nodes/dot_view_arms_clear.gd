@@ -1,10 +1,8 @@
 class_name DotViewArmsClear
 extends RefCounted
 
-## The view arms' elbow clearance scan, free of nodes: which turn of the elbow pole about the shoulder-to-hand line keeps
-## the arm out of the weapon. [DotPlayerViewArms] runs it per arm per frame; dot-sim's [code]DotSimViewArms[/code]
-## ("arms" module) is the native twin, bit-identical (dot-sim's selftest compares the two on seeded inputs), and this
-## script is the fallback where the extension is not loaded (web, a build without it).
+## The view arms' elbow clearance scan, free of nodes: which turn of the elbow pole about the shoulder-to-hand line keeps the arm out of the weapon. [DotPlayerViewArms] runs it per arm per frame; dot-sim's [code]DotSimViewArms[/code]
+## ("arms" module) is the native twin, bit-identical (dot-sim's selftest compares the two on seeded inputs), and this script is the fallback where the extension is not loaded (web, a build without it).
 
 ## Turns tried, degrees; ties go to the earlier (smaller) one.
 const ANGLES: Array[float] = [0.0, 15.0, -15.0, 30.0, -30.0, 45.0, -45.0, 60.0, -60.0, 80.0, -80.0]
@@ -14,10 +12,8 @@ const HAND_FREE := 0.35
 const EASE := 0.35
 
 
-## The eased turn for an arm: [param pole] turned about [param dir] (the unit shoulder-to-[param target] line) part way
-## from [param prev_turn] toward the least-buried angle of [constant ANGLES], scored by depth into [param box]
-## (anchor space, through [param to_anchor]), a small cost per degree, and a cost for an elbow above the shoulder
-## along [param up]. All points in skeleton space; [param lengths] are the upper arm and forearm.
+## The eased turn for an arm: [param pole] turned about [param dir] (the unit shoulder-to-[param target] line) part way from [param prev_turn] toward the least-buried angle of [constant ANGLES], scored by depth into [param box]
+## (anchor space, through [param to_anchor]), a small cost per degree, and a cost for an elbow above the shoulder along [param up]. All points in skeleton space; [param lengths] are the upper arm and forearm.
 ## Returns [turned.x, turned.y, turned.z, turn (degrees), depth of the turned arm (metres)].
 static func scan(shoulder: Vector3, target: Vector3, lengths: Vector2, pole: Vector3, dir: Vector3, to_anchor: Transform3D,
 		box: AABB, up: Vector3, prev_turn: float) -> PackedFloat64Array:
