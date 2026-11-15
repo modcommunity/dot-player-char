@@ -56,6 +56,8 @@ var _heads: Array[float] = []
 var _head_pos: Array[Vector3] = []
 var _foot_pos: Array = [[], []]
 var _rot_hist: Array = []
+# The sample that last left [member _rot_hist], refilled as the next one so sampling allocates nothing once full.
+var _rot_spare: Array[Quaternion] = []
 var _bone_step := 0.0
 var _height := 1.8
 var _body := &""
@@ -138,14 +140,19 @@ func _process(delta: float) -> bool:
 
 ## Tracks the biggest turn of any bone over 1/15 s.
 func _sample_bone_rate(sk: Skeleton3D) -> void:
-	var cur: Array[Quaternion] = []
-	for b in sk.get_bone_count():
-		cur.append(sk.get_bone_pose_rotation(b))
+	var cur := _rot_spare
+	var count := sk.get_bone_count()
+	cur.resize(count)
+	for b in count:
+		cur[b] = sk.get_bone_pose_rotation(b)
 	_rot_hist.append(cur)
 	if _rot_hist.size() > BONE_STRIDE:
-		var old: Array = _rot_hist.pop_front()
+		var old: Array[Quaternion] = _rot_hist.pop_front()
 		for b in cur.size():
-			_bone_step = maxf(_bone_step, rad_to_deg((old[b] as Quaternion).angle_to(cur[b])))
+			_bone_step = maxf(_bone_step, rad_to_deg(old[b].angle_to(cur[b])))
+		_rot_spare = old
+	else:
+		_rot_spare = []
 
 
 func _report(s: Array) -> void:

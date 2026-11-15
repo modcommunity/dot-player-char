@@ -1,328 +1,16 @@
 class_name DotHumanoidFigure
-extends Node3D
+extends "dot_humanoid_figure_clips.gd"
 
 ## One of the family's people, drawn: a skinned body from `people/` wearing a [DotHumanoidLook]'s colours, playing
 ## [DotHumanoidClips] from how it moves, holding a weapon, and handing its skeleton to [DotPlayerRagdoll] on death.
 ## Client side only. The upper body is written over the locomotion pose after the clip (LOD rates in docs/people.md).
-
-const CHANNEL := "player.humanoid"
-
-## Within this distance of the camera the clip is advanced every frame; then every second frame
-## to [constant ANIM_FAR], and every fourth beyond.
-const ANIM_NEAR := 22.0
-const ANIM_FAR := 45.0
-
-## Out of the camera's view or hidden, the frame step is this many times its distance's: only a shadow and a kill-cam
-## recording see the pose. Hit zones are not bones, so they never lag.
-const OFFSCREEN_STEP := 2
-
-## Frames apart a figure is posed when nothing of it is drawn: hidden, or out of view past [constant SHADOW_RANGE]
-## (no shadow either). It is redrawn the frame it comes back into view.
-const UNSEEN_STEP := 8
-
-## Past this distance a figure in view draws no support hand on the foregrip, and past [constant ANIM_FAR] no carry
-## pose on the gun arm (the clip's own arm is drawn). Out of view only its shadow is drawn: no aim, carry or support,
-## and the feet are not kept out of the floor. With no camera (a server, a suite) every layer is drawn.
-const SUPPORT_RANGE := ANIM_NEAR
-
-## Seconds an [member auto_animate] body may stand still between moves before it counts as stopped: longer than a
-## physics tick or a snapshot gap, short enough that a stop shows at once.
-const AUTO_HOLD := 0.1
-
-## Shortest span [member auto_animate] measures a speed over: several ticks, so the frames that fall between a stepped
-## body's moves (two or three a tick at a few hundred frames a second) shake the measure by a few percent, not a third.
-const AUTO_WINDOW := 0.05
-
-## Longest an [member auto_animate] body keeps one pose while it stands between steps (its idle still breathes).
-const AUTO_POSE_GAP := 1.0 / 60.0
-
-## Below 1, the mesh switches to its simpler levels sooner; a person is small on screen past a few metres.
-const LOD_BIAS := 0.4
-
-## Past this distance from the camera a person casts no shadow: the shadow pass was over half of a crowd's triangles.
-const SHADOW_RANGE := 28.0
-
-## Nothing drawn past this.
-const DRAW_RANGE := 140.0
-
-## How long an overlay blends in and out, in seconds.
-const BLEND_IN := 0.08
-const BLEND_OUT := 0.14
-
-## A held pose or an emote eases in slower than a swing.
-const ACTION_BLEND_IN := 0.25
-const ACTION_BLEND_OUT := 0.3
-
-## How far a swimmer is laid forward about the hips, in radians: the swim clip is drawn upright.
-const SWIM_LEAN := 1.4
-
-## Metres the slide clip is raised: its hips sit below the floor otherwise (for a 1.8 m figure).
-const SLIDE_LIFT := 0.1
-
-## Seconds to fall into and rise out of a slide.
-const SLIDE_BLEND := 0.35
-
-## How far back a propped, downed body leans about the hips, in radians.
-const PROP_LEAN := 1.2
-
-## The clip a downed pose plays; a game with better clips assigns its own names.
-var downed_clips: Dictionary = {&"propped": &"", &"crawl": DotHumanoidClips.CRAWL}
-
-## Whether the person is sprinting (from [method set_motion]); the carry eases into it over [constant SPRINT_SECONDS].
-var sprinting: bool = false
-
-## What the hand holds, which decides the arms: nothing, a gun (gun clips and overlay) or a melee weapon.
-enum Hold { NONE, GUN, MELEE }
-
-## The body whose file carries the clip set; the others play it through [method DotHumanoidClips.retarget].
-const CLIP_BODY := DotHumanoidAssets.CLIP_BODY
-## How far past the clip's pose a flinch turns the upper body (1 is the clip as authored).
-const FLINCH_GAIN := 1.4
-var _overlay_gain := 1.0
-
-## The bone a weapon is held in. The kit's people are left-handed, so the clip set is mirrored once
-## on load ([method DotHumanoidClips.mirror]) and others see the gun in the hand first person holds it in.
-const HAND_BONE := "Middle1.R"
-
-## "head_top", "crest" and "hat" are all the crown mount, from the head bone.
-const HEAD_BONE := "Head"
-const HEAD_MOUNTS: Array[StringName] = [&"head_top", &"crest", &"hat"]
-
-## How far up and down the upper body follows the view, in radians.
-const AIM_LIMIT := 1.15
-
-## Where a weapon's grip sits from that bone at the held-gun pose, in metres.
-const HAND_OFFSET := Vector3(0.0, 0.03, -0.02)
-
-## Seconds to ease the sprint carry in or out.
-const SPRINT_SECONDS := 0.2
-
-## How far the gun arm drops at a full sprint carry, in radians, on top of the view's pitch.
-const SPRINT_DROP := 0.6
-
-## The support arm's bones, and where its elbow points (figure space: left, down, a little back).
-const SUPPORT_BONES: Array[String] = ["UpperArm.L", "LowerArm.L", "Middle1.L"]
-const SUPPORT_POLE := Vector3(-0.5, -1.0, 0.4)
-
-## The look drawn, the height it was built to, and whether the art loaded (or a capsule stands in).
-var look: DotHumanoidLook = null
-var height: float = 1.8
-
-## How much a held weapon is scaled up: the people have chibi hands and a real pistol is lost in a fist.
-## Set before the first weapon is held.
-var held_scale: float = 1.7
-var from_art: bool = false
-
-## The locomotion state and the clip playing, for a suite and [method describe].
-var state: StringName = DotPlayerAnimState.IDLE
-var clip: StringName = &""
-
-## What the hand holds; see [enum Hold].
-var hold: int = Hold.NONE
-
-## Down: crawling on the floor, whatever the legs would otherwise do.
-var downed: bool = false
-
-## While [member downed]: true lies propped on the back, weapon out; false crawls (`propped` key, [DotDownedRules]).
-var propped: bool = false
-
-## The overlay playing on the upper body, or empty.
-var overlay: StringName = &""
-
-## The avatar action (emote, pose or gesture id) playing, or empty. See [method play_action].
-var action: StringName = &""
-
-## Where the player looks, up (+) or down (-), in radians; the upper body follows ([method aim]).
-var aim_pitch: float = 0.0
-
-## Sitting ([constant DotHumanoidClips.SIT]): set by `seated` in [method set_motion].
-var seated: bool = false
-
-## Seated with the hands on a wheel ([constant DotHumanoidClips.DRIVE]): set by `driving` in [method set_motion]. Needs `seated` too; a figure without the clip just sits.
-var driving: bool = false
-
-## Measures its own movement every frame and animates from that, for a body something else
-## carries where no code knows its speed. Off for a player ([method pose]).
-var auto_animate: bool = false:
-	set(value):
-		auto_animate = value
-		_auto_last = Vector3.INF
-		_auto_seen = Vector3.INF
-		_auto_pending = 0.0
-
-## Idles, walks and runs as a zombie does: the library's shuffling walk ([constant DotHumanoidClips.ZOMBIE_WALK]), its idle, and the real sprint for a run. Every other state is the person's own. A figure without the real clips ignores it.
-var zombie_gait: bool = false
-
-## Seconds over which [member auto_animate]'s measured speed is averaged. The measure already spans the frames between a stepped body's moves (physics ticks, snapshots); this smooths what is left. 0 keeps the raw measure.
-var auto_smooth_time: float = 0.0
-
-## The clips whose rate follows the planted foot ([method _matched_rate]), and the fastest they play.
-const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN,
-	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK, DotHumanoidClips.SPRINT]
-const STRIDE_MAX_RATE := 4.0
-## The states whose clip is a stride (its rate is matched to the ground), no floor lift, off the floor.
-const STRIDE_STATES: Array[StringName] = [DotPlayerAnimState.WALK, DotPlayerAnimState.RUN, DotPlayerAnimState.CROUCH_WALK]
-const NO_LIFT_STATES: Array[StringName] = [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD]
-const OFF_FLOOR_STATES: Array[StringName] = [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD,
-	DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL]
-
-## The zombie walk's and the sprint's own ground speeds (m/s), for the rate at other speeds.
-const ZOMBIE_WALK_NATURAL := 1.3
-const ZOMBIE_SPRINT_NATURAL := 6.0
-
-## Ground speed from which a runner plays the sprint clip when the game sends no `sprinting` key (0 picks 1.6 times the run speed), and how far below it the run clip returns.
-var sprint_speed: float = 0.0
-const SPRINT_EXIT := 0.8
-
-## Fastest a runner plays the run clip; faster plays the grounded sprint clip, since the run clip's flight hovers.
-const RUN_CLIP_MAX_SPEED := 5.5
-var _sprint_clip: bool = false
-
-## Ground speed above which the figure runs, and below which a runner walks again ([member DotPlayerAnimState.run_speed], [member DotPlayerAnimState.run_exit_speed]). A game whose walking pace is near the default 4.0 raises them so a walk does not play the hunched run clip.
-func set_run_speeds(run_speed: float, run_exit_speed: float) -> void:
-	_machine.run_speed = run_speed
-	_machine.run_exit_speed = run_exit_speed
-
-
-## Frames per advance of the clip: 1, 2 or 4 by distance from the camera, twice that out of view.
-var anim_step: int = 1
-
-## The head (and neck) shrunk to nothing after the clip, for your own body in first person.
-var hide_head: bool = false:
-	set(value):
-		hide_head = value
-		_own.hide_head = value
-		_own.apply(_skeleton, _mesh)
-
-## Seen by its own player from inside the head ([DotHumanoidOwnView]: THIRD, LEGS or BODY).
-var first_person: int = DotHumanoidOwnView.THIRD:
-	set(value):
-		first_person = value
-		_own.mode = value
-		_own.apply(_skeleton, _mesh)
-
-## False hides your own legs and body in first person (the `cl_legs` setting, see [DotOwnBodySetting]); the shadow stays.
-var own_body_shown: bool = true:
-	set(value):
-		own_body_shown = value
-		_own.shown = value
-		_own.apply(_skeleton, _mesh)
-
-## Metres your own body trails behind the eye looking straight down in first person ([member DotHumanoidOwnView.look_down_back]); 0 when the game places the body itself.
-var own_look_down_back: float:
-	get:
-		return _own.look_down_back
-	set(value):
-		_own.look_down_back = maxf(value, 0.0)
-
-var _model: Node3D = null
-var _skeleton: Skeleton3D = null
-var _mesh: MeshInstance3D = null
-var _anim: AnimationPlayer = null
-var _hand: Node3D = null
-
-## How far a held weapon should add its own sprint carry, 0 to 1: set by `sprinting` in [method set_motion], eased
-## over [constant SPRINT_SECONDS]. A held weapon ([code]ZeeWorldModel[/code]) reads it to swing to the side. While
-## the figure draws the carry itself ([member carry]) the sprint is in the arms and this falls to 0.
-var sprint_blend: float:
-	get:
-		return _sprint * (1.0 - carry.weight)
-var _sprint: float = 0.0
-## The gun as others see it carried: [method DotHumanoidCarryPose.set_class], [method DotHumanoidCarryPose.fired],
-## and its raised / reloading / switching flags. A rifle unless set; drawn only, never the hit zones.
-var carry := DotHumanoidCarryPose.new()
-var _overlay_weight := 0.0
-var _slide_lift := 0.0
-
-## Physics layers the drawn body is stood on (0 = off; the default is the shooter layout's `world`). A body whose
-## origin is drawn under the floor beneath it, as one interpolated between ticks is across a step's riser or a
-## slope's crest, is raised onto it by up to [member floor_reach] metres ([method DotHumanoidLegs.floor_lift]).
-## Drawing only: the origin, the hull and the hit zones are not moved.
-var floor_mask: int = 1
-var floor_reach: float = 0.45
-## How far the body is drawn above its origin now to stand on the floor under it, metres.
-var floor_lift: float = 0.0
-var _lift_at := Vector3.INF
-var _lift_allowed := false
-var _lift_mask := -1
-var _lift_reach := -1.0
-
-## Where the support hand goes, in world space, with a two-handed gun; INF for none ([method set_support_grip]).
-var support_point := Vector3.INF
-var _support_weight: float = 0.0
-var _support_cache: Dictionary = {}
-## The bones from the root to the support arm's parent, per upper-arm bone, for [method DotHumanoidIk.chain_pose].
-var _support_chains: Dictionary = {}
-## Per Animation (a clip can be replaced under its name): the upper-body bones it rotates as [index, track] pairs, flat.
-var _overlay_tracks: Dictionary = {}
-## Per Animation: [DotHumanoidAim.plan] without and with the arm.
-var _aim_plans: Dictionary = {}
-var _crown: Node3D = null
-var _machine := DotPlayerAnimState.new()
-var _motion: Dictionary = {}
-var _speed: float = 0.0
-var _overlay_time: float = 0.0
-var _overlay_rate: float = 1.0
-var _overlay_loop: bool = false
-var _overlay_stopping: bool = false
-var _stop_time: float = 0.0
-var _overlay_blend: float = BLEND_IN
-var _action_full: StringName = &""
-var _owed: float = 0.0
-var _crawl := DotHumanoidCrawl.new()
-var _frame: int = 0
-var _posed_frame: int = -1
-var _upper: Dictionary = {}
-var _ease := DotHumanoidBlend.new()
-var _swim_pitch: float = 0.0
-var _prop_pitch: float = 0.0
-var _view_pitch: float = 0.0
-var _own_back: float = 0.0
-var _own := DotHumanoidOwnView.new()
-var legs := DotHumanoidLegs.new()
-var _auto_last: Vector3 = Vector3.INF
-var _auto_since: float = 0.0
-var _auto_seen: Vector3 = Vector3.INF
-var _auto_still: float = 0.0
-var _auto_pending: float = 0.0
-var _auto_velocity: Vector3 = Vector3.ZERO
-var _model_basis: Basis = Basis.IDENTITY
-var _strides: Dictionary = {}
-var _model_origin: Vector3 = Vector3.ZERO
-# The skeleton's frame under the model, and each leg's drawn ankle at rest in the figure's frame (the lowest it is drawn).
-var _skel_to_model: Transform3D = Transform3D.IDENTITY
-## [method _to_figure] held for the rest of one [method animate] (cleared when the model moves).
-var _frame_tf := Transform3D.IDENTITY
-var _frame_tf_on := false
-var _frame_tf_ok := false
-var _floor_ankles: PackedFloat32Array = PackedFloat32Array()
 
 ## Builds the figure for [param p_look], [param p_height] metres tall, feet at this node's origin,
 ## facing -Z.
 func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	look = p_look if p_look != null else DotHumanoidLook.stock(0)
 	height = p_height
-	clip = &""
-	overlay = &""
-	_ease.clear()
-	_hand = null
-	_crown = null
-	_upper.clear()
-	_support_cache.clear()
-	_support_chains.clear()
-	_overlay_tracks.clear()
-	_aim_plans.clear()
-	_strides.clear()
-	_machine.forget_state()
-
-	if _model != null:
-		remove_child(_model)
-		_model.queue_free()
-		_model = null
-		_skeleton = null
-		_mesh = null
-		_anim = null
-	_lift_at = Vector3.INF
+	_forget_body()
 
 	var scene := DotHumanoidAssets.scene(body_path(look.body))
 	if scene != null:
@@ -380,9 +68,35 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 		var i := _skeleton.find_bone(bone) if _skeleton != null else -1
 		if i >= 0:
 			_upper[bone] = i
+			_upper_paths[bone] = NodePath("%s:%s" % [String(_model.get_path_to(_skeleton)), bone])
 
 	_play(DotHumanoidClips.IDLE, 1.0)
 	_anim.advance(0.0)
+
+
+## Drops the body built before and everything cached from it, for [method build] to start over.
+func _forget_body() -> void:
+	clip = &""
+	overlay = &""
+	_ease.clear()
+	_hand = null
+	_crown = null
+	_upper.clear()
+	_upper_paths.clear()
+	_support_cache.clear()
+	_support_chains.clear()
+	_overlay_tracks.clear()
+	_aim_plans.clear()
+	_strides.clear()
+	_machine.forget_state()
+	if _model != null:
+		remove_child(_model)
+		_model.queue_free()
+		_model = null
+		_skeleton = null
+		_mesh = null
+		_anim = null
+	_lift_at = Vector3.INF
 
 
 func _ready() -> void:
@@ -693,15 +407,6 @@ func add_action_scene(id: StringName, scene: Node, clip: String, loop: bool = fa
 	return DotResult.success(true)
 
 
-## Ends the playing action, easing out.
-func stop_action() -> void:
-	_action_full = &""
-	if overlay != &"" and _overlay_loop and not _overlay_stopping:
-		_overlay_stopping = true
-		_stop_time = 0.0
-	action = &""
-
-
 ## The node a held weapon hangs from: "right_hand" or "hand" ([constant HAND_BONE]), turned so its
 ## -Z is the way the figure faces holding a gun, +Y up, at metre scale. "head_top", "crest" or
 ## "hat" is the crown of the head, upright, following the head bone (hidden by [member hide_head]).
@@ -743,19 +448,6 @@ func _bone_mount(node_name: String, bone_name: String, fallback: Vector3) -> Nod
 	return node
 
 
-## Skeleton space to the figure's frame: the skeleton's own transform under the model, then the
-## model's turn and scale.
-func _to_figure() -> Transform3D:
-	if _frame_tf_ok:
-		return _frame_tf
-	var skel_to_model := _model.global_transform.affine_inverse() * _skeleton.global_transform if _model.is_inside_tree() and absf(_model.global_basis.determinant()) > 1e-9 else Transform3D.IDENTITY
-	var out := Transform3D(_model_basis, _model_origin) * skel_to_model
-	if _frame_tf_on:
-		_frame_tf = out
-		_frame_tf_ok = true
-	return out
-
-
 ## The drawn model, for [DotPlayerRagdoll] (it finds the skeleton and the skinned mesh under it).
 func body_node() -> Node3D:
 	return _model
@@ -790,324 +482,6 @@ func pose_apply(a: PackedFloat32Array, b: PackedFloat32Array, alpha: float) -> b
 func set_drawn(on: bool) -> void:
 	if _model != null:
 		_model.visible = on
-
-
-func _clip_for(p_state: StringName, speed: float) -> Array:
-	var gun := hold == Hold.GUN
-	if downed and propped:
-		var named := StringName(downed_clips.get(&"propped", &""))
-		if named == &"":
-			named = DotHumanoidClips.IDLE_GUN if gun else DotHumanoidClips.IDLE
-		return [named, 1.0]
-	if downed:
-		return [StringName(downed_clips.get(&"crawl", DotHumanoidClips.CRAWL)), clampf(speed / 1.2, 0.0, 1.6)]
-	if _action_full != &"":
-		return [_action_full, 1.0]
-	# A rider is carried: whatever speed the seat moves at, the legs stay sat.
-	if seated and p_state != DotPlayerAnimState.DEAD:
-		if driving and _anim != null and _anim.has_animation(DotHumanoidClips.DRIVE):
-			return [DotHumanoidClips.DRIVE, 1.0]
-		return [DotHumanoidClips.SIT, 1.0]
-	# Running along a wall: the legs run in the air (the body is rolled onto the wall by the game).
-	if bool(_motion.get("wall_running", false)) and p_state in [
-			DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL, DotPlayerAnimState.LAND]:
-		return [DotHumanoidClips.RUN_GUN if gun else DotHumanoidClips.RUN, clampf(speed / 5.0, 0.7, 1.5)]
-	# A slide on the ground: leant back, legs forward. The game's `sliding` key; in the air it is a fall.
-	if bool(_motion.get("sliding", false)) and p_state in [
-			DotPlayerAnimState.CROUCH_IDLE, DotPlayerAnimState.CROUCH_WALK, DotPlayerAnimState.RUN,
-			DotPlayerAnimState.WALK, DotPlayerAnimState.IDLE] and _anim != null and _anim.has_animation(DotHumanoidClips.SLIDE):
-		return [DotHumanoidClips.SLIDE, 1.0]
-	if zombie_gait and not gun and _anim != null:
-		var zombie := _zombie_clip_for(p_state, speed)
-		if not zombie.is_empty():
-			return zombie
-	match p_state:
-		DotPlayerAnimState.DEAD:
-			return [DotHumanoidClips.DEATH, 1.0]
-		DotPlayerAnimState.SWIM:
-			return [DotHumanoidClips.SWIM, clampf(speed / 2.5, 0.45, 1.3)]
-		DotPlayerAnimState.JUMP:
-			return [DotHumanoidClips.JUMP, 1.0]
-		DotPlayerAnimState.FALL:
-			return [DotHumanoidClips.FALL, 1.0]
-		DotPlayerAnimState.LAND:
-			return [DotHumanoidClips.LAND, 1.4]
-		DotPlayerAnimState.CROUCH_IDLE:
-			return [DotHumanoidClips.CROUCH, 1.0]
-		DotPlayerAnimState.CROUCH_WALK:
-			return [DotHumanoidClips.CROUCH_WALK, clampf(speed / 1.6, 0.5, 1.6)]
-		DotPlayerAnimState.WALK:
-			# A game whose run threshold sits above its sprint speed would walk at a sprinter's pace.
-			if sprint_speed > 0.0 and speed >= sprint_speed and _sprint_clip_for(speed):
-				return [DotHumanoidClips.SPRINT, 1.0]
-			return [DotHumanoidClips.WALK_GUN if gun else DotHumanoidClips.WALK, clampf(speed / 1.9, 0.6, 1.6)]
-		DotPlayerAnimState.RUN:
-			if _sprint_clip_for(speed):
-				return [DotHumanoidClips.SPRINT, 1.0]
-			return [DotHumanoidClips.RUN_GUN if gun else DotHumanoidClips.RUN, clampf(speed / 5.0, 0.7, 1.5)]
-		DotPlayerAnimState.CLIMB:
-			return [DotHumanoidClips.CLIMB, clampf(absf(float(_motion.get("vertical", 0.0))) / 2.5, 0.0, 1.2)]
-	return [DotHumanoidClips.IDLE_GUN if gun else DotHumanoidClips.IDLE, 1.0]
-
-
-## The zombie gait's clip and rate for a ground state, or empty. The rates are the clips' own ground speeds (metres a second).
-func _zombie_clip_for(p_state: StringName, speed: float) -> Array:
-	match p_state:
-		DotPlayerAnimState.IDLE:
-			if _anim.has_animation(DotHumanoidClips.ZOMBIE_IDLE):
-				return [DotHumanoidClips.ZOMBIE_IDLE, 1.0]
-		DotPlayerAnimState.WALK:
-			if _anim.has_animation(DotHumanoidClips.ZOMBIE_WALK):
-				return [DotHumanoidClips.ZOMBIE_WALK, clampf(speed / ZOMBIE_WALK_NATURAL, 0.6, 1.8)]
-		DotPlayerAnimState.RUN:
-			if _anim.has_animation(DotHumanoidClips.SPRINT):
-				return [DotHumanoidClips.SPRINT, clampf(speed / ZOMBIE_SPRINT_NATURAL, 0.7, 1.5)]
-	return []
-
-
-## Whether a runner at [param speed] plays the sprint clip: the game's `sprinting` key when it sends one, else the speed, with a gap so it does not flicker.
-func _sprint_clip_for(speed: float) -> bool:
-	if _anim == null or not _anim.has_animation(DotHumanoidClips.SPRINT):
-		return false
-	var from := sprint_speed if sprint_speed > 0.0 else _machine.run_speed * 1.6
-	# The run clip hovers (both feet up) above its own pace, whoever says sprinting; the sprint clip stays grounded.
-	from = minf(from, RUN_CLIP_MAX_SPEED)
-	var fast := speed >= from - (SPRINT_EXIT if _sprint_clip else 0.0)
-	_sprint_clip = (sprinting or fast) if _motion.has("sprinting") else fast
-	return _sprint_clip
-
-
-## The rate that moves the lower foot back exactly as far as the body goes this step (negative walking backward), or NAN when the
-## clip is not a stride. The clips have no root motion and sweep the planted foot back unevenly, so
-## any constant rate skates it; the rate is read off the clip's distance table instead.
-func _matched_rate(speed: float, dt: float) -> float:
-	if dt <= 0.0 or not state in STRIDE_STATES:
-		return NAN
-	if not clip in STRIDE_CLIPS or _anim.current_animation != String(clip):
-		return NAN
-	var table := _stride_for(clip)
-	if table.size() < 2 or table[-1] <= 0.0:
-		return NAN
-	var length := _anim.current_animation_length
-	var phase := fposmod(_anim.current_animation_position, length) / length
-	var back := -1.0 if legs.backward else 1.0
-	var want := DotHumanoidStride.distance_at(table, phase) + back * speed * dt
-	var laps := floorf(want / table[-1])
-	var to := DotHumanoidStride.phase_at(table, want - laps * table[-1]) + laps
-	return clampf((to - phase) * length / dt * back, 0.0, STRIDE_MAX_RATE) * back
-
-
-func _stride_for(clip_id: StringName) -> PackedFloat32Array:
-	if not _strides.has(clip_id):
-		_strides[clip_id] = DotHumanoidStride.table_for(_anim.get_animation(clip_id), _skeleton, _model, _to_figure())
-	return _strides[clip_id]
-
-
-func _play(wanted: StringName, rate: float) -> void:
-	if _anim == null:
-		return
-	if not _anim.has_animation(wanted):
-		wanted = DotHumanoidClips.IDLE
-		if not _anim.has_animation(wanted):
-			return
-	_anim.speed_scale = rate
-	if clip == wanted:
-		return
-	var from := _stride_fraction()
-	var blend := SLIDE_BLEND if wanted == DotHumanoidClips.SLIDE or clip == DotHumanoidClips.SLIDE else 0.15
-	clip = wanted
-	var cross := from >= 0.0 and wanted in STRIDE_CLIPS
-	# A stride cut keeps the feet planted but would snap the arms, and the gun in the hand with them.
-	if cross:
-		_ease.begin(_skeleton, _upper, HAND_BONE)
-	var feet := DotHumanoidStride.feet_now(_skeleton, _to_figure()) if cross else PackedVector3Array()
-	_anim.play(wanted, 0.0 if cross else blend)
-	if cross and not feet.is_empty():
-		_anim.seek(DotHumanoidStride.matching_time(_anim.get_animation(wanted), _skeleton, _model, _to_figure(), feet), true)
-
-
-## How far through its stride the playing clip's planted foot is, 0 to 1, or -1 when it is not a stride clip. A clip entered at this fraction keeps the foot it stands on travelling with the ground.
-func _stride_fraction() -> float:
-	if not clip in STRIDE_CLIPS or _anim.current_animation != String(clip):
-		return -1.0
-	var table := _stride_for(clip)
-	if table.size() < 2 or table[-1] <= 0.0:
-		return -1.0
-	var length := _anim.current_animation_length
-	return DotHumanoidStride.distance_at(table, fposmod(_anim.current_animation_position, length) / length) / table[-1]
-
-
-## Ends a looping or full-body action when the player leaves the spot: a pose is for standing.
-func _end_action_if_moved() -> void:
-	if action == &"" and not _overlay_loop:
-		return
-	var still := state == DotPlayerAnimState.IDLE or state == DotPlayerAnimState.CROUCH_IDLE
-	if _action_full != &"" and not still:
-		stop_action()
-	elif _overlay_loop and (downed or state in [DotPlayerAnimState.DEAD, DotPlayerAnimState.SWIM,
-			DotPlayerAnimState.CLIMB, DotPlayerAnimState.JUMP, DotPlayerAnimState.FALL, DotPlayerAnimState.RUN]):
-		stop_action()
-
-
-func _start_overlay(which: StringName, rate: float) -> void:
-	if _anim == null or not _anim.has_animation(which):
-		return
-	_overlay_loop = false
-	_overlay_stopping = false
-	_stop_time = 0.0
-	_overlay_blend = BLEND_IN
-	action = &""
-	overlay = which
-	_overlay_time = 0.0
-	_overlay_rate = rate
-	_overlay_gain = 1.0
-
-
-## Writes the upper body over the locomotion pose: a playing overlay (swing, flinch, gesture),
-## else the held-gun arms in a clip that is not a gun clip (nor a full-body action such as a dance). Not while swimming, where the
-## stroke is the arms.
-func _apply_overlays() -> void:
-	if _skeleton == null:
-		return
-	var source: Animation = null
-	var t := 0.0
-	var weight := 0.0
-	_overlay_weight = 0.0
-	if overlay != &"":
-		source = _anim.get_animation(overlay)
-		if source == null or (not _overlay_loop and _overlay_time >= source.length):
-			overlay = &""
-			action = &""
-			_overlay_loop = false
-			source = null
-		elif _overlay_loop:
-			t = fposmod(_overlay_time, source.length)
-			weight = minf(1.0, _overlay_time / _overlay_blend)
-			if _overlay_stopping:
-				weight *= 1.0 - minf(1.0, _stop_time / ACTION_BLEND_OUT)
-				if _stop_time >= ACTION_BLEND_OUT:
-					overlay = &""
-					_overlay_loop = false
-					_overlay_stopping = false
-					_stop_time = 0.0
-					source = null
-		else:
-			t = _overlay_time
-			weight = minf(1.0, _overlay_time / _overlay_blend) * minf(1.0, (source.length - _overlay_time) / BLEND_OUT)
-	if source != null:
-		_overlay_weight = clampf(weight, 0.0, 1.0)
-	if source == null and hold == Hold.GUN and not downed and _action_full == &"" and not String(clip).ends_with("_gun") and clip != DotHumanoidClips.DEATH and clip != DotHumanoidClips.SWIM:
-		source = _anim.get_animation(DotHumanoidClips.IDLE_GUN)
-		t = 0.0
-		weight = 1.0
-	if source == null or weight <= 0.0:
-		return
-	var pairs: PackedInt32Array = _overlay_tracks.get(source, PackedInt32Array())
-	if not _overlay_tracks.has(source):
-		var prefix := String(_model.get_path_to(_skeleton))
-		for bone: String in _upper:
-			var track := source.find_track(NodePath("%s:%s" % [prefix, bone]), Animation.TYPE_ROTATION_3D)
-			if track >= 0:
-				pairs.append_array([_upper[bone], track])
-		_overlay_tracks[source] = pairs
-	var w := clampf(weight, 0.0, 1.0)
-	for k in range(0, pairs.size(), 2):
-		var index := pairs[k]
-		var q := source.rotation_track_interpolate(pairs[k + 1], t)
-		_skeleton.set_bone_pose_rotation(index, DotHumanoidBlend.toward(_skeleton.get_bone_pose_rotation(index), q, w, _overlay_gain))
-
-
-## Bends the waist and chest by [member aim_pitch] after the clip and the overlays, so what the arms
-## do points up or down with the view; not while down, dead, swimming or climbing, and only on a
-## bone the playing clip keys (see [DotHumanoidAim]).
-func _apply_aim() -> void:
-	if _skeleton == null or (is_zero_approx(aim_pitch) and sprint_blend <= 0.0) or downed:
-		return
-	if state == DotPlayerAnimState.DEAD or state == DotPlayerAnimState.SWIM or state == DotPlayerAnimState.CLIMB:
-		return
-	var animation := _anim.get_animation(clip)
-	if animation == null:
-		return
-	var arm := 1 if hold != Hold.NONE else 0
-	var plans: Variant = _aim_plans.get(animation)
-	if plans == null:
-		plans = [null, null]
-	if plans[arm] == null:
-		plans[arm] = DotHumanoidAim.plan(_skeleton, _model, animation, arm == 1)
-		_aim_plans[animation] = plans
-	DotHumanoidAim.apply_plan(_skeleton, plans[arm], _to_figure(), aim_pitch, sprint_blend)
-
-
-## Where the support hand goes: the weapon's foregrip, [constant Vector3.INF] when the gun is held with one
-## hand or none. In world space; called every frame by the held weapon, since it moves with the gun.
-func set_support_grip(point: Vector3) -> void:
-	support_point = point
-
-
-## Two-bone IK on the left arm toward [member support_point], blended by the support weight, after the clip,
-## the overlays and the aim so it lands on the gun wherever they put it. Only on bones the clip keys (a bone no
-## track writes keeps last frame's pose, and the turn would add up).
-func _apply_support() -> void:
-	if _skeleton == null or _support_weight <= 0.0 or downed:
-		return
-	var target := carry.support_grip
-	if support_point.is_finite():
-		target = _skeleton.global_transform.affine_inverse() * support_point
-	if not target.is_finite():
-		return
-	var bones := _support_bones_for(clip)
-	if bones.is_empty():
-		return
-	var chain: Variant = _support_chains.get(bones[0])
-	if chain == null:
-		chain = DotHumanoidIk.chain_to(_skeleton, _skeleton.get_bone_parent(bones[0]))
-		_support_chains[bones[0]] = chain
-	DotHumanoidIk.two_bone_under(_skeleton, bones, DotHumanoidIk.chain_pose(_skeleton, chain), target,
-		_to_figure().basis.inverse() * SUPPORT_POLE, _support_weight)
-
-
-func _apply_carry() -> void:
-	if _skeleton == null or clip == DotHumanoidClips.DEATH or clip == DotHumanoidClips.SWIM:
-		carry.support_grip = Vector3.INF
-		return
-	carry.apply(_skeleton, _model, _anim, _to_figure(), _anim.get_animation(clip), _stride_fraction(), aim_pitch,
-		height / 1.8, _sprint, _speed, _overlay_weight)
-
-
-## The support arm's bone indices if [param clip_id] keys them (a bone no track writes keeps last frame's pose), else empty; cached per clip.
-func _support_bones_for(clip_id: StringName) -> Array[int]:
-	if _support_cache.has(clip_id):
-		return _support_cache[clip_id]
-	var bones := DotHumanoidIk.keyed_bones(_skeleton, _model, _anim.get_animation(clip_id), SUPPORT_BONES)
-	_support_cache[clip_id] = bones
-	return bones
-
-
-## Swimming lays the whole body forward, about the hips, and eases back out of it. The swim clip
-## is drawn upright ([method DotHumanoidClips._swimming]); this is what makes it horizontal.
-func _apply_swim(delta: float) -> void:
-	if _model == null:
-		return
-	var wanted := SWIM_LEAN if state == DotPlayerAnimState.SWIM and not downed else 0.0
-	var before := _swim_pitch + _prop_pitch + _slide_lift + _own_back
-	var sliding := state != DotPlayerAnimState.SWIM and clip == DotHumanoidClips.SLIDE
-	_slide_lift = move_toward(_slide_lift, SLIDE_LIFT * height / 1.8 if sliding else 0.0, delta * 0.6)
-	_swim_pitch = move_toward(_swim_pitch, wanted, delta * 3.0)
-	_prop_pitch = move_toward(_prop_pitch, -PROP_LEAN if downed and propped else 0.0, delta * 3.0)
-	_own_back = _own.back_for(_view_pitch) * height / 1.8
-	var total := _swim_pitch + _prop_pitch
-	if is_equal_approx(before, total + _slide_lift + _own_back) and total == 0.0 and _slide_lift == 0.0 and _own_back == 0.0:
-		return
-	_model.transform = _model_transform()
-	_frame_tf_ok = false
-
-
-## The model under the figure: laid forward or back about the hips, raised by a slide and onto the floor, set back for its own view.
-func _model_transform() -> Transform3D:
-	var hips := Vector3(0.0, height * 0.55, 0.0)
-	var tilt := Transform3D(Basis(Vector3.RIGHT, -(_swim_pitch + _prop_pitch)), Vector3.ZERO)
-	var about := Transform3D(Basis.IDENTITY, hips) * tilt * Transform3D(Basis.IDENTITY, -hips)
-	return Transform3D(Basis.IDENTITY, Vector3(0.0, _slide_lift + floor_lift, _own_back)) * about * Transform3D(_model_basis, _model_origin)
 
 
 ## The directory the people's files are in.
@@ -1171,3 +545,56 @@ func describe() -> Dictionary:
 		"anim_step": anim_step,
 		"visible": visible,
 	}
+
+
+## Writes the upper body over the locomotion pose: a playing overlay (swing, flinch, gesture),
+## else the held-gun arms in a clip that is not a gun clip (nor a full-body action such as a dance). Not while swimming, where the
+## stroke is the arms.
+func _apply_overlays() -> void:
+	if _skeleton == null:
+		return
+	var source: Animation = null
+	var t := 0.0
+	var weight := 0.0
+	_overlay_weight = 0.0
+	if overlay != &"":
+		source = _anim.get_animation(overlay)
+		if source == null or (not _overlay_loop and _overlay_time >= source.length):
+			overlay = &""
+			action = &""
+			_overlay_loop = false
+			source = null
+		elif _overlay_loop:
+			t = fposmod(_overlay_time, source.length)
+			weight = minf(1.0, _overlay_time / _overlay_blend)
+			if _overlay_stopping:
+				weight *= 1.0 - minf(1.0, _stop_time / ACTION_BLEND_OUT)
+				if _stop_time >= ACTION_BLEND_OUT:
+					overlay = &""
+					_overlay_loop = false
+					_overlay_stopping = false
+					_stop_time = 0.0
+					source = null
+		else:
+			t = _overlay_time
+			weight = minf(1.0, _overlay_time / _overlay_blend) * minf(1.0, (source.length - _overlay_time) / BLEND_OUT)
+	if source != null:
+		_overlay_weight = clampf(weight, 0.0, 1.0)
+	if source == null and hold == Hold.GUN and not downed and _action_full == &"" and not String(clip).ends_with("_gun") and clip != DotHumanoidClips.DEATH and clip != DotHumanoidClips.SWIM:
+		source = _anim.get_animation(DotHumanoidClips.IDLE_GUN)
+		t = 0.0
+		weight = 1.0
+	if source == null or weight <= 0.0:
+		return
+	var pairs: PackedInt32Array = _overlay_tracks.get(source, PackedInt32Array())
+	if not _overlay_tracks.has(source):
+		for bone: String in _upper:
+			var track := source.find_track(_upper_paths[bone], Animation.TYPE_ROTATION_3D)
+			if track >= 0:
+				pairs.append_array([_upper[bone], track])
+		_overlay_tracks[source] = pairs
+	var w := clampf(weight, 0.0, 1.0)
+	for k in range(0, pairs.size(), 2):
+		var index := pairs[k]
+		var q := source.rotation_track_interpolate(pairs[k + 1], t)
+		_skeleton.set_bone_pose_rotation(index, DotHumanoidBlend.toward(_skeleton.get_bone_pose_rotation(index), q, w, _overlay_gain))

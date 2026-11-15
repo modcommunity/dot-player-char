@@ -450,11 +450,7 @@ func _test_skinned() -> void:
 	_world.add_child(yard)
 
 	var person := _person(Vector3(0, 0, 40))
-	var gun := MeshInstance3D.new()
-	var gun_mesh := BoxMesh.new()
-	gun_mesh.size = Vector3(0.06, 0.12, 0.4)
-	gun.mesh = gun_mesh
-	person.attachment(&"right_hand").add_child(gun)
+	_hand_box(person, Vector3(0.06, 0.12, 0.4))
 	var body := yard.spawn(person, _death(&"limp", Vector3(1, 0, 0)))
 	_check(body != null and bool(body.describe()["skinned"]) and body.part_count() == 6 and body.joint_count() == 5,
 		"six parts, five joints, from the skeleton (%s)" % (str(body.describe()) if body != null else "none"))
@@ -496,11 +492,7 @@ func _test_skinned() -> void:
 	var armed := _person(Vector3(16, 0, 40))
 	armed.set_hold(DotHumanoidFigure.Hold.GUN)
 	armed.animate(0.0, 0.3)
-	var long_gun := MeshInstance3D.new()
-	var long_mesh := BoxMesh.new()
-	long_mesh.size = Vector3(0.08, 0.14, 0.9)
-	long_gun.mesh = long_mesh
-	armed.attachment(&"right_hand").add_child(long_gun)
+	_hand_box(armed, Vector3(0.08, 0.14, 0.9))
 	var armed_plant := yard.spawn(armed, _death(&"face_plant"))
 	for i in range(150):
 		await get_tree().physics_frame
@@ -509,11 +501,7 @@ func _test_skinned() -> void:
 	var armed_limp := _person(Vector3(20, 0, 40))
 	armed_limp.set_hold(DotHumanoidFigure.Hold.GUN)
 	armed_limp.animate(0.0, 0.3)
-	var pistol := MeshInstance3D.new()
-	var pistol_mesh := BoxMesh.new()
-	pistol_mesh.size = Vector3(0.1, 0.25, 0.7)
-	pistol.mesh = pistol_mesh
-	armed_limp.attachment(&"right_hand").add_child(pistol)
+	_hand_box(armed_limp, Vector3(0.1, 0.25, 0.7))
 	var limp_body := yard.spawn(armed_limp, _death(&"limp", Vector3(-0.75, 0, -0.67)))
 	_check(armed_plant.landed and armed_plant.centre().y < 0.6,
 		"a person holding a long gun out goes over too, inside two and a half seconds (%s, torso %.2f)" % [
@@ -531,6 +519,21 @@ func _test_skinned() -> void:
 		"sv_ragdoll 0: the skinned body topples with no physics (head bone at %.2f m)" % thead)
 	_check(absf(topple.lowest_point()) < 0.15, "onto the floor (%.2f)" % topple.lowest_point())
 
+	await _check_skinned_fade(yard, person)
+
+
+## Puts a box of [param size] in [param person]'s right hand, the way a held gun is drawn.
+func _hand_box(person: DotHumanoidFigure, size: Vector3) -> void:
+	var box := MeshInstance3D.new()
+	var box_mesh := BoxMesh.new()
+	box_mesh.size = size
+	box.mesh = box_mesh
+	person.attachment(&"right_hand").add_child(box)
+
+
+## A skinned body's fade shrinks its copied skeleton, measured against [param person]'s scale,
+## and the body is gone after its lifetime. Clears [param yard] at the end.
+func _check_skinned_fade(yard: DotPlayerRagdolls, person: DotHumanoidFigure) -> void:
 	yard.rules.enabled = true
 	yard.rules.lifetime = 0.5
 	yard.rules.fade = 0.5

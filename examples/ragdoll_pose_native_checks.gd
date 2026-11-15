@@ -73,16 +73,7 @@ func run() -> void:
 			% [bodies.size(), compared, bones, differ, "" if native else "; skipped, no library"])
 
 	if native and not bodies.is_empty() and is_instance_valid(bodies[0]):
-		var body := bodies[0]
-		var t0 := Time.get_ticks_usec()
-		for i in BENCH_CALLS:
-			body._pose_bones_script()
-		var t1 := Time.get_ticks_usec()
-		for i in BENCH_CALLS:
-			body._pose_bones_native()
-		var t2 := Time.get_ticks_usec()
-		suite._line("  per pose: script %.1f us, native %.1f us (%d calls each, %d bones)"
-			% [float(t1 - t0) / BENCH_CALLS, float(t2 - t1) / BENCH_CALLS, BENCH_CALLS, body.skeleton_copy().get_bone_count()])
+		_bench(bodies[0])
 	# The switch: off keeps the script and makes no native poser.
 	var was := DotPlayerRagdoll.native_pose
 	DotPlayerRagdoll.native_pose = false
@@ -100,6 +91,19 @@ func run() -> void:
 			% [stayed_script, planned])
 
 	yard.clear()
+
+
+## Times [constant BENCH_CALLS] script poses of [param body] against as many native ones, for the log.
+func _bench(body: DotPlayerRagdoll) -> void:
+	var t0 := Time.get_ticks_usec()
+	for i in BENCH_CALLS:
+		body._pose_bones_script()
+	var t1 := Time.get_ticks_usec()
+	for i in BENCH_CALLS:
+		body._pose_bones_native()
+	var t2 := Time.get_ticks_usec()
+	suite._line("  per pose: script %.1f us, native %.1f us (%d calls each, %d bones)"
+		% [float(t1 - t0) / BENCH_CALLS, float(t2 - t1) / BENCH_CALLS, BENCH_CALLS, body.skeleton_copy().get_bone_count()])
 
 
 ## Every bone's pose as bytes: position, rotation and scale.
