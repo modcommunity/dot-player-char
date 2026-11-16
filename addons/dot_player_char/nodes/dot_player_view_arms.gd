@@ -110,6 +110,15 @@ var reach_extend_max: float = 0.3
 ## Metres between the hand and its target after the last solve (firing hand, support hand); 0 when that hand is unused.
 var hand_gap_right: float = 0.0
 var hand_gap_left: float = 0.0
+## The nearest a wrist target may come to the eye, metres along the view's forward: a hand the gun brings closer (a
+## reload pulled to the chest, a gun pushed back by a wall) slides out along the forward to it, so its fingers stay past
+## the camera's near plane. 0 is off (the old seat); a negative or non-finite value is refused with an error.
+var hand_min_depth: float = 0.0:
+	set(value):
+		if value < 0.0 or not is_finite(value):
+			push_error("DotPlayerViewArms.hand_min_depth must be 0 or more, got %s" % value)
+			return
+		hand_min_depth = value
 ## Draws the grip sockets, hand targets and arm bone axes over the view ([DotViewArmsPoseDebug]).
 var debug_pose: bool = false:
 	set(value):
@@ -856,7 +865,7 @@ func wrist_targets(grip: DotViewGrip) -> Array[Vector3]:
 	var basis := global_transform.basis
 	if not (real_hands and _hands.size() == 2):
 		var mirrored := basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)
-		return [grip.grip_world() + basis * palm_offset, grip.support_world() + mirrored if grip.is_two_hand() else Vector3.INF]
+		return _kept_deep([grip.grip_world() + basis * palm_offset, grip.support_world() + mirrored if grip.is_two_hand() else Vector3.INF])
 	var hands := _grip_hands(grip)
 	var s := _hand_world_size()
 	var forward := grip.forward_world()
@@ -867,7 +876,23 @@ func wrist_targets(grip: DotViewGrip) -> Array[Vector3]:
 	if grip.is_two_hand():
 		var c: Vector3 = (hands[1] as Dictionary).get(&"centre", Vector3.ZERO)
 		left = grip.support_world() - DotViewHandPoses.frame(hands[1], forward, up) * (Vector3(-c.x, c.y, c.z) * s)
-	return [right, left]
+	return _kept_deep([right, left])
+
+
+## [param targets] with each finite one closer to the eye than [member hand_min_depth] moved out along the view's forward to it.
+func _kept_deep(targets: Array[Vector3]) -> Array[Vector3]:
+	if hand_min_depth <= 0.0:
+		return targets
+	var to_local := global_transform.affine_inverse()
+	var ahead := -global_transform.basis.z.normalized()
+	for i in targets.size():
+		var p := targets[i]
+		if not p.is_finite():
+			continue
+		var depth := -(to_local * p).z
+		if depth < hand_min_depth:
+			targets[i] = p + ahead * (hand_min_depth - depth)
+	return targets
 
 
 ## Seats the real hands on the solved wrists and closes their fingers; hides them when they are not drawn.

@@ -48,6 +48,22 @@ func run() -> void:
 	var held := hands[0].global_transform * (firing[&"centre"] as Vector3)
 	suite._check(held.distance_to(rifle.grip_world()) < 0.01, "the grip point is inside the firing hand (%.3f m off)" % held.distance_to(rifle.grip_world()))
 
+	var near := Node3D.new()
+	suite.add_child(near)
+	near.position = Vector3(0.06, -0.12, -0.08)
+	var pulled := DotViewGrip.two_hand(near, grip, Vector3(0.0, -0.05, 0.02))
+	var to_arms := arms.global_transform.affine_inverse()
+	var raw: float = minf(-(to_arms * arms.wrist_targets(pulled)[0]).z, -(to_arms * arms.wrist_targets(pulled)[1]).z)
+	arms.hand_min_depth = 0.1
+	arms.set_held(pulled)
+	await _settle(arms, 8)
+	var kept: float = minf(-(to_arms * arms.wrist_targets(pulled)[0]).z, -(to_arms * arms.wrist_targets(pulled)[1]).z)
+	suite._check(raw < 0.1 and kept > 0.099 and arms.hand_error(pulled) < 0.03, "hand_min_depth slides a gun pulled to the eye's hands out past it (%.3f m to %.3f m, hands %.3f m off)" % [raw, kept, arms.hand_error(pulled)])
+	arms.hand_min_depth = -1.0
+	suite._check(is_equal_approx(arms.hand_min_depth, 0.1), "a negative hand_min_depth is refused (kept %.2f)" % arms.hand_min_depth)
+	arms.hand_min_depth = 0.0
+	near.queue_free()
+
 	var worst := 0.0
 	var named := ""
 	for kind: StringName in [DotViewHandPoses.PISTOL, DotViewHandPoses.SHOTGUN, DotViewHandPoses.LAUNCHER, DotViewHandPoses.SNIPER,
