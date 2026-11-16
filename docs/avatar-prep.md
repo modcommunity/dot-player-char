@@ -65,6 +65,8 @@ Roles come from bone names (`LeftArm`..., `Head`, rest torso) via each vertex's 
 
 Two config keys came out of the LOD1/2 check: `covered` cuts the skin faces a clothing shell hides before decimation (the military pants and SWAT suit no longer show the legs through at LOD1/2), and `shares` gives a material a fixed part of the budget (SWAT's 38k-triangle helmet took three quarters of LOD2 and left the limbs as slivers; LOD2 is now 1,200).
 
+The config's `forearm` (forearm length over upper-arm length; absent or 0 keeps the model's arm) makes `kit_rig.py` slide each hand, and the far part of its forearm, along the forearm until the arm has that ratio; the report gives the result as `forearm_left` / `forearm_right`. SWAT needs it: its wrist joint sits at the long gloves' cuffs, so its forearm was 0.87 of the upper arm (kit 1.39, military 1.34). The first-person arm then reached a rifle grip only near full stretch, where the two-bone elbow moves a lot for a small hand move: the right elbow popped into view by 0.06 m on idle and walk. `swat.json` sets 1.35.
+
 A game registers the result at run time with `DotHumanoidAssets.register_body(id, path)` (docs/people.md, "A game's own body"); the GLB stays in the game's private assets and is read from outside the project.
 
 ## Team colours

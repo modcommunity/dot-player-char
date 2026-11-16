@@ -1,6 +1,6 @@
 {"name": "swat", "height": 1.8, "small": 1500, "jpeg_quality": 85,
  "drop_materials": ["KSVR", "Eyelashes.001"],
- "atlas_cells": {"Body.001": 512, "HeadGear.001": 512},
+ "forearm": 1.35, "atlas_cells": {"Body.001": 512, "HeadGear.001": 512},
  "covered": {"under": ["Body.001"], "reach": 0.04}, "shares": {"HeadGear.001": 0.3},
  "lods": [
   {"name": "lod0", "tris": 10000, "skeleton": "fingers", "atlas": 1024, "arms": true},

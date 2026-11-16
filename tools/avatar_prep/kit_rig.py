@@ -1,6 +1,6 @@
 """Re-rigs prepped Mixamo-named LODs onto the people kit skeleton, as one GLB with all LOD meshes.
 
-    blender -b --factory-startup --python tools/avatar_prep/kit_rig.py -- <kit body.glb> <out dir> <name>
+    blender -b --factory-startup --python tools/avatar_prep/kit_rig.py -- <kit body.glb> <out dir> <name> [prep config.json]
 
 Reads `<out dir>/<name>_lod0..2.glb` (from prep_avatar.py) and writes `<name>_kit.glb` and
 `<name>_kit.webp.glb`: one skeleton with the kit's bone names, hierarchy, rest directions and
@@ -13,6 +13,10 @@ own view and the gib roles then work on the avatar unchanged (docs/avatar-prep.m
   A-pose arms go up to the kit T-pose) and bakes that pose into the meshes; feet keep their
   world orientation so the soles stay flat. Spine, shoulders and hands are not bent: the kit's
   bone directions there do not follow its mesh.
+- With the prep config's `forearm` (forearm over upper-arm length; absent or 0 keeps the arm as
+  modelled), slides each hand and the far part of its forearm along the forearm to that ratio. SWAT's
+  wrist joint sits at its long gloves' cuffs, so its forearm was 0.87 of the upper arm (kit 1.39,
+  military 1.34): the first-person arm worked near full stretch, where the elbow pops between frames.
 - Puts each kit bone at the matching joint with the kit bone's orientation, and remaps the vertex
   groups (MIX_TO_KIT). An unmapped group is an error, not a silent drop.
 """
@@ -20,6 +24,10 @@ import bpy, sys, os, json, mathutils, collections
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 kit_path, out, name = argv[0], argv[1], argv[2]
+CFG = json.load(open(argv[3])) if len(argv) > 3 else {}
+FOREARM = float(CFG.get("forearm", 0.0))
+if FOREARM < 0.0:
+	raise RuntimeError("forearm ratio %s is negative" % FOREARM)
 LODS = ("lod0", "lod1", "lod2")
 SIDES = (("Left", "L"), ("Right", "R"))
 # Kit bone -> Mixamo joint whose head it sits on (None: placed from the kit, never skinned).
@@ -109,6 +117,35 @@ def bake(arm, mesh):
 	mesh.data.transform(mesh.matrix_world)
 	mesh.parent = None
 	mesh.matrix_world = mathutils.Matrix.Identity(4)
+
+
+def forearm_shift(joints):
+	"""Per side: the move that puts the wrist FOREARM x the upper arm from the elbow, the elbow, the forearm."""
+	shift = {}
+	for mix, _kit in SIDES:
+		shoulder, elbow, wrist = joints[mix + "Arm"], joints[mix + "ForeArm"], joints[mix + "Hand"]
+		fore = wrist - elbow
+		shift[mix] = (fore.normalized() * (FOREARM * (elbow - shoulder).length - fore.length), elbow, fore)
+	return shift
+
+
+def stretch_forearms(mesh, shift):
+	"""Moves hand-bound weight by the side's shift and forearm-bound weight by its share along the forearm."""
+	idx = {vg.index: vg.name for vg in mesh.vertex_groups}
+	for v in mesh.data.vertices:
+		total = sum(g.weight for g in v.groups)
+		if total <= 0.0:
+			continue
+		move = mathutils.Vector()
+		for g in v.groups:
+			n = idx[g.group]
+			for mix, (d, elbow, fore) in shift.items():
+				if n.startswith(mix + "Hand"):
+					move += d * g.weight
+				elif n == mix + "ForeArm":
+					t = min(max((v.co - elbow).dot(fore) / fore.length_squared, 0.0), 1.0)
+					move += d * (g.weight * t)
+		v.co += move / total
 
 
 def remap_groups(mesh):
@@ -203,16 +240,24 @@ for lod in LODS:
 	posed = bend_to_kit(arm, kit_dir)
 	if joints is None:
 		joints = posed
+		shift = forearm_shift(joints) if FOREARM > 0.0 else {}
 	else:
 		drift = max((posed[n] - joints[n]).length for n in posed if n in joints)
 		if drift > 0.005:
 			raise RuntimeError("%s joints differ from lod0 by %.4f m" % (lod, drift))
 	bake(arm, mesh)
 	bpy.data.objects.remove(arm, do_unlink=True)
+	stretch_forearms(mesh, shift)
 	remap_groups(mesh)
 	mesh.name = mesh.data.name = lod.upper()
 	meshes.append(mesh)
 
+for mix, (d, _elbow, _fore) in shift.items():
+	for n in list(joints):
+		if n.startswith(mix + "Hand"):
+			joints[n] = joints[n] + d
+	report["forearm_" + mix.lower()] = round((joints[mix + "Hand"] - joints[mix + "ForeArm"]).length
+		/ (joints[mix + "ForeArm"] - joints[mix + "Arm"]).length, 3)
 kit_leg = (kit_by["UpperLeg.L"]["head"] - kit_by["Foot.L"]["head"]).length
 leg = (joints["LeftUpLeg"] - joints["LeftFoot"]).length
 s = kit_leg / leg
