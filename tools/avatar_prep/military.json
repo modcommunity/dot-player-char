@@ -1,0 +1,7 @@
+{"name": "military", "height": 1.8, "small": 1500, "jpeg_quality": 85,
+ "drop_materials": ["eyebrow009"],
+ "atlas_cells": {"player_soldier": 512, "tactical_vest_male": 512, "harvey_pantsbootsv1": 512, "knitted_hat_01": 256, "low-poly": 256},
+ "lods": [
+  {"name": "lod0", "tris": 10000, "skeleton": "fingers", "atlas": 1024, "arms": true},
+  {"name": "lod1", "tris": 3000, "skeleton": "core", "atlas": 1024},
+  {"name": "lod2", "tris": 800, "skeleton": "core", "atlas": 1024}]}

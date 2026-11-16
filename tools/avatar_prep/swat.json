@@ -1,0 +1,7 @@
+{"name": "swat", "height": 1.8, "small": 1500, "jpeg_quality": 85,
+ "drop_materials": ["KSVR", "Eyelashes.001"],
+ "atlas_cells": {"Body.001": 512, "HeadGear.001": 512},
+ "lods": [
+  {"name": "lod0", "tris": 10000, "skeleton": "fingers", "atlas": 1024, "arms": true},
+  {"name": "lod1", "tris": 3000, "skeleton": "core", "atlas": 1024},
+  {"name": "lod2", "tris": 800, "skeleton": "core", "atlas": 1024}]}

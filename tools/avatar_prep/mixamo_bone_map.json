@@ -1,0 +1,189 @@
+{
+ "_note": "Canonical Mixamo bone (no mixamorig: prefix, no _N suffix; tools/avatar_prep renames to these) to the UAL bone and the FC kit bone, from tools/ual_retarget.gd MAP. 'kit' null = no kit bone (the kit hangs feet off the root and has no toes). Finger joints Thumb4/Index4/Middle4/Pinky4 and the whole Ring chain are dropped from LOD0; every finger is dropped from LOD1/2.",
+ "bones": {
+  "Hips": {
+   "ual": "pelvis",
+   "kit": "Body"
+  },
+  "Spine": {
+   "ual": "spine_01",
+   "kit": "Hips"
+  },
+  "Spine1": {
+   "ual": "spine_02",
+   "kit": "Abdomen"
+  },
+  "Spine2": {
+   "ual": "spine_03",
+   "kit": "Torso"
+  },
+  "Neck": {
+   "ual": "neck_01",
+   "kit": "Neck"
+  },
+  "Head": {
+   "ual": "Head",
+   "kit": "Head"
+  },
+  "LeftShoulder": {
+   "ual": "clavicle_l",
+   "kit": "Shoulder.L"
+  },
+  "LeftArm": {
+   "ual": "upperarm_l",
+   "kit": "UpperArm.L"
+  },
+  "LeftForeArm": {
+   "ual": "lowerarm_l",
+   "kit": "LowerArm.L"
+  },
+  "LeftHand": {
+   "ual": "hand_l",
+   "kit": "Middle1.L"
+  },
+  "LeftHandThumb1": {
+   "ual": "thumb_01_l",
+   "kit": "Thumb1.L"
+  },
+  "LeftHandThumb2": {
+   "ual": "thumb_02_l",
+   "kit": "Thumb2.L"
+  },
+  "LeftHandThumb3": {
+   "ual": "thumb_03_l",
+   "kit": "Thumb3.L"
+  },
+  "LeftHandIndex1": {
+   "ual": "index_01_l",
+   "kit": "Index1.L"
+  },
+  "LeftHandIndex2": {
+   "ual": "index_02_l",
+   "kit": "Index2.L"
+  },
+  "LeftHandIndex3": {
+   "ual": "index_03_l",
+   "kit": "Index3.L"
+  },
+  "LeftHandMiddle1": {
+   "ual": "middle_01_l",
+   "kit": "Middle1.L"
+  },
+  "LeftHandMiddle2": {
+   "ual": "middle_02_l",
+   "kit": "Middle2.L"
+  },
+  "LeftHandMiddle3": {
+   "ual": "middle_03_l",
+   "kit": "Middle3.L"
+  },
+  "LeftHandPinky1": {
+   "ual": "pinky_01_l",
+   "kit": "Pinky1.L"
+  },
+  "LeftHandPinky2": {
+   "ual": "pinky_02_l",
+   "kit": "Pinky2.L"
+  },
+  "LeftHandPinky3": {
+   "ual": "pinky_03_l",
+   "kit": "Pinky3.L"
+  },
+  "LeftUpLeg": {
+   "ual": "thigh_l",
+   "kit": "UpperLeg.L"
+  },
+  "LeftLeg": {
+   "ual": "calf_l",
+   "kit": "LowerLeg.L"
+  },
+  "LeftFoot": {
+   "ual": "foot_l",
+   "kit": "Foot.L"
+  },
+  "LeftToeBase": {
+   "ual": "ball_l",
+   "kit": null
+  },
+  "RightShoulder": {
+   "ual": "clavicle_r",
+   "kit": "Shoulder.R"
+  },
+  "RightArm": {
+   "ual": "upperarm_r",
+   "kit": "UpperArm.R"
+  },
+  "RightForeArm": {
+   "ual": "lowerarm_r",
+   "kit": "LowerArm.R"
+  },
+  "RightHand": {
+   "ual": "hand_r",
+   "kit": "Middle1.R"
+  },
+  "RightHandThumb1": {
+   "ual": "thumb_01_r",
+   "kit": "Thumb1.R"
+  },
+  "RightHandThumb2": {
+   "ual": "thumb_02_r",
+   "kit": "Thumb2.R"
+  },
+  "RightHandThumb3": {
+   "ual": "thumb_03_r",
+   "kit": "Thumb3.R"
+  },
+  "RightHandIndex1": {
+   "ual": "index_01_r",
+   "kit": "Index1.R"
+  },
+  "RightHandIndex2": {
+   "ual": "index_02_r",
+   "kit": "Index2.R"
+  },
+  "RightHandIndex3": {
+   "ual": "index_03_r",
+   "kit": "Index3.R"
+  },
+  "RightHandMiddle1": {
+   "ual": "middle_01_r",
+   "kit": "Middle1.R"
+  },
+  "RightHandMiddle2": {
+   "ual": "middle_02_r",
+   "kit": "Middle2.R"
+  },
+  "RightHandMiddle3": {
+   "ual": "middle_03_r",
+   "kit": "Middle3.R"
+  },
+  "RightHandPinky1": {
+   "ual": "pinky_01_r",
+   "kit": "Pinky1.R"
+  },
+  "RightHandPinky2": {
+   "ual": "pinky_02_r",
+   "kit": "Pinky2.R"
+  },
+  "RightHandPinky3": {
+   "ual": "pinky_03_r",
+   "kit": "Pinky3.R"
+  },
+  "RightUpLeg": {
+   "ual": "thigh_r",
+   "kit": "UpperLeg.R"
+  },
+  "RightLeg": {
+   "ual": "calf_r",
+   "kit": "LowerLeg.R"
+  },
+  "RightFoot": {
+   "ual": "foot_r",
+   "kit": "Foot.R"
+  },
+  "RightToeBase": {
+   "ual": "ball_r",
+   "kit": null
+  }
+ }
+}
