@@ -12,6 +12,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | --- | --- |
 | [docs/design.md](docs/design.md) | anything: the one height, ids-only validation, the seams, the rebuild signature, seating a visual, breaking a body, the smaller traps, what is not here |
 | [docs/people.md](docs/people.md) | drawing a player, bot or NPC as a person: why this kit, colour looks, the site avatar, retargeting and the made clips, overlays, the mirrored (right) gun hand, aiming, sitting and climbing, the crown mount, cost |
+| [docs/gibbable-avatars.md](docs/gibbable-avatars.md) | what an imported avatar must supply to be gibbed, how gibbing works today (player vs NPC), and the auto-gib plan |
 | [docs/ragdolls.md](docs/ragdolls.md) | dead bodies: the styles, the reaction rule, what travels with a kill, the cvars, the joint and fade traps, the skinned path |
 | [docs/history.md](docs/history.md) | the four-addon merge, and the bodies that all stood at the origin |
 
