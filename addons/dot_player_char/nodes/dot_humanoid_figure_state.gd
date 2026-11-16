@@ -13,7 +13,7 @@ const ANIM_FAR := 45.0
 ## recording see the pose. Hit zones are not bones, so they never lag.
 const OFFSCREEN_STEP := 2
 
-## Frames apart a figure is posed when nothing of it is drawn: hidden, or out of view past [constant SHADOW_RANGE]
+## Frames apart a figure is posed when nothing of it is drawn: hidden, or out of view past [member shadow_range]
 ## (no shadow either). It is redrawn the frame it comes back into view.
 const UNSEEN_STEP := 8
 
@@ -41,6 +41,39 @@ const SHADOW_RANGE := 28.0
 
 ## Nothing drawn past this.
 const DRAW_RANGE := 140.0
+
+## The ranges a client uses, defaulting to the constants above and read live (a game binds its cvars to them). 0 is
+## no limit. A negative, infinite or NaN value is refused with an error and the last good value kept, never clamped.
+## Past [member shadow_range] a figure casts no shadow (0: at every distance).
+static var shadow_range: float = SHADOW_RANGE:
+	set(value):
+		if _range_ok("shadow_range", value):
+			shadow_range = value
+## Past [member draw_range] a figure is not drawn (0: drawn at every distance).
+static var draw_range: float = DRAW_RANGE:
+	set(value):
+		if _range_ok("draw_range", value):
+			draw_range = value
+## Past [member lift_range] from the camera, or out of its view, a figure stands on the floor under it only on the
+## frames its clip steps, not on every frame between (one floor ray each). 0: every frame at every distance.
+static var lift_range: float = 0.0:
+	set(value):
+		if _range_ok("lift_range", value):
+			lift_range = value
+## The mesh's [member GeometryInstance3D.lod_bias]; under 1 its simpler levels come sooner. Must be above 0.
+static var lod_bias: float = LOD_BIAS:
+	set(value):
+		if is_finite(value) and value > 0.0:
+			lod_bias = value
+		else:
+			push_error("DotHumanoidFigure.lod_bias must be a finite number above 0, got %s" % value)
+
+
+static func _range_ok(what: String, value: float) -> bool:
+	if is_finite(value) and value >= 0.0:
+		return true
+	push_error("DotHumanoidFigure.%s must be a finite number of metres, 0 or more (0: no limit), got %s" % [what, value])
+	return false
 
 ## How long an overlay blends in and out, in seconds.
 const BLEND_IN := 0.08
@@ -244,6 +277,9 @@ var floor_reach: float = 0.45
 ## How far the body is drawn above its origin now to stand on the floor under it, metres.
 var floor_lift: float = 0.0
 var _lift_at := Vector3.INF
+## The camera distance and whether it may be in view at the last clip step, for [member lift_range].
+var _step_distance := 0.0
+var _step_seen := true
 var _lift_allowed := false
 var _lift_mask := -1
 var _lift_reach := -1.0

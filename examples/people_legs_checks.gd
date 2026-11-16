@@ -21,6 +21,7 @@ func run() -> void:
 	await _check_floor()
 	await _check_floor_lift()
 	await _check_far_skip()
+	await _check_ranges()
 	await _check_offscreen()
 	await _check_layers()
 	await _check_wall()
@@ -151,6 +152,61 @@ func _check_far_skip() -> void:
 			break
 	suite._check(not sk.get_bone_pose_rotation(root).is_equal_approx(root_was), "a turn that changes on a skipped frame is redrawn")
 	g.queue_free()
+	cam.queue_free()
+	await suite.get_tree().process_frame
+
+
+## The client's ranges are read live by figures already built, and past [member DotHumanoidFigure.lift_range] a moved
+## body stands on the floor only on the frames its clip steps (0, the default, lifts it every frame).
+func _check_ranges() -> void:
+	var cam := Camera3D.new()
+	suite.add_child(cam)
+	cam.position = Vector3(0, 1.6, 60.0)
+	cam.make_current()
+	var step := StaticBody3D.new()
+	var box := CollisionShape3D.new()
+	box.shape = BoxShape3D.new()
+	(box.shape as BoxShape3D).size = Vector3(4.0, 0.3, 4.0)
+	step.add_child(box)
+	suite.add_child(step)
+	step.position = Vector3(0.0, 0.15, 0.0)
+	var g := _figure()
+	g.global_position = Vector3(0.0, 0.1, 0.0)
+	await suite.get_tree().physics_frame
+	await suite.get_tree().physics_frame
+	var mesh := g.mesh()
+	g.animate(0.0, DT)
+	var defaults := mesh.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and mesh.visibility_range_end == DotHumanoidFigure.DRAW_RANGE
+	DotHumanoidFigure.shadow_range = 0.0
+	DotHumanoidFigure.draw_range = 50.0
+	DotHumanoidFigure.lod_bias = 0.2
+	g.animate(0.0, DT)
+	suite._check(defaults and mesh.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON and mesh.visibility_range_end == 50.0 \
+			and is_equal_approx(mesh.lod_bias, 0.2),
+		"ranges: at 60 m no shadow by default; shadow_range 0 casts one, draw_range and lod_bias reach the built mesh")
+	DotHumanoidFigure.shadow_range = DotHumanoidFigure.SHADOW_RANGE
+	DotHumanoidFigure.draw_range = DotHumanoidFigure.DRAW_RANGE
+	DotHumanoidFigure.lod_bias = DotHumanoidFigure.LOD_BIAS
+	DotHumanoidFigure.lift_range = 20.0
+	for i in 4:
+		g.animate(0.0, DT)
+	var first := g.floor_lift
+	g.global_position = Vector3(0.0, -0.1, 0.0)
+	await suite.get_tree().process_frame
+	await suite.get_tree().process_frame
+	var held := g.floor_lift
+	for i in 4:
+		g.animate(0.0, DT)
+	var stepped := g.floor_lift
+	DotHumanoidFigure.lift_range = 0.0
+	g.global_position = Vector3(0.0, 0.0, 0.0)
+	await suite.get_tree().process_frame
+	await suite.get_tree().process_frame
+	suite._check(is_equal_approx(snappedf(first, 0.001), 0.2) and held == first and is_equal_approx(snappedf(stepped, 0.001), 0.4) \
+			and is_equal_approx(snappedf(g.floor_lift, 0.001), 0.3),
+		"lift_range 20 at 60 m: the lift waits for a clip step (%.3f, held %.3f, stepped %.3f); 0 follows every frame (%.3f)" % [first, held, stepped, g.floor_lift])
+	g.queue_free()
+	step.queue_free()
 	cam.queue_free()
 	await suite.get_tree().process_frame
 

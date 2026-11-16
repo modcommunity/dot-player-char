@@ -61,8 +61,8 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 
 	if _mesh != null:
 		_mesh.material_override = material_for(look)
-		_mesh.lod_bias = LOD_BIAS
-		_mesh.visibility_range_end = DRAW_RANGE
+		_mesh.lod_bias = lod_bias
+		_mesh.visibility_range_end = draw_range
 
 	# The kit faces +Z and this family's forward is -Z; scaled to the height asked for, measured
 	# from the mesh rather than assumed.
@@ -122,7 +122,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if not auto_animate or delta <= 0.0:
-		if global_position != _lift_at:
+		if global_position != _lift_at and _lifts_between_steps():
 			_lift_body()
 		return
 	# Measured over at least AUTO_WINDOW, not frame to frame: a body carried in physics ticks or snapshots stands still on the frames between, and a per-frame measure flips the clip
@@ -226,13 +226,15 @@ func _animate_step(speed: float, p_delta: float) -> void:
 		_frame += 1
 		var was_step := anim_step
 		anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
+		_step_distance = DotHumanoidFrames.last_distance
+		_step_seen = DotHumanoidFrames.last_seen
 		if not _details.is_empty():
 			_pick_detail(DotHumanoidFrames.last_distance)
 		# A figure coming into view (or nearer) is redrawn at once, not up to seven frames later.
 		if _frame % anim_step != 0 and anim_step >= was_step:
 			_owed += p_delta
 			# The drawn origin still moves between drawn frames: the body follows the floor under it.
-			if not is_inside_tree() or global_position != _lift_at:
+			if not is_inside_tree() or (global_position != _lift_at and _lifts_between_steps()):
 				_lift_body()
 			return
 	var delta := p_delta + _owed
@@ -290,6 +292,12 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	_apply_floor(seen)
 	_own.cap_colour = look.top
 	_own.apply(_skeleton, _mesh)
+
+
+## Whether the body follows the floor on a frame its clip does not step: always near and in view; past [member lift_range]
+## or out of view it waits for the next step (a few dozen pixels a frame or two above a stair's riser is not seen).
+func _lifts_between_steps() -> bool:
+	return lift_range <= 0.0 or (_step_seen and _step_distance <= lift_range)
 
 
 ## Stands the drawn body on the floor its origin is drawn inside ([member floor_mask]). Whatever the clip: a body interpolated across a riser is often drawn mid-hop (its drawn state is in the air) while its sim stands on the tread.

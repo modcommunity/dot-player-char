@@ -94,7 +94,7 @@ static var last_seen := true
 
 ## How many frames apart a figure's clip is advanced at its distance from the camera, doubled out of view
 ## ([constant DotHumanoidFigure.OFFSCREEN_STEP]), and [constant DotHumanoidFigure.UNSEEN_STEP] when nothing of it is
-## drawn (hidden, or out of view past its shadow's range); also sets its shadow.
+## drawn (hidden, or out of view past its shadow's range); also sets its shadow, draw range and LOD bias.
 static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
 	last_distance = 0.0
 	last_seen = true
@@ -106,17 +106,24 @@ static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
 	var at := placed.origin
 	var eye := camera.global_transform
 	var d := eye.origin.distance_to(at)
+	var shadow_range := DotHumanoidFigure.shadow_range
+	var shadowed := shadow_range <= 0.0 or d <= shadow_range
 	if mesh != null:
-		var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if d <= DotHumanoidFigure.SHADOW_RANGE else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadowed else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY and mesh.cast_shadow != shadow:
 			mesh.cast_shadow = shadow
+		# Read live, so a client's cvar reaches the figures already built.
+		if mesh.visibility_range_end != DotHumanoidFigure.draw_range:
+			mesh.visibility_range_end = DotHumanoidFigure.draw_range
+		if mesh.lod_bias != DotHumanoidFigure.lod_bias:
+			mesh.lod_bias = DotHumanoidFigure.lod_bias
 	var step := 1 if d <= DotHumanoidFigure.ANIM_NEAR else (2 if d <= DotHumanoidFigure.ANIM_FAR else 4)
 	var tall := (figure as DotHumanoidFigure).height if figure is DotHumanoidFigure else 1.8
 	last_distance = d
 	var shown := figure.is_visible_in_tree()
 	last_seen = shown and _in_cone(camera, eye, at + placed.basis.y.normalized() * tall * 0.5, tall)
 	if not last_seen:
-		step = DotHumanoidFigure.UNSEEN_STEP if not shown or d > DotHumanoidFigure.SHADOW_RANGE else step * DotHumanoidFigure.OFFSCREEN_STEP
+		step = DotHumanoidFigure.UNSEEN_STEP if not shown or not shadowed else step * DotHumanoidFigure.OFFSCREEN_STEP
 	return step
 
 
