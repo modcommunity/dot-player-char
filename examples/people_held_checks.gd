@@ -14,6 +14,8 @@ func _init(host: Node) -> void:
 func run_arms() -> void:
 	suite._section("your own arms holding a weapon")
 	var arms := DotPlayerViewArms.new()
+	# These checks place the kit's own hands by palm_offset; the real hands' seats are checked in people_hand_checks.
+	arms.real_hands = false
 	suite.add_child(arms)
 	var weapon := Node3D.new()
 	suite.add_child(weapon)
@@ -63,7 +65,8 @@ func run_arms() -> void:
 	arms.tick(0.0, 1.0 / 30.0)
 	var rest_left := _bone_world(sk, "Middle1.L")
 	suite._check(rest_left.distance_to(weapon.to_global(fore)) > 0.1, "a one-hand grip leaves the other hand off the foregrip (%.2f m away)" % rest_left.distance_to(weapon.to_global(fore)))
-	suite._check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x < 0.01, "a one-hand grip hides the idle left arm")
+	# Hidden by drawing the arms mesh without it (a shrunk bone smeared a skin wedge), or by the shrunk bone on a factory figure.
+	suite._check(not arms.describe()["left_arm"], "a one-hand grip hides the idle left arm")
 	arms.show_idle_left_arm = true
 	arms.tick(0.0, 1.0 / 30.0)
 	suite._check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x > 0.5, "show_idle_left_arm keeps it")

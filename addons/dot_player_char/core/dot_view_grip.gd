@@ -12,6 +12,12 @@ var support: Vector3 = Vector3.INF
 ## The weapon's box in [member anchor]'s space, which the arms keep their elbows and forearms out of. Left empty, it
 ## is measured once from the visible meshes at and under the anchor (not particles or lights); a marker anchor with no mesh under it gets no clearance.
 var bounds: AABB = AABB()
+## What kind of weapon it is, the key into [member DotPlayerViewArms.hand_poses] ([DotViewHandPoses]: rifle, pistol,
+## shotgun, launcher, sniper, grenade, knife, fists); an unknown kind is held as a rifle.
+var kind: StringName = &"rifle"
+## The weapon's forward (toward the muzzle) and up in [member anchor]'s space, which the hands close round.
+var forward: Vector3 = Vector3.FORWARD
+var up: Vector3 = Vector3.UP
 var _measured := false
 
 
@@ -45,6 +51,14 @@ func grip_world() -> Vector3:
 
 func support_world() -> Vector3:
 	return anchor.global_transform * support
+
+
+func forward_world() -> Vector3:
+	return (anchor.global_transform.basis * forward).normalized()
+
+
+func up_world() -> Vector3:
+	return (anchor.global_transform.basis * up).normalized()
 
 
 ## [member bounds], measured on first use when the host did not set it; empty when there is nothing to measure.

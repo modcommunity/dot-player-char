@@ -100,7 +100,7 @@ func _view_run() -> void:
 	arms.tick(0.0, 1.0 / 30.0)
 	var sk: Skeleton3D = (arms.arms() as DotHumanoidFigure).skeleton()
 	var upper := sk.find_bone("UpperArm.L")
-	suite._check(sk.get_bone_pose_scale(upper).x < 0.01, "in your view the free arm is hidden while not sprinting")
+	suite._check(not arms.describe()["left_arm"], "in your view the free arm is hidden while not sprinting")
 	arms.run = 1.0
 	var fists: Array[Vector3] = []
 	var finite := true

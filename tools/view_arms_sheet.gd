@@ -3,6 +3,8 @@ extends SceneTree
 ## The downed first-person arms as the player sees them: crawl, six moments, looking 15 and 80 degrees down.
 ##   xvfb-run -a godot --path . --script tools/view_arms_sheet.gd -- [--out=res://screenshots] [--off=x,y,z (the eye in the figure's frame)]
 ##   --look=body,skin,hair,top,bottom (hex colours; solid colours show unclaimed swatches); a game's own body needs --register=id:path before it. --held (with --left to keep the idle left arm): held-weapon mode: rows one-hand / two-hand / side / looking 60 down, columns idle then walking.
+##   --hands: the real hands' grips, a row per weapon kind (--kinds=rifle,pistol,... to pick), columns the player's view, then close-ups
+##   from the right, the left and below; --mitts draws the old mitts instead, for a before/after.
 
 const CELL := Vector2i(400, 260)
 const MOMENTS := 6
@@ -12,6 +14,9 @@ var _off := Vector3.INF
 var _side := false
 var _held := false
 var _left := false
+var _hands := false
+var _mitts := false
+var _kinds: PackedStringArray = ["rifle", "pistol", "shotgun", "launcher", "sniper", "grenade", "knife", "knife_throw"]
 var _look: DotHumanoidLook = null
 
 
@@ -26,6 +31,12 @@ func _initialize() -> void:
 			_held = true
 		elif arg == "--left":
 			_left = true
+		elif arg == "--hands":
+			_hands = true
+		elif arg == "--mitts":
+			_mitts = true
+		elif arg.begins_with("--kinds="):
+			_kinds = arg.trim_prefix("--kinds=").split(",")
 		elif arg.begins_with("--look="):
 			var f := arg.trim_prefix("--look=").split(",")
 			_look = DotHumanoidLook.make(StringName(f[0]), Color(f[1]), Color(f[2]), Color(f[3]), Color(f[4]))
@@ -69,6 +80,9 @@ func _run() -> void:
 	cam.current = true
 	cam.rotation_degrees.x = -15.0
 	world.add_child(cam)
+	if _hands:
+		await _hands_sheet(sub, world, cam)
+		return
 	if _held:
 		await _held_sheet(sub, world, cam)
 		return
@@ -177,6 +191,116 @@ func _held_sheet(sub: SubViewport, world: Node3D, cam: Camera3D) -> void:
 			img.convert(Image.FORMAT_RGBA8)
 			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
 	var path := ProjectSettings.globalize_path("%s/view_arms_held.png" % _out)
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	print("SHEET ", path, " ", sheet.save_png(path))
+	quit()
+
+
+## A stand-in weapon for [param kind] under [param parent]: its body and where the hands go (grip, support or INF).
+func _stand_in(parent: Node3D, kind: String) -> Array:
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color("2a2a2a")
+	var parts: Array = []  # [size, position]
+	var grip := Vector3(0.0, -0.075, 0.1)
+	var support := Vector3(0.0, -0.035, -0.12)
+	match kind:
+		"pistol":
+			parts = [[Vector3(0.035, 0.035, 0.2), Vector3(0, 0, -0.04)], [Vector3(0.03, 0.11, 0.045), Vector3(0, -0.06, 0.04)]]
+			grip = Vector3(0.0, -0.07, 0.045)
+			support = Vector3.INF
+		"grenade":
+			var ball := MeshInstance3D.new()
+			var sp := SphereMesh.new()
+			sp.radius = 0.035
+			sp.height = 0.075
+			ball.mesh = sp
+			ball.material_override = wm
+			parent.add_child(ball)
+			return [Vector3.ZERO, Vector3.INF]
+		"knife", "knife_throw":
+			parts = [[Vector3(0.02, 0.11, 0.028), Vector3(0, 0, 0)], [Vector3(0.006, 0.16, 0.03), Vector3(0, 0.135, 0.004)]]
+			grip = Vector3(0.0, 0.0, 0.0)
+			support = Vector3.INF
+		"launcher":
+			parts = [[Vector3(0.11, 0.11, 0.8), Vector3(0, 0.05, -0.15)], [Vector3(0.03, 0.1, 0.04), Vector3(0, -0.06, 0.08)], [Vector3(0.03, 0.1, 0.04), Vector3(0, -0.06, -0.2)]]
+			grip = Vector3(0.0, -0.08, 0.08)
+			support = Vector3(0.0, -0.08, -0.2)
+		"sniper":
+			parts = [[Vector3(0.05, 0.07, 0.9), Vector3(0, 0, -0.2)], [Vector3(0.03, 0.09, 0.045), Vector3(0, -0.06, 0.1)]]
+			support = Vector3(0.0, -0.04, -0.24)
+		"shotgun":
+			parts = [[Vector3(0.045, 0.06, 0.7), Vector3(0, 0, -0.15)], [Vector3(0.03, 0.09, 0.045), Vector3(0, -0.06, 0.1)], [Vector3(0.05, 0.05, 0.14), Vector3(0, -0.04, -0.16)]]
+			support = Vector3(0.0, -0.045, -0.16)
+		_:
+			parts = [[Vector3(0.05, 0.08, 0.6), Vector3(0, 0, -0.1)], [Vector3(0.03, 0.09, 0.045), Vector3(0, -0.06, 0.1)], [Vector3(0.045, 0.045, 0.16), Vector3(0, -0.02, -0.13)]]
+	for part: Array in parts:
+		var m := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = part[0]
+		m.mesh = box
+		m.position = part[1]
+		m.material_override = wm
+		parent.add_child(m)
+	return [grip, support]
+
+
+func _hands_sheet(sub: SubViewport, world: Node3D, cam: Camera3D) -> void:
+	var pivot := Node3D.new()
+	world.add_child(pivot)
+	var arms := DotPlayerViewArms.new()
+	arms.real_hands = not _mitts
+	pivot.add_child(arms)
+	cam.get_parent().remove_child(cam)
+	pivot.add_child(cam)
+	cam.rotation_degrees.x = -5.0
+	arms.build(_look if _look != null else DotHumanoidLook.stock(7), 1.8)
+	var close := Camera3D.new()
+	close.fov = 40
+	pivot.add_child(close)
+	var sheet := Image.create(CELL.x * 4, CELL.y * _kinds.size(), false, Image.FORMAT_RGBA8)
+	for row in _kinds.size():
+		var kind := _kinds[row]
+		var weapon := Node3D.new()
+		cam.add_child(weapon)
+		var held_at := Vector3(0.08, -0.2, -0.4)
+		if kind in ["grenade", "knife", "knife_throw"]:
+			held_at = Vector3(0.14, -0.2, -0.38)
+		if kind in ["knife", "knife_throw"]:
+			weapon.rotation_degrees.x = -70.0 if kind == "knife" else 20.0
+		if kind == "pistol":
+			held_at = Vector3(0.0, -0.17, -0.42)
+		weapon.position = held_at
+		var points := _stand_in(weapon, kind)
+		var grip := DotViewGrip.one_hand(weapon, points[0]) if not (points[1] as Vector3).is_finite() else DotViewGrip.two_hand(weapon, points[0], points[1])
+		grip.kind = StringName("knife" if kind == "knife_throw" else kind)
+		if kind in ["knife", "knife_throw"]:
+			# The blade runs along the weapon's +Y; its forward is where the edge points.
+			grip.forward = Vector3(0, 1, 0)
+			grip.up = Vector3(0, 0, 1)
+		arms.throw_grip = 1.0 if kind == "knife_throw" else 0.0
+		arms.set_held(grip)
+		for _i in 12:
+			arms.tick(0.0, 1.0 / 30.0)
+			weapon.position = held_at + arms.sway()
+			await process_frame
+		var focus := weapon.global_transform * (grip.grip if not grip.is_two_hand() else (grip.grip + grip.support) * 0.5)
+		var views := [Vector3.ZERO, Vector3(0.45, 0.05, 0.0), Vector3(-0.45, 0.05, 0.0), Vector3(0.1, -0.4, 0.15)]
+		for col in 4:
+			cam.current = col == 0
+			close.current = col != 0
+			if col != 0:
+				close.global_position = focus + pivot.global_transform.basis * views[col]
+				close.look_at(focus, pivot.global_transform.basis.y if col != 3 else pivot.global_transform.basis * Vector3.FORWARD)
+			arms.tick(0.0, 1.0 / 30.0)
+			await process_frame
+			await RenderingServer.frame_post_draw
+			var img := sub.get_texture().get_image()
+			img.convert(Image.FORMAT_RGBA8)
+			sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, row * CELL.y))
+		print("HANDS ", kind, " error=", snappedf(arms.hand_error(grip), 0.001), " ", arms.describe())
+		cam.remove_child(weapon)
+		weapon.queue_free()
+	var path := ProjectSettings.globalize_path("%s/view_arms_hands%s.png" % [_out, "_mitts" if _mitts else ""])
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	print("SHEET ", path, " ", sheet.save_png(path))
 	quit()

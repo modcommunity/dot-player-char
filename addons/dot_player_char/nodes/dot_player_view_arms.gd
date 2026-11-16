@@ -12,6 +12,11 @@ const PACK_BONE := "Hips"
 const PACK_BEHIND := -0.3
 ## The finger roots, all at the wrist: scaling them shrinks the hand about the wrist, so the forearm and the reach are untouched.
 const FINGER_ROOTS: Array[String] = ["Pinky1", "Middle1", "Index1", "Thumb1"]
+## The support arm, dropped from the mesh drawn while a weapon is held one-handed (a second copy of the mesh, swapped in:
+## shrinking the bones instead pulled the sleeve into a flap at the screen's edge).
+const LEFT_ARM_BONES: Array[String] = ["Shoulder.L"]
+## A vertex carrying more than this weight on a dropped bone takes its triangles with it.
+const TOUCH_WEIGHT := 0.01
 
 ## Extension point: `func(look: DotHumanoidLook, height: float) -> Node3D`. The node it returns is parented here and
 ## drawn as is, in place of the person; if it has `set_motion` and `animate` (a [DotHumanoidFigure]) they are driven.
@@ -84,6 +89,24 @@ var forearm_scale: float = 1.0
 var palm_offset: Vector3 = Vector3(0.015, -0.01, 0.02)
 ## How far the shoulders may lean toward a firing-hand target out of the arm's reach, metres; past it the hand stays short.
 var max_lean: float = 0.4
+## Draw [DotViewHand]s, five jointed fingers closed on the weapon with a [DotViewHandPoses] grip, in place of the
+## kit's mitts while a weapon is held (false: the mitts and [member palm_offset], as before). Read by [method build].
+var real_hands: bool = true
+## The grips the real hands close into, by [member DotViewGrip.kind] ([method DotViewHandPoses.table]; edit or add kinds).
+var hand_poses: Dictionary = DotViewHandPoses.table()
+## The real hands' size against life size on the held arms (it follows [member held_scale] and [member hand_scale]
+## over the kit's 0.5, so a game's per-weapon hand size still applies).
+var hand_size: float = 1.0
+## How far a knife hand has gone from its fist toward the throw's pinch ([constant DotViewHandPoses.KNIFE_THROW]),
+## 0 to 1; the host sets it each frame from the throw's wind-back.
+var throw_grip: float = 0.0
+## How fast the fingers close into a new grip, per second; 0 closes them at once.
+var finger_rate: float = 14.0
+## Move the shoulder joint out toward a hand target the lean left out of the arm's reach (a long forend), so the hand
+## lands on it instead of short; false leaves the hand short (the old slide toward the firing hand still applies).
+var extend_reach: bool = true
+## The most [member extend_reach] moves a shoulder, in the figure's own metres; 0 is no limit.
+var reach_extend_max: float = 0.3
 ## Metres between the hand and its target after the last solve (firing hand, support hand); 0 when that hand is unused.
 var hand_gap_right: float = 0.0
 var hand_gap_left: float = 0.0
@@ -126,6 +149,16 @@ var _fore := 1.0
 var _leaned := Vector3.ZERO
 var _delta := 1.0 / 60.0
 var _was_holding := false
+## The real hands, firing (right) then support (left); empty with [member real_hands] off or a factory's arms.
+var _hands: Array[DotViewHand] = []
+## Upper-arm bones [method _extend] moved this tick, put back to their rest the next.
+var _extended: Array[int] = []
+## How far each shoulder was moved out last tick (firing, support), figure metres.
+var reach_extended_right: float = 0.0
+var reach_extended_left: float = 0.0
+## The figure's mesh with both arms and with the support arm dropped ([constant LEFT_ARM_BONES]).
+var _two_arm_mesh: Mesh = null
+var _one_arm_mesh: Mesh = null
 
 
 ## Builds the arms (once; a new [param p_look] rebuilds). Hidden until [method set_downed] says otherwise.
@@ -163,6 +196,8 @@ func build(p_look: DotHumanoidLook = null, p_height: float = 1.8) -> void:
 		if detailed and figure.mesh() != null:
 			figure.mesh().material_override = DotViewArmsMaterial.for_look(look)
 			_detail_on = true
+		if real_hands and skeleton != null and figure.mesh() != null:
+			_make_hands(figure)
 	else:
 		add_child(_arms)
 
@@ -181,6 +216,7 @@ func _strip_gear(figure: DotHumanoidFigure) -> void:
 
 	var old := instance.mesh
 	var out := ArrayMesh.new()
+	var one_arm := ArrayMesh.new()
 
 	for s in old.get_surface_count():
 		var arrays := old.surface_get_arrays(s)
@@ -218,10 +254,105 @@ func _strip_gear(figure: DotHumanoidFigure) -> void:
 		arrays[Mesh.ARRAY_CUSTOM0] = _rest_positions(verts)
 		if mirror_support_forearm and instance.skin != null:
 			_mirror_forearm(arrays, skeleton, instance.skin)
+		# Shrunk to a point, a hidden bone still pulls every vertex that carries any of its weight: the collar and hip
+		# triangles blended onto the head or a leg stretched into a skin wedge across the lower view (PLAYLOT).
+		arrays[Mesh.ARRAY_INDEX] = _keep_off(arrays, skeleton, instance.skin, HIDDEN_BONES)
 		out.add_surface_from_arrays(old.surface_get_primitive_type(s), arrays, [], {}, DotViewArmsMaterial.REST_FORMAT)
 		out.surface_set_material(s, old.surface_get_material(s))
+		var one := arrays.duplicate()
+		one[Mesh.ARRAY_INDEX] = _keep_off(arrays, skeleton, instance.skin, LEFT_ARM_BONES)
+		one_arm.add_surface_from_arrays(old.surface_get_primitive_type(s), one, [], {}, DotViewArmsMaterial.REST_FORMAT)
+		one_arm.surface_set_material(s, old.surface_get_material(s))
 
 	instance.mesh = out
+	_two_arm_mesh = out
+	_one_arm_mesh = one_arm
+
+
+## [param arrays]' triangle indices less the triangles with a vertex carrying more than [constant TOUCH_WEIGHT] on a bone
+## at or under one of [param roots].
+func _keep_off(arrays: Array, skeleton: Skeleton3D, skin: Skin, roots: Array[String]) -> PackedInt32Array:
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES] if arrays[Mesh.ARRAY_BONES] != null else PackedInt32Array()
+	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS] if arrays[Mesh.ARRAY_WEIGHTS] != null else PackedFloat32Array()
+	var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var n := verts.size()
+	var per := bones.size() / maxi(n, 1)
+	if per < 1 or weights.size() < n * per:
+		return index
+	var under := {}
+	var touch := PackedByteArray()
+	touch.resize(n)
+	for v in n:
+		for k in per:
+			if weights[v * per + k] <= TOUCH_WEIGHT:
+				continue
+			var b := bones[v * per + k]
+			if not under.has(b):
+				under[b] = _under(skeleton, _bind_bone(skeleton, skin, b) if skin != null else b, roots)
+			if under[b]:
+				touch[v] = 1
+				break
+	var kept := PackedInt32Array()
+	for t in range(0, index.size() - 2, 3):
+		if touch[index[t]] == 0 and touch[index[t + 1]] == 0 and touch[index[t + 2]] == 0:
+			kept.append_array(index.slice(t, t + 3))
+	# A surface wholly on those bones keeps one empty triangle: an empty one fails to build, and the surfaces after it
+	# would shift onto the wrong materials.
+	if kept.is_empty() and n > 0:
+		kept = PackedInt32Array([0, 0, 0])
+	return kept
+
+
+func _under(skeleton: Skeleton3D, bone: int, roots: Array[String]) -> bool:
+	while bone >= 0:
+		if skeleton.get_bone_name(bone) in roots:
+			return true
+		bone = skeleton.get_bone_parent(bone)
+	return false
+
+
+## The two real hands, coloured as the kit's own hand is drawn: the arms' material and its hand's spot on the atlas.
+func _make_hands(figure: DotHumanoidFigure) -> void:
+	var instance := figure.mesh()
+	var material: Material = instance.material_override if instance.material_override != null else instance.get_active_material(0)
+	for right in [true, false]:
+		var hand := DotViewHand.new()
+		hand.name = "HandR" if right else "HandL"
+		hand.right = right
+		hand.skin_uv = _hand_uv(instance, figure.skeleton(), ".R" if right else ".L")
+		hand.material = material
+		hand.build()
+		hand.visible = false
+		add_child(hand)
+		_hands.append(hand)
+
+
+## The atlas spot of the kit hand on [param side] (".R"): the UV of a vertex bound mostly to a finger root, so a gloved
+## outfit's hands stay gloved. Vector2.ZERO when the mesh has none.
+func _hand_uv(instance: MeshInstance3D, skeleton: Skeleton3D, side: String) -> Vector2:
+	var mesh := instance.mesh
+	for s in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(s)
+		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV] if arrays[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
+		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES] if arrays[Mesh.ARRAY_BONES] != null else PackedInt32Array()
+		var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS] if arrays[Mesh.ARRAY_WEIGHTS] != null else PackedFloat32Array()
+		var n := uvs.size()
+		var per := bones.size() / maxi(n, 1)
+		if n == 0 or per < 1 or weights.size() < n * per:
+			continue
+		for v in n:
+			var best := 0
+			for k in per:
+				if weights[v * per + k] > weights[v * per + best]:
+					best = k
+			if weights[v * per + best] < 0.9:
+				continue
+			var b := bones[v * per + best]
+			var bone := _bind_bone(skeleton, instance.skin, b) if instance.skin != null else b
+			if bone >= 0 and skeleton.get_bone_name(bone).trim_suffix(side) in FINGER_ROOTS and skeleton.get_bone_name(bone).ends_with(side):
+				return uvs[v]
+	return Vector2.ZERO
 
 
 ## Each vertex's rest position for [DotViewArmsMaterial]'s pattern, four floats a vertex.
@@ -361,6 +492,9 @@ func _apply_mode() -> void:
 
 	_arms.visible = shown
 	var held := _holding()
+	if not (shown and held):
+		for hand in _hands:
+			hand.visible = false
 
 	if _arms.has_method("set_motion"):
 		_arms.call("set_motion", {"downed": _downed, "propped": false})
@@ -402,13 +536,20 @@ func tick(speed: float, delta: float) -> void:
 		_fore = move_toward(_fore, clampf(forearm_scale, 0.2, 1.5) if _holding() else 1.0, FORE_RATE * delta)
 		var fore := _fore
 
+		# Real hands draw in the mitts' place: the kit's own shrink to the wrist, where the forearm still ends.
+		var mitt := 0.001 if _real_on() else (hand_scale if _holding() else 1.0) / fore
 		for i in _fingers:
-			skeleton.set_bone_pose_scale(i, Vector3.ONE * ((hand_scale if _holding() else 1.0) / fore))
+			skeleton.set_bone_pose_scale(i, Vector3.ONE * mitt)
 
 		_scale_left(skeleton, fore)
 		_delta = delta
 		_reach(skeleton)
+	_place_hands(skeleton)
 
+
+## The real hands are drawn: built, a weapon held, and the arms up.
+func _real_on() -> bool:
+	return real_hands and _hands.size() == 2 and _holding() and _grip.is_valid()
 
 func _left_hidden() -> bool:
 	return _holding() and not show_idle_left_arm and not _grip.is_two_hand() and not _runs_left()
@@ -420,12 +561,22 @@ func _runs_left() -> bool:
 
 func _scale_left(skeleton: Skeleton3D, fore: float) -> void:
 	var hide := _left_hidden()
+	# The mesh without the arm when there is one; else the arm shrinks to its shoulder (a factory's own figure).
+	var swap := _one_arm_mesh != null and _arms is DotHumanoidFigure and (_arms as DotHumanoidFigure).mesh() != null
+	if swap:
+		var instance := (_arms as DotHumanoidFigure).mesh()
+		var want := _one_arm_mesh if hide else _two_arm_mesh
+		if instance.mesh != want:
+			instance.mesh = want
 
 	# The upper arm carries the scale (its child, the forearm, inherits it) so the sleeve shrinks about the shoulder joint.
+	# With the arm's mesh dropped the bones still fold to the shoulder (the collar stays, it has no arm on it), so a
+	# hidden arm is never left straight out in its rest T-pose for anything that reads the bones.
 	for bone in ["Shoulder.L", "UpperArm.L", "LowerArm.L"]:
 		var i := skeleton.find_bone(bone)
 		if i >= 0:
-			skeleton.set_bone_pose_scale(i, Vector3.ONE * (0.001 if hide else (fore if bone == "UpperArm.L" else 1.0)))
+			var folded: bool = hide and not (swap and bone == "Shoulder.L")
+			skeleton.set_bone_pose_scale(i, Vector3.ONE * (0.001 if folded else (fore if bone == "UpperArm.L" else 1.0)))
 
 	var upper := skeleton.find_bone("UpperArm.R")
 	if upper >= 0:
@@ -478,9 +629,16 @@ func _reach(skeleton: Skeleton3D) -> void:
 		_right = DotHumanoidIk.keyed_bones(skeleton, figure.body_node(), _clip_of(figure), ["UpperArm.R", "LowerArm.R", "Middle1.R"])
 		_left = DotHumanoidIk.keyed_bones(skeleton, figure.body_node(), _clip_of(figure), ["UpperArm.L", "LowerArm.L", "Middle1.L"])
 
-	var shift := global_transform.basis * palm_offset
-	var right_target := _grip.grip_world() + shift
-	_lean(skeleton, figure, right_target)
+	for bone in _extended:
+		skeleton.set_bone_pose_position(bone, skeleton.get_bone_rest(bone).origin)
+	_extended.clear()
+	reach_extended_right = 0.0
+	reach_extended_left = 0.0
+
+	var targets := wrist_targets(_grip)
+	var right_target: Vector3 = targets[0]
+	var support_target: Vector3 = targets[1]
+	_lean(skeleton, figure, right_target, support_target)
 
 	var to_skeleton := skeleton.global_transform.affine_inverse()
 	var out := to_skeleton.basis * (figure.global_transform.basis * elbow_pole)
@@ -492,6 +650,7 @@ func _reach(skeleton: Skeleton3D) -> void:
 	arm_depth_left = 0.0
 
 	if not _right.is_empty():
+		reach_extended_right = _extend(skeleton, _right, right_target)
 		var pole := _clear_pole(skeleton, _right, to_skeleton * right_target, out, true)
 		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * right_target, pole, 1.0)
 		drawn.append([_grip.grip_world(), right_target, "Middle1.R"])
@@ -505,8 +664,9 @@ func _reach(skeleton: Skeleton3D) -> void:
 			var swing := -sin(TAU * run_phase) if is_finite(run_phase) else 0.0
 			target = global_transform * (run_left + run_left_pump * swing * r + RUN_LEFT_DROP * (1.0 - r))
 		elif _grip.is_two_hand():
-			var mirrored := global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)
-			target = _slide_to_reach(skeleton, _left, _grip.support_world() + mirrored, right_target + mirrored)
+			reach_extended_left = _extend(skeleton, _left, support_target)
+			# What the stretch could not cover slides toward the firing hand, as before it.
+			target = _slide_to_reach(skeleton, _left, support_target, right_target + (support_target - _grip.support_world()))
 		var left_pole := Vector3(-out.x, out.y, out.z)
 		if _grip.is_two_hand():
 			left_pole = _clear_pole(skeleton, _left, to_skeleton * target, left_pole, false)
@@ -563,15 +723,15 @@ func _arm_lengths(skeleton: Skeleton3D, bones: Array[int]) -> Vector2:
 
 
 ## Leans the arms toward whichever hand target (firing or support) is furthest out of its arm's reach, a step at a time, by up to [member max_lean] in all.
-func _lean(skeleton: Skeleton3D, figure: DotHumanoidFigure, target: Vector3) -> void:
+func _lean(skeleton: Skeleton3D, figure: DotHumanoidFigure, target: Vector3, support_target: Vector3) -> void:
 	if _right.is_empty() or max_lean <= 0.0 or not _fitted:
 		_leaned = Vector3.ZERO
 		return
 
 	var goals: Array = [[_right, target]]
 
-	if not _left.is_empty() and _grip.is_two_hand() and not _left_hidden():
-		goals.append([_left, _grip.support_world() + global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)])
+	if not _left.is_empty() and _grip.is_two_hand() and not _left_hidden() and support_target.is_finite():
+		goals.append([_left, support_target])
 
 	var shoulders: Array[Vector3] = []
 	var reaches: Array[float] = []
@@ -642,6 +802,107 @@ func _slide_to_reach(skeleton: Skeleton3D, bones: Array[int], from: Vector3, to:
 	return from + (to - from) * clampf((-b - sqrt(disc)) / (2.0 * a), 0.0, 1.0)
 
 
+## Moves the arm's shoulder joint (the upper arm's pose position) out toward [param target] (world) by what the arm is
+## still short of it, up to [member reach_extend_max]; the metres moved (figure space), 0 when it reaches already.
+func _extend(skeleton: Skeleton3D, bones: Array[int], target: Vector3) -> float:
+	if not extend_reach or bones.size() < 3 or not target.is_finite():
+		return 0.0
+	var to := skeleton.global_transform.affine_inverse() * target - DotHumanoidIk.global_pose(skeleton, bones[0]).origin
+	var short := to.length() - _reach_local(skeleton, bones)
+	if not (short > 0.0):
+		return 0.0
+	if reach_extend_max > 0.0:
+		short = minf(short, reach_extend_max)
+	var parent := skeleton.get_bone_parent(bones[0])
+	var basis := DotHumanoidIk.global_pose(skeleton, parent).basis if parent >= 0 else Basis.IDENTITY
+	skeleton.set_bone_pose_position(bones[0], skeleton.get_bone_pose_position(bones[0]) + basis.inverse() * (to.normalized() * short))
+	_extended.append(bones[0])
+	return short
+
+
+## The firing and support hand poses for [param grip] from [member hand_poses] (the support one empty for one hand):
+## its kind's, a rifle's for an unknown kind, a knife's blended toward the throw's pinch by [member throw_grip].
+func _grip_hands(grip: DotViewGrip) -> Array:
+	var rifle: Dictionary = hand_poses.get(DotViewHandPoses.RIFLE, {})
+	var entry: Dictionary = hand_poses.get(grip.kind, rifle)
+	var firing: Dictionary = entry.get(&"firing", rifle.get(&"firing", {}))
+	if grip.kind == DotViewHandPoses.KNIFE and throw_grip > 0.0:
+		var pinch: Dictionary = hand_poses.get(DotViewHandPoses.KNIFE_THROW, {})
+		firing = DotViewHandPoses.blend(firing, pinch.get(&"firing", {}), clampf(throw_grip, 0.0, 1.0))
+	var support: Dictionary = entry.get(&"support", {})
+	if support.is_empty() and grip.is_two_hand():
+		support = rifle.get(&"support", {})
+	return [firing, support if grip.is_two_hand() else {}]
+
+
+## A right-hand pose for the left hand: its directions mirrored across the weapon's vertical plane.
+static func _mirrored(hand: Dictionary) -> Dictionary:
+	var out := hand.duplicate()
+	for key in [&"fingers", &"palm"]:
+		if out.has(key):
+			var v: Vector3 = out[key]
+			out[key] = Vector3(-v.x, v.y, v.z)
+	return out
+
+
+## The real hands' world size: life size on the held arms, by [member hand_size] and [member hand_scale] over the mitts' 0.5.
+func _hand_world_size() -> float:
+	return held_scale * hand_size * hand_scale / 0.5 * global_transform.basis.get_scale().y
+
+
+## Where each wrist (the kit's finger roots) goes on [param grip], world: [firing, support] (support INF for one hand).
+## Real hands put the wrist where the hand's grip point lands on the weapon; the mitts take [member palm_offset].
+func wrist_targets(grip: DotViewGrip) -> Array[Vector3]:
+	var basis := global_transform.basis
+	if not (real_hands and _hands.size() == 2):
+		var mirrored := basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)
+		return [grip.grip_world() + basis * palm_offset, grip.support_world() + mirrored if grip.is_two_hand() else Vector3.INF]
+	var hands := _grip_hands(grip)
+	var s := _hand_world_size()
+	var forward := grip.forward_world()
+	var up := grip.up_world()
+	var centre: Vector3 = (hands[0] as Dictionary).get(&"centre", Vector3.ZERO)
+	var right := grip.grip_world() - DotViewHandPoses.frame(hands[0], forward, up) * (centre * s)
+	var left := Vector3.INF
+	if grip.is_two_hand():
+		var c: Vector3 = (hands[1] as Dictionary).get(&"centre", Vector3.ZERO)
+		left = grip.support_world() - DotViewHandPoses.frame(hands[1], forward, up) * (Vector3(-c.x, c.y, c.z) * s)
+	return [right, left]
+
+
+## Seats the real hands on the solved wrists and closes their fingers; hides them when they are not drawn.
+func _place_hands(skeleton: Skeleton3D) -> void:
+	if _hands.size() != 2:
+		return
+	var on := _real_on() and skeleton != null and not _right.is_empty()
+	var left_on := on and not _left.is_empty() and not _left_hidden()
+	_hands[0].visible = on
+	_hands[1].visible = left_on
+	if not on:
+		return
+	var hands := _grip_hands(_grip)
+	var s := _hand_world_size()
+	var rate := 1.0 if finger_rate <= 0.0 else 1.0 - exp(-finger_rate * _delta)
+	var forward := _grip.forward_world()
+	var up := _grip.up_world()
+	_seat(_hands[0], skeleton, _right[2], hands[0], forward, up, s, rate)
+	if not left_on:
+		return
+	var support: Dictionary = hands[1]
+	if support.is_empty():
+		# The free hand pumping in a sprint (or shown idle): a fist, knuckles to the view's front.
+		support = _mirrored((hand_poses.get(DotViewHandPoses.FISTS, {}) as Dictionary).get(&"firing", {}))
+		forward = global_transform.basis * Vector3.FORWARD
+		up = global_transform.basis * Vector3.UP
+	_seat(_hands[1], skeleton, _left[2], support, forward, up, s, rate)
+
+
+func _seat(hand: DotViewHand, skeleton: Skeleton3D, wrist: int, pose: Dictionary, forward: Vector3, up: Vector3, s: float, rate: float) -> void:
+	var at := skeleton.global_transform * DotHumanoidIk.global_pose(skeleton, wrist).origin
+	hand.global_transform = Transform3D(DotViewHandPoses.frame(pose, forward, up) * s, at)
+	hand.pose(pose, rate)
+
+
 func _reach_local(skeleton: Skeleton3D, bones: Array[int]) -> float:
 	var upper := DotHumanoidIk.global_pose(skeleton, bones[0]).origin
 	var lower := DotHumanoidIk.global_pose(skeleton, bones[1]).origin
@@ -663,17 +924,26 @@ func arms() -> Node3D:
 	return _arms
 
 
-## Metres from each hand's middle-finger bone to its [param grip] point plus [member palm_offset], the worst of the two; -1 when the arms are not shown on that grip.
+## The real hands, [firing, support] ([DotViewHand]), or empty before [method build] or for a factory's own figure.
+func hands() -> Array[DotViewHand]:
+	var out: Array[DotViewHand] = []
+	for hand in _hands:
+		out.append(hand)
+	return out
+
+
+## Metres from each wrist (the kit's middle-finger root) to where it goes on [param grip] (the real hands' seat, or
+## the grip point plus [member palm_offset] for the mitts), the worst of the two; -1 when the arms are not shown on that grip.
 func hand_error(grip: DotViewGrip) -> float:
 	if not shown or grip == null or not grip.is_valid() or not (_arms is DotHumanoidFigure):
 		return -1.0
 	var skeleton := (_arms as DotHumanoidFigure).skeleton()
 	if skeleton == null:
 		return -1.0
-	var basis := global_transform.basis
-	var pairs := [["Middle1.R", grip.grip_world() + basis * palm_offset]]
+	var targets := wrist_targets(grip)
+	var pairs := [["Middle1.R", targets[0]]]
 	if grip.is_two_hand():
-		pairs.append(["Middle1.L", grip.support_world() + basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)])
+		pairs.append(["Middle1.L", targets[1]])
 	var worst := 0.0
 	for pair: Array in pairs:
 		var bone := skeleton.find_bone(pair[0])
@@ -686,7 +956,8 @@ func hand_error(grip: DotViewGrip) -> float:
 
 func describe() -> Dictionary:
 	return {"built": _arms != null, "shown": shown, "held": _holding(), "custom": arms_factory.is_valid(), "hidden_bones": _bones.size(),
-		"overridden": _override != null, "detailed": _detail_on, "run": snappedf(run, 0.01)}
+		"overridden": _override != null, "detailed": _detail_on, "run": snappedf(run, 0.01),
+		"real_hands": _real_on(), "left_arm": _arms != null and shown and not _left_hidden(), "reach_extended": snappedf(maxf(reach_extended_right, reach_extended_left), 0.001)}
 
 
 func _clear() -> void:
@@ -695,6 +966,14 @@ func _clear() -> void:
 		_arms.queue_free()
 		_arms = null
 
+	for hand in _hands:
+		if is_instance_valid(hand):
+			remove_child(hand)
+			hand.queue_free()
+	_hands.clear()
+	_extended.clear()
+	_two_arm_mesh = null
+	_one_arm_mesh = null
 	_bones.clear()
 	_fingers.clear()
 	_detail_on = false
