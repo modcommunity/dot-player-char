@@ -219,6 +219,11 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	carry.step(delta, hold == Hold.GUN and standing and state != DotPlayerAnimState.SWIM and state != DotPlayerAnimState.CLIMB)
 	var grip := support_point.is_finite() or carry.support_grip.is_finite()
 	_support_weight = move_toward(_support_weight, 1.0 if grip and hold == Hold.GUN and not downed else 0.0, delta / 0.15)
+	var pumping := carry_sprint and _motion.has("sprinting") and hold != Hold.GUN and standing and overlay == &"" \
+		and (state == DotPlayerAnimState.RUN or state == DotPlayerAnimState.WALK)
+	if downed or not standing:
+		arms.charge = -1.0
+	arms.step(delta, pumping, _speed, _stride_fraction() if _anim != null else -1.0)
 
 	if _anim == null:
 		return
@@ -247,6 +252,8 @@ func _animate_step(speed: float, p_delta: float) -> void:
 		_apply_carry()
 	if seen and far <= SUPPORT_RANGE:
 		_apply_support()
+	if seen and far <= ANIM_FAR and hold != Hold.GUN:
+		arms.apply(_skeleton, _model, _anim.get_animation(clip), _to_figure())
 	_apply_swim(delta)
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, delta)
@@ -347,6 +354,18 @@ func swing(which: StringName = &"") -> void:
 	if which == &"":
 		which = DotHumanoidClips.PUNCH if hold == Hold.NONE else DotHumanoidClips.SLASH
 	_start_overlay(which, 1.4)
+
+
+## The knife throw's meter as the game reports it (0 to 1 while winding up, below 0 when not): the throwing arm
+## cocks back over the head and the chest turns with it, further the fuller the meter.
+func set_throw_charge(fraction: float) -> void:
+	arms.charge = fraction if is_finite(fraction) else -1.0
+
+
+## The throw itself: the arm whips forward from wherever the windup had it, and the chest turns through.
+func throw_release() -> void:
+	arms.charge = -1.0
+	arms.release()
 
 
 ## A hit: the kit's flinch on the upper body, pushed past its authored pose so a third-person view reads it.
@@ -535,6 +554,7 @@ func describe() -> Dictionary:
 		"driving": driving,
 		"hold": hold,
 		"carry": carry.describe(),
+		"arms": arms.describe(),
 		"downed": downed,
 		"anim_step": anim_step,
 		"visible": visible,

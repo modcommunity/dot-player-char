@@ -228,6 +228,9 @@ var _sprint: float = 0.0
 ## The gun as others see it carried: [method DotHumanoidCarryPose.set_class], [method DotHumanoidCarryPose.fired],
 ## and its raised / reloading / switching flags. A rifle unless set; drawn only, never the hit zones.
 var carry := DotHumanoidCarryPose.new()
+## A knife throw's windup and release and a sprint's pumping arms, for a blade or empty hands: [method set_throw_charge],
+## [method throw_release]. Drawn only.
+var arms := preload("dot_humanoid_arm_pose.gd").new()
 var _overlay_weight := 0.0
 var _slide_lift := 0.0
 

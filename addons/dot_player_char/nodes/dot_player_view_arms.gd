@@ -67,6 +67,14 @@ var held_spread: float = 1.25
 var mirror_support_forearm: bool = true
 ## Show the idle left arm in a one-hand grip. Off: it has no hand in view, only its sleeve at the screen edge.
 var show_idle_left_arm: bool = false
+## A sprint with one hand on the weapon (0 to 1, the host sets it each frame): the free arm pumps into view as a
+## fist at [member run_left] (from this node), swinging by [member run_left_pump] against the stride, [member run_phase] (0 to 1).
+var run: float = 0.0
+var run_phase: float = 0.0
+var run_left: Vector3 = Vector3(-0.2, -0.3, -0.32)
+var run_left_pump: Vector3 = Vector3(0.0, 0.07, -0.1)
+## How far below the view the pumping fist starts as [member run] eases in, so it rises into view, not pops.
+const RUN_LEFT_DROP := Vector3(0.0, -0.3, 0.1)
 ## The hand's size with a weapon (1 is the kit's own mitts).
 var hand_scale: float = 0.5
 ## The forearm's size with a weapon (1 is the kit's own); the hand keeps [member hand_scale]. A short grip close to the eye wants a slimmer, shorter forearm.
@@ -403,7 +411,11 @@ func tick(speed: float, delta: float) -> void:
 
 
 func _left_hidden() -> bool:
-	return _holding() and not show_idle_left_arm and not _grip.is_two_hand()
+	return _holding() and not show_idle_left_arm and not _grip.is_two_hand() and not _runs_left()
+
+
+func _runs_left() -> bool:
+	return is_finite(run) and run > 0.0 and _grip != null and not _grip.is_two_hand() and not show_idle_left_arm
 
 
 func _scale_left(skeleton: Skeleton3D, fore: float) -> void:
@@ -488,7 +500,11 @@ func _reach(skeleton: Skeleton3D) -> void:
 	if not _left.is_empty() and not _left_hidden():
 		var rest := figure.global_transform * (_base + LEFT_REST)
 		var target := rest
-		if _grip.is_two_hand():
+		if _runs_left():
+			var r := clampf(run, 0.0, 1.0)
+			var swing := -sin(TAU * run_phase) if is_finite(run_phase) else 0.0
+			target = global_transform * (run_left + run_left_pump * swing * r + RUN_LEFT_DROP * (1.0 - r))
+		elif _grip.is_two_hand():
 			var mirrored := global_transform.basis * Vector3(-palm_offset.x, palm_offset.y, palm_offset.z)
 			target = _slide_to_reach(skeleton, _left, _grip.support_world() + mirrored, right_target + mirrored)
 		var left_pole := Vector3(-out.x, out.y, out.z)
@@ -670,7 +686,7 @@ func hand_error(grip: DotViewGrip) -> float:
 
 func describe() -> Dictionary:
 	return {"built": _arms != null, "shown": shown, "held": _holding(), "custom": arms_factory.is_valid(), "hidden_bones": _bones.size(),
-		"overridden": _override != null, "detailed": _detail_on}
+		"overridden": _override != null, "detailed": _detail_on, "run": snappedf(run, 0.01)}
 
 
 func _clear() -> void:
