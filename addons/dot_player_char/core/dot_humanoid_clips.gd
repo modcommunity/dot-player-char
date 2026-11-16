@@ -54,14 +54,16 @@ const LOOPING: Array[StringName] = [IDLE, IDLE_GUN, WALK, WALK_GUN, RUN, RUN_GUN
 ## solved: [method _crouch_walking]), and how far the hips dip at each step, in the clip body's units.
 const CROUCH_WALK_BEND := 1.0
 
-## The idle crouch goes past the kit's duck (1.0) so it reads lower than a crouch walk.
-const CROUCH_IDLE_BEND := 1.4
+## How far past the kit's duck (1.0) the idle crouch goes: a little, so it reads lower than a crouch
+## walk with the knees near square (it was 1.4, a deep squat; at 1.0 the stock figure's hips dropped
+## only 0.016 m, which `people_selftest` does not call a crouch).
+const CROUCH_IDLE_BEND := 1.2
 const CROUCH_WALK_BOB := 0.03
 
-## How far a crouch walk's hips ride over the idle crouch's, in the clip body's units: a crouch walk
-## reads a little taller than a crouch held still, and no taller than that (FC's crouch hit zones
-## missed head shots from 0.05).
-const CROUCH_WALK_RISE := 0.03
+## How far a crouch walk's hips ride over the idle crouch's, in the clip body's units, so its bent knees
+## open toward the crouch's near-square ones rather than squatting under them. A game's crouch hit zones
+## must reach the head this draws: FC's grew to 54 of 72 units for it (at 36 a rise of 0.05 missed head shots).
+const CROUCH_WALK_RISE := 0.09
 
 ## How much of the walk's step (each ankle's reach ahead of and behind the hips) a crouch walk
 ## keeps: short steps on bent legs.

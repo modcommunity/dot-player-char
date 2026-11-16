@@ -395,7 +395,7 @@ func _check_own_view() -> void:
 		g.animate(0.0, DT)
 	var crouch_low: float = DotHumanoidLegs.ankles(sk).map(func(a: Vector3) -> float: return a.y).min()
 	var crouch_hip: float = hip_y.call()
-	suite._check(absf(crouch_low) < 0.12 and crouch_hip < stand_hip - 0.02, "legs: crouched, the feet stay on the floor (%.3f m) and the hips drop (%.2f to %.2f m)" % [crouch_low, stand_hip, crouch_hip])
+	suite._check(absf(crouch_low) < 0.12 and crouch_hip < stand_hip - 0.02, "legs: crouched, the feet stay on the floor (%.3f m) and the hips drop (%.3f to %.3f m)" % [crouch_low, stand_hip, crouch_hip])
 	g.set_motion({"on_floor": true})
 	for i in 30:
 		g.animate(0.0, DT)
