@@ -43,6 +43,10 @@ var land_time: float = 0.15
 ## Downward speed on impact below which no landing animation plays at all.
 var land_threshold: float = 3.0
 
+## Ground speed at or above which a landing goes straight back to the walk or run: a landing animation stands still, so
+## on a body still moving its planted feet skate along the floor. 0 (the default) always lands.
+var land_stride_speed: float = 0.0
+
 var _state: StringName = IDLE
 var _air_time: float = 0.0
 var _land_time: float = 0.0
@@ -92,6 +96,8 @@ func advance(motion: Dictionary, delta: float, speed_now: float = NAN) -> String
 		# second) ends the landing in the same call.
 		_land_time -= delta
 
+		if _land_time > 0.0 and land_stride_speed > 0.0 and on_floor and speed >= land_stride_speed:
+			_land_time = 0.0
 		if _land_time > 0.0:
 			_state = LAND
 			return _state

@@ -4,7 +4,7 @@ extends Node
 ## godot --headless --path . res://examples/anim_selftest.tscn
 
 const SECTIONS := 7
-const CHECKS := 108
+const CHECKS := 109
 
 var _passed := 0
 var _failed := 0
@@ -127,6 +127,18 @@ func _test_states_air(s: DotPlayerAnimState) -> void:
 		s.advance(_ground(0.0), 1.0) == DotPlayerAnimState.IDLE,
 		"and then lets locomotion resume"
 	)
+
+	s.forget_state()
+	s.land_stride_speed = 1.0
+	var _jumped := s.advance(_air(-5.0), 0.2)
+	var running := s.advance({"speed": 3.0, "on_floor": true, "vertical": -10.0}, 0.016)
+	var stopped := s.advance({"speed": 0.5, "on_floor": true, "vertical": -10.0}, 0.016)
+	_check(
+		running != DotPlayerAnimState.LAND and stopped != DotPlayerAnimState.LAND,
+		"with land_stride_speed set, a landing still moving that fast goes straight back to its stride (the land clip "
+		+ "stands still and its planted feet would skate), and nothing replays the landing once it has gone"
+	)
+	s.land_stride_speed = 0.0
 
 	s.forget_state()
 	var _fell := s.advance(_air(-1.0), 0.2)

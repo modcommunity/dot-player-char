@@ -95,6 +95,7 @@ func _forget_body() -> void:
 	overlay = &""
 	_ease.clear()
 	_turn_limit.clear()
+	_stride_limit.clear()
 	_hand = null
 	_crown = null
 	_upper.clear()
@@ -243,6 +244,7 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	# The layers drawn this frame ([constant SUPPORT_RANGE]), from the step just worked out.
 	var seen := DotHumanoidFrames.last_seen if _anim != null else true
 	var far := DotHumanoidFrames.last_distance if _anim != null else 0.0
+	_machine.land_stride_speed = land_stride_speed
 	state = _machine.advance(_motion, delta, speed)
 	_end_action_if_moved()
 	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
@@ -272,6 +274,7 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	# Undone in the reverse of the order they were written: the turn limit last, so first.
 	_turn_limit.restore(_skeleton)
 	legs.restore(_skeleton)
+	_stride_limit.restore(_skeleton)
 	_play(wanted[0], wanted[1])
 	var matched := _matched_rate(legs.along_speed if _motion.has("velocity") else speed, delta)
 	if not is_nan(matched):
@@ -292,11 +295,18 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, delta)
 	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
+	# The legs' own pose turns no faster than they are drawn before the foot hold reads it: the hold then pins a foot where
+	# it is drawn, not where a clip raced at the matched rate would put it, and lets go only once the drawn foot lifts.
+	# Held back after the hold instead, a planted leg is dragged by the limit below and its foot skates.
+	_stride_limit.step(_skeleton, deg_to_rad(limb_turn_rate) if seen else 0.0, delta)
 	var planted := _apply_floor(seen, delta)
 	# On the pose as drawn: a floor IK let go on landing turns no faster than a clip.
-	_turn_limit.step(_skeleton, deg_to_rad(limb_turn_rate) if seen else 0.0, delta)
-	# A leg held back can carry its ankle under the floor again; the lift only lifts, so a foot already up is left.
+	var striking := overlay in STRIKE_CLIPS or arms.release_at < 1.0
+	_turn_limit.step(_skeleton, deg_to_rad(limb_turn_rate) if seen else 0.0, delta, deg_to_rad(strike_turn_rate) if striking else -1.0)
+	# A leg held back can carry its ankle under the floor again; the lift only lifts, so a foot already up is left. A held foot
+	# stays where the leg was drawn down to, not where the hold first caught it.
 	if planted and _turn_limit.turned():
+		legs.resettle(_skeleton, global_transform * _model.transform * _skel_to_model)
 		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)
 	_own.cap_colour = look.top
 	_own.apply(_skeleton, _mesh)
@@ -365,6 +375,7 @@ func _apply_crawl_feet(speed: float, dt: float) -> void:
 ## Puts back whatever a death took off: every bone at its own size again. For a respawn.
 func mend() -> void:
 	_turn_limit.clear()
+	_stride_limit.clear()
 	_own.mend(_skeleton, _mesh)
 
 

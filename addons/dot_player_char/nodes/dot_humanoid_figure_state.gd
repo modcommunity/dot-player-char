@@ -208,6 +208,15 @@ var limb_turn_rate: float = 1300.0:
 	set(value):
 		if _rate_ok("limb_turn_rate", value):
 			limb_turn_rate = value
+## Fastest the arms turn while a strike plays ([constant STRIKE_CLIPS] as an overlay, or a throw's release), degrees a second; 0 draws them as posed.
+## A real knife slash turns the forearm about 1700 degrees a second, so [member limb_turn_rate] would draw every strike slower than a real one;
+## 1900 lets it through and still holds a cut into a strike under the 130 degrees in 1/15 s a strike's pop is judged by. Drawing only.
+var strike_turn_rate: float = 1900.0:
+	set(value):
+		if _rate_ok("strike_turn_rate", value, "0: as posed"):
+			strike_turn_rate = value
+## The overlays that are strikes: their arms turn at [member strike_turn_rate].
+const STRIKE_CLIPS: Array[StringName] = [DotHumanoidClips.SLASH, DotHumanoidClips.STAB, DotHumanoidClips.PUNCH]
 
 
 ## Farthest a planted foot of a stride is held off where its clip draws it, metres ([method DotHumanoidLegs.hold_feet]): the clip, played at the matched rate,
@@ -218,6 +227,14 @@ var foot_hold_reach: float = FOOT_HOLD_REACH:
 		if _rate_ok("foot_hold_reach", value, "0: off"):
 			foot_hold_reach = value
 const FOOT_HOLD_REACH := 0.15
+## Ground speed (metres a second) at or above which a landing plays the walk or run straight away, not the land clip
+## ([member DotPlayerAnimState.land_stride_speed]): the land clip stands still, and on a body that lands moving its planted
+## feet skated along the floor (prop-hunt's hop at 2.9 m/s, 1.45 m/s). 0 always plays the land clip.
+var land_stride_speed: float = LAND_STRIDE_SPEED:
+	set(value):
+		if _rate_ok("land_stride_speed", value, "0: always land"):
+			land_stride_speed = value
+const LAND_STRIDE_SPEED := 1.0
 ## A stride's foot within this of its rest height (metres) and moving slower than [constant FOOT_HOLD_SETTLE] m/s in the world as the clip draws it is planted;
 ## a lifted foot eases back onto the clip's over [constant FOOT_HOLD_RELEASE] seconds.
 const FOOT_HOLD_HEIGHT := 0.04
@@ -356,6 +373,8 @@ var _upper: Dictionary = {}
 var _upper_paths: Dictionary = {}
 var _ease := DotHumanoidBlend.new()
 var _turn_limit := DotHumanoidTurnLimit.new()
+## The legs' clip pose held to [member limb_turn_rate] before the foot hold reads it (see [method animate]).
+var _stride_limit := DotHumanoidTurnLimit.new(DotHumanoidTurnLimit.LEG_BONES)
 var _swim_pitch: float = 0.0
 var _prop_pitch: float = 0.0
 var _view_pitch: float = 0.0

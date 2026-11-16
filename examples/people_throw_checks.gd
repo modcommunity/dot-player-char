@@ -85,6 +85,7 @@ func run() -> void:
 	_frames(f, 7.0, 30)
 	suite._check(f.arms.run < 0.01, "a gun keeps its own sprint carry (%.2f)" % f.arms.run)
 	f.queue_free()
+	_strike_rate()
 	await _view_run()
 
 
@@ -118,6 +119,36 @@ func _view_run() -> void:
 	arms.queue_free()
 	weapon.queue_free()
 	await suite.get_tree().process_frame
+
+
+## A strike's arms turn faster than [member DotHumanoidFigure.limb_turn_rate] lets a stride's limbs, and no faster than
+## [member DotHumanoidFigure.strike_turn_rate].
+func _strike_rate() -> void:
+	var f := DotHumanoidFigure.new()
+	suite.add_child(f)
+	f.build(DotHumanoidLook.stock(4), 1.8)
+	f.set_hold(DotHumanoidFigure.Hold.MELEE)
+	f.limb_turn_rate = 400.0
+	f.strike_turn_rate = 1500.0
+	_frames(f, 0.0, 20)
+	var sk := f.skeleton()
+	var names: Array[String] = ["UpperArm.R", "LowerArm.R", "UpperArm.L", "LowerArm.L"]
+	var last: Array[Quaternion] = []
+	for name in names:
+		last.append(sk.get_bone_pose_rotation(sk.find_bone(name)))
+	var fastest := 0.0
+	f.swing(DotHumanoidClips.SLASH)
+	for _i in 60:
+		_frames(f, 0.0, 1)
+		for n in names.size():
+			var now := sk.get_bone_pose_rotation(sk.find_bone(names[n]))
+			fastest = maxf(fastest, rad_to_deg(last[n].angle_to(now)) / DT)
+			last[n] = now
+	suite._check(fastest > 400.0 * 1.2 and fastest < 1500.0 * 1.01,
+		"a slash turns the arms past the limb rate and within the strike rate (%.0f deg/s, limits 400 and 1500)" % fastest)
+	f.strike_turn_rate = -1.0
+	suite._check(f.strike_turn_rate == 1500.0, "a negative strike_turn_rate is refused (kept %.0f)" % f.strike_turn_rate)
+	f.queue_free()
 
 
 func _bone_world(sk: Skeleton3D, bone: String) -> Vector3:

@@ -216,10 +216,39 @@ func hold_feet(skeleton: Skeleton3D, to_world: Transform3D, to_figure: Transform
 		for bone: int in [leg[0], leg[1]]:
 			if not _saved.has(bone):
 				_saved[bone] = skeleton.get_bone_pose_rotation(bone)
-		var pole: Vector3 = knee.origin - (DotHumanoidIk.chain_pose(skeleton, leg[3]).origin + ankle_s) * 0.5
+		var hip_s := DotHumanoidIk.chain_pose(skeleton, leg[3]).origin
+		var pole: Vector3 = knee.origin - (hip_s + ankle_s) * 0.5
 		if pole.length_squared() < 1e-8:
 			pole = to_skel.basis * Vector3.FORWARD
-		var _reached := DotHumanoidIk.two_bone_to(skeleton, leg[0], leg[1], leg[2], to_skel * (ankle + shift), pole, 1.0)
+		var target := _within_leg(to_world * hip_s, ankle + shift, (to_world * knee.origin).distance_to(to_world * hip_s)
+			+ (to_world * knee.origin).distance_to(ankle))
+		var _reached := DotHumanoidIk.two_bone_to(skeleton, leg[0], leg[1], leg[2], to_skel * target, pole, 1.0)
+
+
+## [param target] raised as far as the leg needs to reach it from [param hip] with [param span] (world, metres): a held foot the
+## body has run past comes up off the floor where it stands (the heel lifting at toe-off) instead of being dragged along it by
+## a leg pointed at a ground point it cannot reach. Out of reach even straight below the hip, [param target] as it is.
+static func _within_leg(hip: Vector3, target: Vector3, span: float) -> Vector3:
+	var most := span * 0.995
+	var flat := Vector2(target.x - hip.x, target.z - hip.z).length_squared()
+	if most <= 0.0 or flat >= most * most or hip.distance_squared_to(target) <= most * most:
+		return target
+	return Vector3(target.x, maxf(target.y, hip.y - sqrt(most * most - flat)), target.z)
+
+
+## Moves each [method hold_feet] hold to where its ankle is drawn now, across the ground: [DotHumanoidTurnLimit] held the leg back
+## from the hold after it was set (a leg coming down faster than a limb may turn). Held where it was, the foot would spring back
+## onto it next frame, a step drawn across the floor; moved, it stays where it came down.
+func resettle(skeleton: Skeleton3D, to_world: Transform3D) -> void:
+	if skeleton == null:
+		return
+	for k in mini(_floor_legs.size(), _holds.size()):
+		if _holds[k] == null:
+			continue
+		var leg: Array = _floor_legs[k]
+		var ankle := to_world * (DotHumanoidIk.chain_pose(skeleton, leg[4]) * (leg[2] as Vector3))
+		var held: Vector3 = _holds[k]
+		_holds[k] = Vector3(ankle.x, held.y, ankle.z)
 
 
 ## Lets go of every [method hold_feet] hold at once (the feet left the floor, the clip is not a stride, the body was moved).

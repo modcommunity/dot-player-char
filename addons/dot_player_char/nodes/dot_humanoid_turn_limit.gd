@@ -8,19 +8,35 @@ extends RefCounted
 
 const BONES: Array[String] = ["UpperLeg.L", "LowerLeg.L", "Foot.L", "UpperLeg.R", "LowerLeg.R", "Foot.R",
 	"UpperArm.L", "LowerArm.L", "UpperArm.R", "LowerArm.R"]
+## The bones of [constant BONES] that [method step]'s [code]arm_rate[/code] governs.
+const ARM_BONES: Array[String] = ["UpperArm.L", "LowerArm.L", "UpperArm.R", "LowerArm.R"]
+## The leg bones of [constant BONES].
+const LEG_BONES: Array[String] = ["UpperLeg.L", "LowerLeg.L", "Foot.L", "UpperLeg.R", "LowerLeg.R", "Foot.R"]
+
+## The bones this limit turns: [constant BONES] unless [method _init] was given others.
+var names: Array[String] = BONES
 
 var _of: int = 0
 var _count: int = 0
 var _bones: PackedInt32Array = PackedInt32Array()
+## Per bone in [member _bones], 1 when it is an arm bone ([constant ARM_BONES]).
+var _arm: PackedByteArray = PackedByteArray()
 ## Per bone in [member _bones], the rotation last drawn; empty until a step has drawn one.
 var _drawn: Array[Quaternion] = []
 ## Bone to the rotation the pose had before [method step] turned it back, for [method restore].
 var _saved: Dictionary = {}
 
 
+## [param bones] are the bones to turn (names in [constant BONES]).
+func _init(bones: Array[String] = BONES) -> void:
+	names = bones
+
+
 ## Turns each limb bone of [param skeleton] no further than [param rate] (radians a second) times [param dt] from its
-## last drawn rotation. [param rate] 0 or less draws the pose as it is (and forgets the last one).
-func step(skeleton: Skeleton3D, rate: float, dt: float) -> void:
+## last drawn rotation. [param rate] 0 or less draws the pose as it is (and forgets the last one). [param arm_rate] is the arms'
+## own rate in radians a second (a melee strike turns a forearm about 1700 degrees a second, faster than any stride needs):
+## below 0 the arms take [param rate], 0 draws them as posed.
+func step(skeleton: Skeleton3D, rate: float, dt: float, arm_rate: float = -1.0) -> void:
 	if skeleton == null or rate <= 0.0:
 		_drawn.clear()
 		return
@@ -28,24 +44,28 @@ func step(skeleton: Skeleton3D, rate: float, dt: float) -> void:
 		_of = skeleton.get_instance_id()
 		_count = skeleton.get_bone_count()
 		_bones.clear()
-		for name in BONES:
+		_arm.clear()
+		for name in names:
 			var bone := skeleton.find_bone(name)
 			if bone >= 0:
 				_bones.append(bone)
+				_arm.append(1 if name in ARM_BONES else 0)
 		_drawn.clear()
 	var first := _drawn.size() != _bones.size()
 	if first:
 		_drawn.resize(_bones.size())
 	var most := rate * maxf(dt, 0.0)
+	var arm_most := most if arm_rate < 0.0 else arm_rate * maxf(dt, 0.0)
 	for n in _bones.size():
 		var bone := _bones[n]
 		var now := skeleton.get_bone_pose_rotation(bone)
 		if not first:
 			var last := _drawn[n]
 			var angle := last.angle_to(now)
-			if angle > most:
+			var cap := arm_most if _arm[n] == 1 else most
+			if cap > 0.0 and angle > cap:
 				_saved[bone] = now
-				now = last.slerp(now, most / angle)
+				now = last.slerp(now, cap / angle)
 				skeleton.set_bone_pose_rotation(bone, now)
 		_drawn[n] = now
 
