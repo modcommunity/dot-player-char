@@ -292,7 +292,7 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, delta)
 	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
-	var planted := _apply_floor(seen)
+	var planted := _apply_floor(seen, delta)
 	# On the pose as drawn: a floor IK let go on landing turns no faster than a clip.
 	_turn_limit.step(_skeleton, deg_to_rad(limb_turn_rate) if seen else 0.0, delta)
 	# A leg held back can carry its ankle under the floor again; the lift only lifts, so a foot already up is left.
@@ -336,10 +336,18 @@ func _lift_body() -> void:
 ## a clip's stride can carry an ankle under it; first the body is stood on the floor under its origin ([member floor_mask]).
 ## Not in the air, on a wall, a ladder, a seat or the ground.
 ## Stands the body on the floor and lifts drawn ankles out of it; returns whether the feet were kept out of the floor.
-func _apply_floor(feet: bool = true) -> bool:
+## With [param delta] (a clip step), a stride's planted feet are first held where they came down ([member foot_hold_reach]).
+func _apply_floor(feet: bool = true, delta: float = 0.0) -> bool:
 	_lift_body()
 	var grounded := feet and _skeleton != null and not (downed or seated or driving) and bool(_motion.get("on_floor", true)) \
 		and not bool(_motion.get("wall_running", false)) and not state in OFF_FLOOR_STATES
+	if delta > 0.0:
+		if grounded and foot_hold_reach > 0.0 and state in STRIDE_STATES and clip in STRIDE_CLIPS and is_inside_tree():
+			var to_figure := _model.transform * _skel_to_model
+			legs.hold_feet(_skeleton, global_transform * to_figure, to_figure, _floor_ankles, FOOT_HOLD_HEIGHT, FOOT_HOLD_SETTLE,
+				foot_hold_reach, FOOT_HOLD_RELEASE, delta)
+		else:
+			legs.let_go()
 	if grounded:
 		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)
 	return grounded

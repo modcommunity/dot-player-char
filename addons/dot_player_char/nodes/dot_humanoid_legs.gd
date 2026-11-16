@@ -43,6 +43,12 @@ var _turn_of: int = 0
 var _turn_count: int = 0
 var _turn_root: int = -1
 var _turn_hips: int = -1
+# [method hold_feet]: per leg the world point a planted ankle is held at (or null), the hold's offset from the clip's ankle as last drawn,
+# how fast a lifted foot's offset eases off (m/s), and the clip's ankle last step (world; INF before one).
+var _holds: Array = [null, null]
+var _held: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _letting: Array[float] = [0.0, 0.0]
+var _was: Array[Vector3] = [Vector3.INF, Vector3.INF]
 
 
 ## Reads the ground [param velocity] (world) against [param facing] (the figure's world basis) and eases the twist.
@@ -139,10 +145,7 @@ func on_wall(skeleton: Skeleton3D, wall: Plane, up: Vector3, weight: float) -> v
 func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat32Array, raised: float = 0.0) -> void:
 	if skeleton == null or floor_y.size() < LEGS.size():
 		return
-	if _floor_of != skeleton.get_instance_id() or _floor_count != skeleton.get_bone_count():
-		_floor_of = skeleton.get_instance_id()
-		_floor_count = skeleton.get_bone_count()
-		_floor_legs = _floor_bones(skeleton)
+	_legs_for(skeleton)
 	var to_skel := to_figure.affine_inverse()
 	for k in _floor_legs.size():
 		var leg: Array = _floor_legs[k]
@@ -162,6 +165,75 @@ func on_floor(skeleton: Skeleton3D, to_figure: Transform3D, floor_y: PackedFloat
 		if pole.length_squared() < 1e-8:
 			pole = to_skel.basis * Vector3.FORWARD
 		var _reached := DotHumanoidIk.two_bone_to(skeleton, upper, lower, end_local, to_skel * (at + Vector3.UP * lift), pole, 1.0)
+
+
+## Holds each planted drawn ankle at the world point it came down on, by two-bone IK on the leg: a stride clip has no root motion, and even
+## played at the matched rate its planted foot sweeps back a little faster or slower than the ground goes by (a skate). Planted is within
+## [param height] of its rest height ([param floor_y], figure frame), coming down under [param settle] m/s in the world as the clip draws it (a
+## swinging foot passing low is not); it stays held until it lifts past [param height]. A hold never pulls the ankle more than [param reach] metres off the clip's (it drags along instead:
+## a sharp turn, a teleport); a lifted foot eases back onto the clip's over [param release] seconds. [param to_world] is skeleton space to
+## world, [param to_figure] skeleton space to the figure's frame. Drawing only; [method restore] puts the legs back before the next clip frame.
+func hold_feet(skeleton: Skeleton3D, to_world: Transform3D, to_figure: Transform3D, floor_y: PackedFloat32Array, height: float, settle: float,
+		reach: float, release: float, dt: float) -> void:
+	if skeleton == null or floor_y.size() < LEGS.size() or dt <= 0.0:
+		return
+	_legs_for(skeleton)
+	var to_skel := to_world.affine_inverse()
+	var knees: Array[Transform3D] = []
+	var lows := PackedFloat32Array()
+	for k in _floor_legs.size():
+		knees.append(DotHumanoidIk.chain_pose(skeleton, _floor_legs[k][4]))
+		lows.append((to_figure * (knees[k] * (_floor_legs[k][2] as Vector3))).y - floor_y[k])
+	for k in _floor_legs.size():
+		var leg: Array = _floor_legs[k]
+		var knee := knees[k]
+		var ankle_s: Vector3 = knee * (leg[2] as Vector3)
+		var ankle := to_world * ankle_s
+		var flat := Vector2(ankle.x - _was[k].x, ankle.z - _was[k].z).length() / dt if _was[k].is_finite() else INF
+		_was[k] = ankle
+		# Only the coming down needs the foot slow: once held, the clip racing its foot back (the matched rate at a handoff) is what the
+		# hold is for. A body on the floor stands on something, so the lower foot with the other one up is held however it moves (a blend in from the idle).
+		var other := 1 - k if _floor_legs.size() > 1 else k
+		var support := other != k and lows[k] < lows[other] and _holds[other] == null
+		var planted := lows[k] <= height and (flat <= settle or _holds[k] != null or support)
+		var shift := Vector3.ZERO
+		if planted:
+			if _holds[k] == null:
+				# Down where it is drawn now, so a foot still easing off a hold is not snapped back to its clip's.
+				_holds[k] = ankle + _held[k]
+			var held: Vector3 = _holds[k]
+			shift = Vector3(held.x - ankle.x, 0.0, held.z - ankle.z)
+			if reach > 0.0 and shift.length() > reach:
+				shift = shift.limit_length(reach)
+				_holds[k] = Vector3(ankle.x + shift.x, held.y, ankle.z + shift.z)
+			_letting[k] = shift.length() / release if release > 0.0 else INF
+		else:
+			_holds[k] = null
+			shift = _held[k].move_toward(Vector3.ZERO, _letting[k] * dt)
+		_held[k] = shift
+		if shift.length_squared() < 1e-10:
+			continue
+		for bone: int in [leg[0], leg[1]]:
+			if not _saved.has(bone):
+				_saved[bone] = skeleton.get_bone_pose_rotation(bone)
+		var pole: Vector3 = knee.origin - (DotHumanoidIk.chain_pose(skeleton, leg[3]).origin + ankle_s) * 0.5
+		if pole.length_squared() < 1e-8:
+			pole = to_skel.basis * Vector3.FORWARD
+		var _reached := DotHumanoidIk.two_bone_to(skeleton, leg[0], leg[1], leg[2], to_skel * (ankle + shift), pole, 1.0)
+
+
+## Lets go of every [method hold_feet] hold at once (the feet left the floor, the clip is not a stride, the body was moved).
+func let_go() -> void:
+	_holds = [null, null]
+	_held = [Vector3.ZERO, Vector3.ZERO]
+	_was = [Vector3.INF, Vector3.INF]
+
+
+func _legs_for(skeleton: Skeleton3D) -> void:
+	if _floor_of != skeleton.get_instance_id() or _floor_count != skeleton.get_bone_count():
+		_floor_of = skeleton.get_instance_id()
+		_floor_count = skeleton.get_bone_count()
+		_floor_legs = _floor_bones(skeleton)
 
 
 ## [method on_floor]'s legs on [param skeleton], up to the first with a bone missing.

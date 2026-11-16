@@ -210,10 +210,25 @@ var limb_turn_rate: float = 1300.0:
 			limb_turn_rate = value
 
 
-static func _rate_ok(what: String, value: float) -> bool:
+## Farthest a planted foot of a stride is held off where its clip draws it, metres ([method DotHumanoidLegs.hold_feet]): the clip, played at the matched rate,
+## still sweeps a planted foot back a little faster or slower than the ground goes by, and the hold pins it where it came down instead. Past this it drags
+## (a sharp turn, a teleport). 0 draws the clip's feet as they are. Drawing only.
+var foot_hold_reach: float = FOOT_HOLD_REACH:
+	set(value):
+		if _rate_ok("foot_hold_reach", value, "0: off"):
+			foot_hold_reach = value
+const FOOT_HOLD_REACH := 0.15
+## A stride's foot within this of its rest height (metres) and moving slower than [constant FOOT_HOLD_SETTLE] m/s in the world as the clip draws it is planted;
+## a lifted foot eases back onto the clip's over [constant FOOT_HOLD_RELEASE] seconds.
+const FOOT_HOLD_HEIGHT := 0.04
+const FOOT_HOLD_SETTLE := 1.0
+const FOOT_HOLD_RELEASE := 0.12
+
+
+static func _rate_ok(what: String, value: float, zero := "0: no limit") -> bool:
 	if is_finite(value) and value >= 0.0:
 		return true
-	push_error("DotHumanoidFigure.%s must be a finite number, 0 or more (0: no limit), got %s" % [what, value])
+	push_error("DotHumanoidFigure.%s must be a finite number, 0 or more (%s), got %s" % [what, zero, value])
 	return false
 
 ## The states whose clip is a stride (its rate is matched to the ground), no floor lift, off the floor.

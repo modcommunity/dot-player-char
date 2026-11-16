@@ -59,12 +59,24 @@ const CROUCH_IDLE_BEND := 1.4
 const CROUCH_WALK_BOB := 0.03
 
 ## How far a crouch walk's hips ride over the idle crouch's, in the clip body's units: a crouch walk
-## reads a little taller than a crouch held still, and no taller than that.
-const CROUCH_WALK_RISE := 0.02
+## reads a little taller than a crouch held still, and no taller than that (FC's crouch hit zones
+## missed head shots from 0.05).
+const CROUCH_WALK_RISE := 0.03
 
 ## How much of the walk's step (each ankle's reach ahead of and behind the hips) a crouch walk
 ## keeps: short steps on bent legs.
 const CROUCH_WALK_STRIDE := 0.8
+
+## How much of the torso's forward lean a crouch walk's upper arms follow, and how far (radians) its
+## elbows bend from the upper arm, and how far (radians) each forearm turns in toward the middle: the hands
+## ride at the hips, ahead, not hanging to the knees.
+const CROUCH_WALK_ARM_LEAN := 0.6
+const CROUCH_WALK_ELBOW := 1.2
+const CROUCH_WALK_TUCK := 0.4
+
+## How much further (radians) a crouch walk's upper body pitches forward than the bent walk's, the head
+## turned back to look ahead: with [constant CROUCH_WALK_RISE] it keeps the head as low as the crouch's.
+const CROUCH_WALK_LEAN := 0.15
 
 ## The bones a crouch bends: the body's height and the legs. The arms and head keep what the
 ## walk does with them.
@@ -605,8 +617,10 @@ static func _crouch_walking(bent: Animation, walk: Animation, crouch: Animation,
 			dip = CROUCH_WALK_BOB * (0.5 * cos(at * TAU * 2.0) - 0.5)
 		var drop := hips_y + dip - (g[body] as Transform3D).origin.y
 		_move_subtree(g, skeleton, body, Transform3D(Basis.IDENTITY, Vector3(0.0, drop, 0.0)))
+		_stoop(g, skeleton)
 		for side: String in [".L", ".R"]:
 			_reach(g, skeleton, side, w, crouched)
+			_carry_arm(g, skeleton, side)
 		var locals := _back_to_locals(g, skeleton)
 		for i in locals.size():
 			var local: Transform3D = locals[i]
@@ -650,6 +664,43 @@ static func _reach(g: Array, skeleton: Skeleton3D, side: String, w: Array, bent:
 	var knee_at := hip + (along * cos_hip + pole.normalized() * sqrt(1.0 - cos_hip * cos_hip)) * upper
 	var ankle := hip + along * reach
 	_place_leg(g, skeleton, side, knee_at - hip, ankle - knee_at, lower)
+
+
+## Pitches pose [param g]'s upper body forward [constant CROUCH_WALK_LEAN] more at the abdomen, the neck turned
+## back as far so the head still looks ahead: the hips ride higher than the crouch's (knees near square, not a
+## squat) and the head and neck stay down inside the crouch's hit zones.
+static func _stoop(g: Array, skeleton: Skeleton3D) -> void:
+	var abdomen := skeleton.find_bone("Abdomen")
+	var neck := skeleton.find_bone("Neck")
+	if abdomen < 0 or neck < 0 or is_zero_approx(CROUCH_WALK_LEAN):
+		return
+	_move_subtree(g, skeleton, abdomen, _about((g[abdomen] as Transform3D).origin, Basis(Vector3.RIGHT, CROUCH_WALK_LEAN)))
+	_move_subtree(g, skeleton, neck, _about((g[neck] as Transform3D).origin, Basis(Vector3.RIGHT, -CROUCH_WALK_LEAN)))
+
+
+## Carries one arm of pose [param g] with the bent body: the upper arm turned forward by
+## [constant CROUCH_WALK_ARM_LEAN] of the torso's lean (so it hangs by the body's side, not down to the knees),
+## its swing kept, and the elbow bent [constant CROUCH_WALK_ELBOW] (the forearm turned [constant CROUCH_WALK_TUCK] in
+## toward the middle) so the hand rides ahead of the hips, not out to the side.
+static func _carry_arm(g: Array, skeleton: Skeleton3D, side: String) -> void:
+	var hips := skeleton.find_bone("Hips")
+	var neck := skeleton.find_bone("Neck")
+	var upper := skeleton.find_bone("UpperArm" + side)
+	var lower := skeleton.find_bone("LowerArm" + side)
+	if hips < 0 or neck < 0 or upper < 0 or lower < 0:
+		return
+	var ends := skeleton.get_bone_children(lower)
+	if ends.is_empty():
+		return
+	var spine: Vector3 = (g[neck] as Transform3D).origin - (g[hips] as Transform3D).origin
+	var lean := atan2(spine.z, spine.y)
+	var arm: Vector3 = (g[lower] as Transform3D).origin - (g[upper] as Transform3D).origin
+	var _u := _turn_subtree(g, skeleton, upper, arm, Basis(Vector3.LEFT, lean * CROUCH_WALK_ARM_LEAN) * arm)
+	arm = (g[lower] as Transform3D).origin - (g[upper] as Transform3D).origin
+	var fore: Vector3 = (g[ends[0]] as Transform3D).origin - (g[lower] as Transform3D).origin
+	var out := signf((g[upper] as Transform3D).origin.x - (g[hips] as Transform3D).origin.x)
+	var bent_fore := Basis(Vector3.UP, -out * CROUCH_WALK_TUCK) * (Basis(Vector3.LEFT, CROUCH_WALK_ELBOW) * arm.normalized())
+	var _l := _turn_subtree(g, skeleton, lower, fore, bent_fore)
 
 
 ## [param base] with the duck's bend at [param low] added on [constant CROUCH_BONES], looping.
