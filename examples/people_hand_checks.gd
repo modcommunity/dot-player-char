@@ -11,21 +11,7 @@ func _init(host: Node) -> void:
 
 
 func run() -> void:
-	suite._section("your own real hands, a grip per weapon")
-	var hand := DotViewHand.new()
-	suite.add_child(hand)
-	var verts := (hand.mesh_instance().mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-	suite._check(verts > 400, "a hand is one skinned mesh with five jointed fingers (%d vertices)" % verts)
-	var open := hand.tip(&"index").distance_to(Vector3(0.0, 0.05, 0.03))
-	hand.pose((DotViewHandPoses.table()[DotViewHandPoses.FISTS] as Dictionary)[&"firing"])
-	var fist := hand.tip(&"index").distance_to(Vector3(0.0, 0.05, 0.03))
-	suite._check(fist < open - 0.03, "a fist pose closes the fingers into the palm (index tip %.3f m from it, open %.3f m)" % [fist, open])
-	var left := DotViewHand.new()
-	left.right = false
-	suite.add_child(left)
-	suite._check(hand.tip(&"thumb").x > 0.0 and left.tip(&"thumb").x < 0.0, "a left hand is the right one mirrored (thumb x %.3f / %.3f)" % [hand.tip(&"thumb").x, left.tip(&"thumb").x])
-	hand.queue_free()
-	left.queue_free()
+	_check_hand_mesh()
 
 	var arms := DotPlayerViewArms.new()
 	arms.finger_rate = 0.0
@@ -80,6 +66,40 @@ func run() -> void:
 			named = "%s %.3f m, hands %s/%s" % [kind, error, hands[0].visible, hands[1].visible]
 	suite._check(worst < 0.03, "every kind (and an unknown one, as a rifle) is held in its hands, one-hand ones in one (worst %s)" % named)
 
+	await _check_grenade(arms, weapon, grip, hands)
+	await _check_knife(arms, weapon, grip, hands)
+	await _check_extended_reach(arms, grip)
+
+	arms.real_hands = false
+	arms.set_held(rifle)
+	await _settle(arms, 3)
+	suite._check(not hands[0].visible and not hands[1].visible and arms.hand_error(rifle) < 0.03, "real_hands off draws the kit's own hands again (%.3f m)" % arms.hand_error(rifle))
+	arms.real_hands = true
+	arms.set_held(null)
+	suite._check(not hands[0].visible and not hands[1].visible, "putting the weapon away hides the hands")
+	arms.queue_free()
+	weapon.queue_free()
+
+
+func _check_hand_mesh() -> void:
+	suite._section("your own real hands, a grip per weapon")
+	var hand := DotViewHand.new()
+	suite.add_child(hand)
+	var verts := (hand.mesh_instance().mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	suite._check(verts > 400, "a hand is one skinned mesh with five jointed fingers (%d vertices)" % verts)
+	var open := hand.tip(&"index").distance_to(Vector3(0.0, 0.05, 0.03))
+	hand.pose((DotViewHandPoses.table()[DotViewHandPoses.FISTS] as Dictionary)[&"firing"])
+	var fist := hand.tip(&"index").distance_to(Vector3(0.0, 0.05, 0.03))
+	suite._check(fist < open - 0.03, "a fist pose closes the fingers into the palm (index tip %.3f m from it, open %.3f m)" % [fist, open])
+	var left := DotViewHand.new()
+	left.right = false
+	suite.add_child(left)
+	suite._check(hand.tip(&"thumb").x > 0.0 and left.tip(&"thumb").x < 0.0, "a left hand is the right one mirrored (thumb x %.3f / %.3f)" % [hand.tip(&"thumb").x, left.tip(&"thumb").x])
+	hand.queue_free()
+	left.queue_free()
+
+
+func _check_grenade(arms: DotPlayerViewArms, weapon: Node3D, grip: Vector3, hands: Array) -> void:
 	var grenade := DotViewGrip.one_hand(weapon, grip)
 	grenade.kind = DotViewHandPoses.GRENADE
 	arms.set_held(grenade)
@@ -90,6 +110,8 @@ func run() -> void:
 	var tilt_b := DotViewHandPoses.frame(pose, Vector3.UP, Vector3(-0.0002, 1.0, 0.0001))
 	suite._check(tilt_a.is_equal_approx(tilt_b) and tilt_a.is_conformal(), "an up along the forward (a grenade's) gives one steady hand frame, not noise")
 
+
+func _check_knife(arms: DotPlayerViewArms, weapon: Node3D, grip: Vector3, hands: Array) -> void:
 	var knife := DotViewGrip.one_hand(weapon, grip)
 	knife.kind = DotViewHandPoses.KNIFE
 	arms.set_held(knife)
@@ -105,6 +127,8 @@ func run() -> void:
 	suite._check(hands[0].visible and hands[1].visible, "sprinting with a knife pumps the free hand too, a fist")
 	arms.run = 0.0
 
+
+func _check_extended_reach(arms: DotPlayerViewArms, grip: Vector3) -> void:
 	var far := Node3D.new()
 	suite.add_child(far)
 	far.position = Vector3(0.1, -0.2, -0.45)
@@ -118,16 +142,6 @@ func run() -> void:
 		errors.append(arms.hand_error(long))
 	suite._check(errors[0] > 0.05, "a long forend is out of the arm's plain reach (%.3f m short; the check can fail)" % errors[0])
 	suite._check(errors[1] < 0.03 and arms.describe()["reach_extended"] > 0.0, "extend_reach moves the shoulder out so the support hand lands on it (%.3f m, moved %.3f)" % [errors[1], arms.describe()["reach_extended"]])
-
-	arms.real_hands = false
-	arms.set_held(rifle)
-	await _settle(arms, 3)
-	suite._check(not hands[0].visible and not hands[1].visible and arms.hand_error(rifle) < 0.03, "real_hands off draws the kit's own hands again (%.3f m)" % arms.hand_error(rifle))
-	arms.real_hands = true
-	arms.set_held(null)
-	suite._check(not hands[0].visible and not hands[1].visible, "putting the weapon away hides the hands")
-	arms.queue_free()
-	weapon.queue_free()
 	far.queue_free()
 
 

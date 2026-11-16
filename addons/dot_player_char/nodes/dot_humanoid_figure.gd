@@ -222,42 +222,14 @@ func animate(speed: float, delta: float) -> void:
 
 func _animate_step(speed: float, p_delta: float) -> void:
 	_speed = speed
-	if _anim != null:
-		# The figure is drawn less often far from the camera or out of view. A skipped frame does nothing but carry its time: the state, the carry, the legs' turn and the clip are all worked out on the next drawn
-		# frame over the whole of it, and nothing is written to the skeleton (a write marks it dirty, and the engine then redoes every bone's global pose and the skin).
-		_frame += 1
-		var was_step := anim_step
-		anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
-		_step_distance = DotHumanoidFrames.last_distance
-		_step_seen = DotHumanoidFrames.last_seen
-		if not _details.is_empty():
-			_pick_detail(DotHumanoidFrames.last_distance)
-		# A figure coming into view (or nearer) is redrawn at once, not up to seven frames later.
-		if _frame % anim_step != 0 and anim_step >= was_step:
-			_owed += p_delta
-			# The drawn origin still moves between drawn frames: the body follows the floor under it.
-			if not is_inside_tree() or (global_position != _lift_at and _lifts_between_steps()):
-				_lift_body()
-			return
+	if _anim != null and _skip_frame(p_delta):
+		return
 	var delta := p_delta + _owed
 	_owed = 0.0
 	# The layers drawn this frame ([constant SUPPORT_RANGE]), from the step just worked out.
 	var seen := DotHumanoidFrames.last_seen if _anim != null else true
 	var far := DotHumanoidFrames.last_distance if _anim != null else 0.0
-	_machine.land_stride_speed = land_stride_speed
-	state = _machine.advance(_motion, delta, speed)
-	_end_action_if_moved()
-	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
-	_sprint = move_toward(_sprint, 1.0 if carry_sprint and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
-	var standing := not (downed or seated or driving) and _action_full == &"" and state != DotPlayerAnimState.DEAD
-	carry.step(delta, hold == Hold.GUN and standing and state != DotPlayerAnimState.SWIM and state != DotPlayerAnimState.CLIMB)
-	var grip := support_point.is_finite() or carry.support_grip.is_finite()
-	_support_weight = move_toward(_support_weight, 1.0 if grip and hold == Hold.GUN and not downed else 0.0, delta / 0.15)
-	var pumping := carry_sprint and _motion.has("sprinting") and hold != Hold.GUN and standing and overlay == &"" \
-		and (state == DotPlayerAnimState.RUN or state == DotPlayerAnimState.WALK)
-	if downed or not standing:
-		arms.charge = -1.0
-	arms.step(delta, pumping, _speed, _stride_fraction() if _anim != null else -1.0)
+	_step_state(delta, speed)
 
 	if _anim == null:
 		return
@@ -310,6 +282,45 @@ func _animate_step(speed: float, p_delta: float) -> void:
 		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)
 	_own.cap_colour = look.top
 	_own.apply(_skeleton, _mesh)
+
+
+## Counts this frame against [member anim_step] and, when it is not a drawn one, carries its time and returns true.
+func _skip_frame(p_delta: float) -> bool:
+	# The figure is drawn less often far from the camera or out of view. A skipped frame does nothing but carry its time: the state, the carry, the legs' turn and the clip are all worked out on the next drawn
+	# frame over the whole of it, and nothing is written to the skeleton (a write marks it dirty, and the engine then redoes every bone's global pose and the skin).
+	_frame += 1
+	var was_step := anim_step
+	anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
+	_step_distance = DotHumanoidFrames.last_distance
+	_step_seen = DotHumanoidFrames.last_seen
+	if not _details.is_empty():
+		_pick_detail(DotHumanoidFrames.last_distance)
+	# A figure coming into view (or nearer) is redrawn at once, not up to seven frames later.
+	if _frame % anim_step != 0 and anim_step >= was_step:
+		_owed += p_delta
+		# The drawn origin still moves between drawn frames: the body follows the floor under it.
+		if not is_inside_tree() or (global_position != _lift_at and _lifts_between_steps()):
+			_lift_body()
+		return true
+	return false
+
+
+## Advances the state machine, the sprint and support blends, the carry and the arms by [param delta].
+func _step_state(delta: float, speed: float) -> void:
+	_machine.land_stride_speed = land_stride_speed
+	state = _machine.advance(_motion, delta, speed)
+	_end_action_if_moved()
+	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
+	_sprint = move_toward(_sprint, 1.0 if carry_sprint and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
+	var standing := not (downed or seated or driving) and _action_full == &"" and state != DotPlayerAnimState.DEAD
+	carry.step(delta, hold == Hold.GUN and standing and state != DotPlayerAnimState.SWIM and state != DotPlayerAnimState.CLIMB)
+	var grip := support_point.is_finite() or carry.support_grip.is_finite()
+	_support_weight = move_toward(_support_weight, 1.0 if grip and hold == Hold.GUN and not downed else 0.0, delta / 0.15)
+	var pumping := carry_sprint and _motion.has("sprinting") and hold != Hold.GUN and standing and overlay == &"" \
+		and (state == DotPlayerAnimState.RUN or state == DotPlayerAnimState.WALK)
+	if downed or not standing:
+		arms.charge = -1.0
+	arms.step(delta, pumping, _speed, _stride_fraction() if _anim != null else -1.0)
 
 
 ## Whether the body follows the floor on a frame its clip does not step: always near and in view; past [member lift_range]

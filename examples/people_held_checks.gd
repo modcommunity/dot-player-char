@@ -61,19 +61,7 @@ func run_arms() -> void:
 	suite._check(step < 0.08, "swapping from a two-hand grip at arm's length to a one-hand one glides the shoulder and elbow in, no jump (worst step %.3f m; was 0.26)" % step)
 	var short := _grow_error(arms, grip, fore)
 	suite._check(short < 0.06, "swapping from a one-hand grip to a two-hand one at arm's length leans at once: the support hand is on its grip the next frame (%.3f m off; eased it was short)" % short)
-	arms.set_held(DotViewGrip.one_hand(weapon, grip))
-	arms.tick(0.0, 1.0 / 30.0)
-	var rest_left := _bone_world(sk, "Middle1.L")
-	suite._check(rest_left.distance_to(weapon.to_global(fore)) > 0.1, "a one-hand grip leaves the other hand off the foregrip (%.2f m away)" % rest_left.distance_to(weapon.to_global(fore)))
-	# Hidden by drawing the arms mesh without it (a shrunk bone smeared a skin wedge), or by the shrunk bone on a factory figure.
-	suite._check(not arms.describe()["left_arm"], "a one-hand grip hides the idle left arm")
-	arms.show_idle_left_arm = true
-	arms.tick(0.0, 1.0 / 30.0)
-	suite._check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x > 0.5, "show_idle_left_arm keeps it")
-	arms.show_idle_left_arm = false
-	arms.set_held(DotViewGrip.two_hand(weapon, grip, fore))
-	arms.tick(0.0, 1.0 / 30.0)
-	suite._check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x > 0.5, "a two-hand grip shows the left arm")
+	_check_idle_left_arm(arms, sk, weapon, grip, fore)
 	arms.set_held(DotViewGrip.two_hand(weapon, grip, Vector3(0.0, 5.0, 0.0)))
 	arms.tick(0.0, 1.0 / 30.0)
 	suite._check(_bone_world(sk, "Middle1.L").distance_to(weapon.to_global(Vector3(0.0, 5.0, 0.0))) > 1.0, "a support point out of reach is not reached (the check can fail)")
@@ -92,6 +80,22 @@ func run_arms() -> void:
 	suite._check(not DotViewGrip.new().is_valid(), "a grip with no anchor is not valid, so the arms rest")
 	arms.queue_free()
 	weapon.queue_free()
+
+
+func _check_idle_left_arm(arms: DotPlayerViewArms, sk: Skeleton3D, weapon: Node3D, grip: Vector3, fore: Vector3) -> void:
+	arms.set_held(DotViewGrip.one_hand(weapon, grip))
+	arms.tick(0.0, 1.0 / 30.0)
+	var rest_left := _bone_world(sk, "Middle1.L")
+	suite._check(rest_left.distance_to(weapon.to_global(fore)) > 0.1, "a one-hand grip leaves the other hand off the foregrip (%.2f m away)" % rest_left.distance_to(weapon.to_global(fore)))
+	# Hidden by drawing the arms mesh without it (a shrunk bone smeared a skin wedge), or by the shrunk bone on a factory figure.
+	suite._check(not arms.describe()["left_arm"], "a one-hand grip hides the idle left arm")
+	arms.show_idle_left_arm = true
+	arms.tick(0.0, 1.0 / 30.0)
+	suite._check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x > 0.5, "show_idle_left_arm keeps it")
+	arms.show_idle_left_arm = false
+	arms.set_held(DotViewGrip.two_hand(weapon, grip, fore))
+	arms.tick(0.0, 1.0 / 30.0)
+	suite._check(sk.get_bone_pose_scale(sk.find_bone("UpperArm.L")).x > 0.5, "a two-hand grip shows the left arm")
 
 
 ## The arms keep out of the weapon's box, wear the detailed material, and take a server's arm set over their own.
