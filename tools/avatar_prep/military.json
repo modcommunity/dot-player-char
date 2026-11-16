@@ -1,6 +1,8 @@
 {"name": "military", "height": 1.8, "small": 1500, "jpeg_quality": 85,
  "drop_materials": ["eyebrow009"],
  "atlas_cells": {"player_soldier": 512, "tactical_vest_male": 512, "harvey_pantsbootsv1": 512, "knitted_hat_01": 256, "low-poly": 256},
+ "covered": {"under": ["player_soldier"], "reach": 0.04}, "shares": {"tactical_vest_male": 0.4, "player_soldier": 0.3, "harvey_pantsbootsv1": 0.25},
+ "dye": {"player_soldier": 0.0, "tactical_vest_male": 1.0, "harvey_pantsbootsv1": 1.0, "knitted_hat_01": 1.0},
  "lods": [
   {"name": "lod0", "tris": 10000, "skeleton": "fingers", "atlas": 1024, "arms": true},
   {"name": "lod1", "tris": 3000, "skeleton": "core", "atlas": 1024},

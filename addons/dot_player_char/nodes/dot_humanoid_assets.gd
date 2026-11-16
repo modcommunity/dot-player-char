@@ -55,7 +55,37 @@ void fragment() {
 }
 """
 
+## A registered body's material ([method DotHumanoidAssets.register_body]): its own texture, with cloth and
+## gear (not skin) moved toward the look's top colour by [member team_tint] at the same brightness.
+const TEAM_SHADER := """
+shader_type spatial;
+render_mode cull_back, specular_disabled;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform vec4 tint : source_color = vec4(1.0);
+uniform float amount = 0.0;
+uniform float flash = 0.0;
+
+void fragment() {
+	vec3 c = texture(albedo_tex, UV).rgb;
+	vec3 w = vec3(0.299, 0.587, 0.114);
+	// Skin is warm (red over green over blue) and keeps its colour, so a face never turns team blue.
+	float warm = smoothstep(0.02, 0.08, c.r - c.g) * smoothstep(0.0, 0.03, c.g - c.b);
+	// A baked vertex colour overrides that guess (tan cloth reads as skin): red = how far to dye, green = keep the test.
+	vec3 dyed = tint.rgb * dot(c, w) / max(dot(tint.rgb, w), 0.05);
+	ALBEDO = mix(c, dyed, amount * COLOR.r * (1.0 - warm * COLOR.g));
+	ROUGHNESS = 0.8;
+	EMISSION = vec3(flash * 0.35, flash * 0.05, flash * 0.03);
+}
+"""
+
+## How far a registered body's cloth moves to its look's top colour (0 keeps its own colours, 1 dyes it).
+static var team_tint := 0.35
+## Camera distances (metres) past which a registered body draws its `LOD1` and then its `LOD2` mesh.
+static var lod_distances := PackedFloat32Array([22.0, 45.0])
+
 static var _scenes: Dictionary = {}
+static var _team_shader: Shader = null
+static var _albedos: Dictionary = {}
 static var _libraries: Dictionary = {}
 static var _materials: Dictionary = {}
 static var _shader: Shader = null
@@ -91,7 +121,35 @@ static func real_clips_path() -> String:
 
 
 static func body_path(id: StringName) -> String:
+	if DotHumanoidLook.registered.has(id):
+		return DotHumanoidLook.registered[id]
 	return directory().path_join("people_%s.glb" % id)
+
+
+## Adds a body beside the stock four: a glb on the kit's rig (bone names and rest directions, as
+## `tools/avatar_prep/kit_rig.py` writes), meshes named `LOD0`..`LOD2`, its own texture on one material.
+## The path is the game's (often outside the project, never in this addon); an empty one forgets the body.
+## False and an error for a missing file or a stock id; nothing is registered then.
+static func register_body(id: StringName, path: String) -> bool:
+	if path == "":
+		var _gone := DotHumanoidLook.registered.erase(id)
+		return true
+	if DotHumanoidLook.BODIES.has(id) or not (ResourceLoader.exists(path) or FileAccess.file_exists(path)):
+		DotLog.error(CHANNEL, "body not registered: stock id or no file", {"id": String(id), "path": path})
+		return false
+	DotHumanoidLook.registered[id] = path
+	return true
+
+
+## A registered body's meshes by detail, nearest first ([member lod_distances]); empty for a stock body.
+static func detail_meshes(model: Node) -> Array[Mesh]:
+	var out: Array[Mesh] = []
+	for i in 3:
+		var found := model.find_child("LOD%d" % i, true, false) as MeshInstance3D
+		if found == null or found.mesh == null:
+			break
+		out.append(found.mesh)
+	return out
 
 
 static func scene(path: String) -> PackedScene:
@@ -115,14 +173,16 @@ static func load_model(path: String) -> PackedScene:
 	var err := doc.append_from_file(path, state)
 	var root := doc.generate_scene(state, 30.0, false, true) if err == OK else null
 	if root == null:
-		DotLog.warn(CHANNEL, "model is neither imported nor readable", {"path": path, "error": error_string(err)})
+		DotLog.error(CHANNEL, "model is neither imported nor readable", {"path": path, "error": error_string(err)})
 		return null
 	var packed := PackedScene.new()
 	var packed_err := packed.pack(root)
 	root.free()
 	if packed_err != OK:
 		return null
-	DotLog.warn(CHANNEL, "model was never imported; read from the source file instead (run the project's import once)", {"path": path})
+	# A registered body outside the project is never imported, and that is expected.
+	if path.begins_with("res://"):
+		DotLog.warn(CHANNEL, "model was never imported; read from the source file instead (run the project's import once)", {"path": path})
 	return packed
 
 
@@ -267,6 +327,8 @@ static func _build(inputs: Dictionary, out: Dictionary, from: Dictionary) -> voi
 
 ## One material per look: people with the same colours share it.
 static func material_for(p_look: DotHumanoidLook) -> ShaderMaterial:
+	if DotHumanoidLook.registered.has(p_look.body):
+		return _team_material(p_look)
 	var key := p_look.key()
 	if _materials.has(key):
 		return _materials[key]
@@ -316,6 +378,43 @@ static func material_for(p_look: DotHumanoidLook) -> ShaderMaterial:
 	return material
 
 
+# Keyed by body and top only: a registered body has no swatches for skin, hair or bottom.
+static func _team_material(p_look: DotHumanoidLook) -> ShaderMaterial:
+	var key := "%s|%s|%s" % [p_look.body, p_look.top.to_html(false), team_tint]
+	if _materials.has(key):
+		return _materials[key]
+	if _team_shader == null:
+		_team_shader = Shader.new()
+		_team_shader.code = TEAM_SHADER
+	var material := ShaderMaterial.new()
+	material.shader = _team_shader
+	material.set_shader_parameter(&"albedo_tex", _albedo_of(p_look.body))
+	material.set_shader_parameter(&"tint", p_look.top)
+	material.set_shader_parameter(&"amount", team_tint)
+	_materials[key] = material
+	return material
+
+
+# The texture the body's glb painted its first mesh with.
+static func _albedo_of(id: StringName) -> Texture2D:
+	if _albedos.has(id):
+		return _albedos[id]
+	var model := scene(body_path(id))
+	var probe := model.instantiate() if model != null else null
+	var found: Array = probe.find_children("*", "MeshInstance3D", true, false) if probe != null else []
+	var texture: Texture2D = null
+	if not found.is_empty():
+		var mesh := (found.front() as MeshInstance3D).mesh
+		var base := mesh.surface_get_material(0) as BaseMaterial3D if mesh != null and mesh.get_surface_count() > 0 else null
+		texture = base.albedo_texture if base != null else null
+	if probe != null:
+		probe.free()
+	if texture == null:
+		DotLog.error(CHANNEL, "registered body has no albedo texture", {"id": String(id)})
+	_albedos[id] = texture
+	return texture
+
+
 ## How many distinct materials the looks drawn so far made: a crowd's draw-state cost.
 static func material_count() -> int:
 	return _materials.size()
@@ -331,6 +430,8 @@ static func clear_cache() -> void:
 	_scenes.clear()
 	_libraries.clear()
 	_materials.clear()
+	_albedos.clear()
+	_team_shader = null
 	_shader = null
 	_atlas = null
 

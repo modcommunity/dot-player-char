@@ -23,6 +23,14 @@ The four bodies share one atlas of flat swatches. A look is a body and four colo
 - **The swap is matched in both colour spaces**, and answered in the one it matched: what a `source_color` sampler hands back differs by renderer, and game-zombie-zone's first palette shader, converting by hand, drew every zombie near black on one of them.
 - **Colour arrays are `vec4`**: a `vec3` array is padded on the GPU, and a packed `Vector3` array set into one is read skewed.
 
+## A game's own body
+
+A game with its own character art (a team uniform, a licensed figure) prepares it on the kit rig (docs/avatar-prep.md, "Kit rig") and registers it at start-up: `DotHumanoidAssets.register_body(id, path)`, where the path may be outside the project (`user://`, an absolute path), since such art often may not ship in a public repository. A look then names it like a stock body (`DotHumanoidLook.make(id, ...)`, `is_body`), and every clip, the own view, the ragdoll and the gib work on it unchanged.
+
+- **One mesh instance, three meshes.** The GLB holds `LOD0`, `LOD1`, `LOD2`; the figure keeps one instance and swaps its mesh past `DotHumanoidAssets.lod_distances`, only when the level changes, so a ragdoll or a gib copies one body and your own view's stripped mesh is not put back.
+- **Its own texture, tinted by the top.** No swatches to swap, so the body draws with `TEAM_SHADER`: everything but warm skin turned toward the look's top colour at the same brightness, by `team_tint`. One material per body and top, so a side batches; the first-person arms use the same one.
+- **Refused loudly.** A stock id or a missing file is an error and returns false; an empty path forgets the body, and a look naming it then draws the first stock body.
+
 ## The site's avatar
 
 The site's built-in avatar is Kenney's blocky kit: three slots (face, top, legs), each one of the eighteen skins `skin-a` to `skin-r`. `DotHumanoidLook.from_site` turns one into a person: the face's letter picks the body and gives the skin and hair colour, the top's and the legs' give the clothes. `SITE_SKINS` is the colour under the most area of each part of each skin, measured by `tools/kenney_site_colours.py`. A member who dressed as the robot is grey and red here; the person is recognisable without the block body.

@@ -2,7 +2,7 @@ extends SceneTree
 
 ## The downed first-person arms as the player sees them: crawl, six moments, looking 15 and 80 degrees down.
 ##   xvfb-run -a godot --path . --script tools/view_arms_sheet.gd -- [--out=res://screenshots] [--off=x,y,z (the eye in the figure's frame)]
-##   --look=body,skin,hair,top,bottom (hex colours; solid colours show unclaimed swatches). --held (with --left to keep the idle left arm): held-weapon mode: rows one-hand / two-hand / side / looking 60 down, columns idle then walking.
+##   --look=body,skin,hair,top,bottom (hex colours; solid colours show unclaimed swatches); a game's own body needs --register=id:path before it. --held (with --left to keep the idle left arm): held-weapon mode: rows one-hand / two-hand / side / looking 60 down, columns idle then walking.
 
 const CELL := Vector2i(400, 260)
 const MOMENTS := 6
@@ -19,6 +19,9 @@ func _initialize() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.trim_prefix("--out=")
+		elif arg.begins_with("--register="):
+			for pair in arg.trim_prefix("--register=").split(","):
+				var _ok := DotHumanoidAssets.register_body(StringName(pair.get_slice(":", 0)), pair.substr(pair.find(":") + 1))
 		elif arg == "--held":
 			_held = true
 		elif arg == "--left":

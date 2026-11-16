@@ -215,6 +215,9 @@ var own_look_down_back: float:
 var _model: Node3D = null
 var _skeleton: Skeleton3D = null
 var _mesh: MeshInstance3D = null
+# A registered body's meshes by detail, drawn one at a time in _mesh ([member DotHumanoidAssets.lod_distances]).
+var _details: Array[Mesh] = []
+var _detail := 0
 var _anim: AnimationPlayer = null
 var _hand: Node3D = null
 

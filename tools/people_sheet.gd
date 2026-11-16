@@ -2,6 +2,8 @@ extends SceneTree
 
 ## Renders contact sheets of the people: every clip at six moments, per body, and one of looks.
 ## xvfb-run -a godot --path . --script tools/people_sheet.gd -- [--out=DIR] [--bodies=matt,lis] [--clips=walk,run] [--looks] [--ragdoll] [--break] [--hand] [--aim] [--swim] [--actions] [--carry[=CLASS]] [--crowd=N] [--compare[=FILE.res]]
+## [--register=id:path,...] draws a game's own bodies too ([method DotHumanoidAssets.register_body]); name them in --bodies.
+## [--top=RRGGBB] sets the clip sheets' top colour, the one a registered body is dyed towards (a team colour).
 ## Needs xvfb-run, not --headless (blank frame); add `--rendering-method gl_compatibility` for a browser's view.
 
 const CELL := Vector2i(256, 320)
@@ -20,6 +22,7 @@ var _actions := false
 var _crowd := 0
 var _carry := ""
 var _compare := ""
+var _top := Color(0, 0, 0, 0)
 var _root: Node3D
 var _camera: Camera3D
 var _sub: SubViewport
@@ -33,6 +36,11 @@ func _initialize() -> void:
 			_bodies = Array(arg.trim_prefix("--bodies=").split(","))
 		elif arg.begins_with("--clips="):
 			_clips = Array(arg.trim_prefix("--clips=").split(","))
+		elif arg.begins_with("--register="):
+			for pair in arg.trim_prefix("--register=").split(","):
+				var _ok := DotHumanoidAssets.register_body(StringName(pair.get_slice(":", 0)), pair.substr(pair.find(":") + 1))
+		elif arg.begins_with("--top="):
+			_top = Color(arg.trim_prefix("--top="))
 		elif arg == "--looks":
 			_looks = true
 		elif arg == "--ragdoll":
@@ -155,6 +163,8 @@ func _figure(look: DotHumanoidLook) -> DotHumanoidFigure:
 func _sheet_body(body: StringName) -> void:
 	var look := DotHumanoidLook.stock(7)
 	look.body = body
+	if _top.a > 0.0:
+		look.top = _top
 	var f := _figure(look)
 	_camera.position = Vector3(2.6, 1.3, -2.6)
 	_camera.look_at(Vector3(0, 0.9, 0))

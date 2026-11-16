@@ -9,6 +9,10 @@ extends RefCounted
 ## clip set; their files are `people/people_<id>.glb`.
 const BODIES: Array[StringName] = [&"matt", &"lis", &"sam", &"shaun"]
 
+## Bodies a game added beside [constant BODIES] (id to model path), set through
+## [method DotHumanoidAssets.register_body]. A seed or a site letter never picks one; a game names it.
+static var registered: Dictionary = {}
+
 ## Skin tones a stock look draws from: real ones, light to dark.
 const SKIN_TONES: Array[String] = ["f1d2b6", "e8b994", "d9a07a", "c58a62", "a8714b", "8a5a3a", "6e4630", "523426"]
 
@@ -52,12 +56,17 @@ var bottom: Color = Color("2f3a4f")
 
 static func make(p_body: StringName, p_skin: Color, p_hair: Color, p_top: Color, p_bottom: Color) -> DotHumanoidLook:
 	var look := DotHumanoidLook.new()
-	look.body = p_body if BODIES.has(p_body) else BODIES[0]
+	look.body = p_body if is_body(p_body) else BODIES[0]
 	look.skin = p_skin
 	look.hair = p_hair
 	look.top = p_top
 	look.bottom = p_bottom
 	return look
+
+
+## Whether [param id] is one of [constant BODIES] or a [member registered] one.
+static func is_body(id: StringName) -> bool:
+	return BODIES.has(id) or registered.has(id)
 
 
 ## A stock person from [param seed] (a game passes a hash of the player's id): every client

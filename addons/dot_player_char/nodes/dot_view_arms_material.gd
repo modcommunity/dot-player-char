@@ -92,6 +92,9 @@ static var _materials: Dictionary = {}
 
 ## The arms' material for [param look]: [DotHumanoidAssets]' swap for it, with the detail on top. One per look.
 static func for_look(look: DotHumanoidLook) -> ShaderMaterial:
+	# A registered body brings its own painted texture: there are no swatches for the detail to read.
+	if DotHumanoidLook.registered.has(look.body):
+		return DotHumanoidAssets.material_for(look)
 	var key := look.key()
 	if _materials.has(key):
 		return _materials[key]

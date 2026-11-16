@@ -54,14 +54,29 @@ Roles come from bone names (`LeftArm`..., `Head`, rest torso) via each vertex's 
 
 `<name>_lod0_fp_arms.glb`: the triangles whose three vertices are arm-dominant (shoulder to hand), on a 36 / 35 bone skeleton (spine plus both arms, 4 finger chains kept). Military 1,456 triangles, SWAT 276 (SWAT's sleeves are mostly part of the torso mesh weight, so its arms are the bare hands and forearms; a proper fp-arms mesh needs a sleeve cut by hand).
 
-## Team colours (plan)
+## Kit rig
 
-One atlas per team, one material per team. SWAT is team A, military team B (they are different silhouettes already). A team variant is the atlas with a hue shift on the uniform cells only (vest, pants, hat for the military; the SWAT camo and vest), made by the same script from a config `tint` per cell; skin, boots, eyes and goggles stay. At runtime a variant is a texture swap on the shared material, so the 64 still batch. Not implemented yet.
+`kit_rig.py` (Blender, after `prep_avatar.py`) puts the three LODs on the people kit's 43-bone skeleton with the kit's bone names and rest directions, as one `<name>_kit.glb` holding meshes `LOD0`, `LOD1`, `LOD2`, one skin and one material (`team_atlas`, the packed atlas as its base colour). On that rig every people clip, the aim, crouch and leg code, the own view and the gib roles work unchanged, so the `mixamo_bone_map.json` route is only needed for clips that are not the family's.
+
+| | LOD0 | LOD1 | LOD2 | `_kit.glb` |
+|---|---|---|---|---|
+| SWAT tris | 9,999 | 3,000 | 1,200 | 1.13 MB |
+| military tris | 9,998 | 2,997 | 784 | 976 KB (with the `dye` vertex colour) |
+
+Two config keys came out of the LOD1/2 check: `covered` cuts the skin faces a clothing shell hides before decimation (the military pants and SWAT suit no longer show the legs through at LOD1/2), and `shares` gives a material a fixed part of the budget (SWAT's 38k-triangle helmet took three quarters of LOD2 and left the limbs as slivers; LOD2 is now 1,200).
+
+A game registers the result at run time with `DotHumanoidAssets.register_body(id, path)` (docs/people.md, "A game's own body"); the GLB stays in the game's private assets and is read from outside the project.
+
+## Team colours
+
+A registered body draws with `DotHumanoidAssets.TEAM_SHADER`: its own texture, with everything but warm skin turned toward the look's top colour at the same brightness, by `DotHumanoidAssets.team_tint` (0 = untouched). One material per body and top colour, so a team's players batch.
+
+The warm-is-skin guess fails on tan or brown cloth: the military vest and camo pants stayed brown under a red team. A config's `dye` map (material name to 0..1) makes `prep_avatar.py` bake the answer into the vertex colour, and the shader multiplies the tint by its red and applies the skin test only where green is 1. Unlisted materials, and a body with no vertex colour at all, read as white and keep the guess. The military config dyes vest, pants and hat fully and never dyes `player_soldier` (the bare skin); SWAT needs none (black and navy cloth, skin that the guess finds).
 
 ## Animation LOD plan
 
-DotHumanoidFigure already steps down at 22 m and 45 m. The bench used: LOD0 posed every frame, LOD1 every 3rd, LOD2 every 6th, nothing past the far tier. 64 people cost 56-277 us of script a frame in the bench.
+DotHumanoidFigure already steps the clip rate down at 22 m and 45 m, and a registered body swaps LOD0..LOD2 at `DotHumanoidAssets.lod_distances` (the same distances by default) on its one mesh instance. The bench used: LOD0 posed every frame, LOD1 every 3rd, LOD2 every 6th, nothing past the far tier. 64 people cost 56-277 us of script a frame in the bench.
 
 ## Left (nightly fc-military-avatar-1)
 
-The far impostor/capsule tier, team-tint config, ktx2/basis at import, a hand-cut fp-arms for SWAT, pants shell for military LOD1/2, in-engine check that a UAL clip retargets through `mixamo_bone_map.json` (avatars-3), and the owner's question whether the Mixamo-derived clips and characters may be redistributed.
+The far impostor/capsule tier, ktx2/basis at import, a hand-cut fp-arms mesh (the registered body's first-person arms are its LOD0 stripped by bone, which for SWAT is mostly hands and forearms), the game side (team config, credits, a team's look naming the body), and the owner's question whether the Mixamo-derived characters may be redistributed: until it is answered the prepared GLBs stay private.

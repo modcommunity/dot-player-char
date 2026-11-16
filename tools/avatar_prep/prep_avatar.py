@@ -13,7 +13,12 @@ whole recipe (docs/avatar-prep.md has the numbers and the reasons). Per LOD in t
   FC retargets its own set; Mixamo-derived clips stay in the private folder.
 - Trims the skeleton per LOD (`fingers` drops ring finger and tip joints, `core` drops all fingers),
   moving each dropped bone's skin weight to its nearest kept parent.
-- Decimates meshes to the LOD triangle budget (meshes under `small` triangles are kept whole).
+- Cuts skin faces hidden under clothing (`covered`), so a decimated clothing shell cannot show the body.
+- Decimates meshes to the LOD triangle budget (meshes under `small` triangles are kept whole;
+  `shares` gives a material a fixed fraction of the budget).
+- Bakes `dye` into the vertex colour by material: red is how far the team tint may dye it, green
+  1 keeps the runtime's warm-is-skin test (a tan vest would read as skin and stay undyed).
+  Unlisted materials get white: dyed, skin test on, as on a body with no vertex colour.
 - Packs every material's base-colour image into ONE atlas and joins the meshes: one material per
   LOD, so a team's 64 bodies batch. UVs must lie in 0..1.
 - Exports `<name>_<lod>.glb` (JPEG atlas) and `.webp.glb`, plus first-person arms for LODs with `arms`.
@@ -169,8 +174,43 @@ def trim_skeleton(arm, meshes, mode):
 	bpy.ops.object.mode_set(mode="OBJECT")
 
 
+def cull_covered(meshes):
+	"""Deletes skin faces that clothing covers (config `covered`), before decimation.
+
+	A collapsed clothing shell at LOD1/2 otherwise shows the full body underneath. A face goes when
+	a ray out along each of its vertex normals meets a covering mesh within `reach` metres."""
+	import bmesh
+	from mathutils.bvhtree import BVHTree
+	rule = cfg.get("covered")
+	if not rule:
+		return 0
+	under = [o for o in meshes if any(m.name in rule["under"] for m in o.data.materials)]
+	cover = [o for o in meshes if o not in under]
+	trees = [BVHTree.FromPolygons([v.co.copy() for v in o.data.vertices], [tuple(p.vertices) for p in o.data.polygons]) for o in cover]
+	reach = rule["reach"]
+	gone = 0
+	for o in under:
+		hidden = []
+		for v in o.data.vertices:
+			n = v.normal
+			start = v.co + n * 0.002
+			hidden.append(any(t.ray_cast(start, n, reach)[0] is not None for t in trees))
+		bm = bmesh.new()
+		bm.from_mesh(o.data)
+		dead = [f for f in bm.faces if all(hidden[v.index] for v in f.verts)]
+		gone += len(dead)
+		bmesh.ops.delete(bm, geom=dead, context="FACES")
+		bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+		bm.to_mesh(o.data)
+		bm.free()
+	return gone
+
+
 def decimate(meshes, target):
-	"""Meshes at or under `small` triangles stay whole; the rest share what is left."""
+	"""Meshes at or under `small` triangles stay whole; the rest share what is left.
+
+	`shares` gives a material's meshes a fixed fraction of the budget (a 38k-triangle helmet would
+	otherwise take three quarters of every LOD and leave the limbs as slivers)."""
 	tris = {o: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes}
 	small = {o for o in meshes if tris[o] <= cfg["small"]}
 	left = target - sum(tris[o] for o in small)
@@ -178,10 +218,19 @@ def decimate(meshes, target):
 	if left < 0.25 * big:
 		small = set()
 		left, big = target, sum(tris.values())
+	shares = cfg.get("shares", {})
+	share_of = {o: next((shares[m.name] for m in o.data.materials if m.name in shares), None) for o in meshes}
+	fixed = {}
+	for o in meshes:
+		if o not in small and share_of[o] is not None:
+			fixed[o] = share_of[o] * target
+	rest_tris = sum(tris[o] for o in meshes if o not in small and o not in fixed)
+	rest_left = left - sum(fixed.values())
 	for o in meshes:
 		if o in small:
 			continue
-		ratio = max(0.02, min(1.0, left / big))
+		ratio = fixed[o] / tris[o] if o in fixed else (rest_left / rest_tris if rest_tris > 0 else 1.0)
+		ratio = max(0.02, min(1.0, ratio))
 		if ratio >= 0.999:
 			continue
 		bpy.context.view_layer.objects.active = o
@@ -190,6 +239,19 @@ def decimate(meshes, target):
 		mod.use_collapse_triangulate = True
 		bpy.ops.object.modifier_move_to_index(modifier="Decimate", index=0)
 		bpy.ops.object.modifier_apply(modifier="Decimate")
+
+
+def bake_dye(meshes):
+	dye = cfg.get("dye")
+	if not dye:
+		return
+	for o in meshes:
+		name = o.data.materials[0].name
+		col = (dye[name], 0.0, 0.0, 1.0) if name in dye else (1.0, 1.0, 1.0, 1.0)
+		attr = o.data.color_attributes.new("Color", "BYTE_COLOR", "CORNER")
+		for d in attr.data:
+			d.color = col
+		o.data.color_attributes.active_color = attr
 
 
 def base_image(mat):
@@ -315,7 +377,7 @@ def export(path, objs, fmt):
 		o.select_set(True)
 	bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_image_format=fmt,
 		export_jpeg_quality=cfg.get("jpeg_quality", 85), export_animations=False, export_skins=True,
-		export_apply=False, export_yup=True, export_materials="EXPORT")
+		export_apply=False, export_yup=True, export_materials="EXPORT", export_vertex_color="ACTIVE")
 
 
 report = {"name": cfg["name"], "lods": {}}
@@ -323,7 +385,9 @@ for lod in cfg["lods"]:
 	arm, meshes = clean_import()
 	s = normalise(arm, meshes)
 	trim_skeleton(arm, meshes, lod["skeleton"])
+	culled = cull_covered(meshes)
 	decimate(meshes, lod["tris"])
+	bake_dye(meshes)
 	size = build_atlas(meshes, lod["atlas"])
 	body = join(meshes, arm)
 	over = len(body.data.polygons)
@@ -335,7 +399,7 @@ for lod in cfg["lods"]:
 		mod.use_collapse_triangulate = True
 		bpy.ops.object.modifier_move_to_index(modifier="Decimate", index=0)
 		bpy.ops.object.modifier_apply(modifier="Decimate")
-	entry = {"scale_applied": round(s, 5), "tris": len(body.data.polygons), "verts": len(body.data.vertices),
+	entry = {"scale_applied": round(s, 5), "covered_faces_cut": culled, "tris": len(body.data.polygons), "verts": len(body.data.vertices),
 		"bones": len(arm.data.bones), "atlas": list(size), "gib": gib_report(body)}
 	for fmt, ext in (("JPEG", "glb"), ("WEBP", "webp.glb")):
 		p = os.path.join(out, "%s_%s.%s" % (cfg["name"], lod["name"], ext))

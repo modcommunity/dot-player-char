@@ -30,6 +30,21 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 	_skeleton = _model.find_children("*", "Skeleton3D", true, false).front() as Skeleton3D
 	var meshes := _model.find_children("*", "MeshInstance3D", true, false)
 	_mesh = meshes.front() as MeshInstance3D if not meshes.is_empty() else null
+	_details.clear()
+	_detail = 0
+	if DotHumanoidLook.registered.has(look.body):
+		_details = DotHumanoidAssets.detail_meshes(_model)
+	if not _details.is_empty():
+		# One instance swaps its mesh by distance, so the ragdoll, the gibs and the own view see one body, not three.
+		_mesh = _model.find_child("LOD0", true, false) as MeshInstance3D
+		for other: MeshInstance3D in meshes:
+			if other != _mesh:
+				other.get_parent().remove_child(other)
+				other.free()
+		# The clips' tracks name `CharacterArmature/Skeleton3D`; a body from another exporter has its own names.
+		_skeleton.name = "Skeleton3D"
+		if _skeleton.get_parent() != _model:
+			_skeleton.get_parent().name = "CharacterArmature"
 	_anim = _model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if _anim == null:
 		_anim = AnimationPlayer.new()
@@ -152,6 +167,18 @@ func _process(delta: float) -> void:
 	animate(ground, step)
 
 
+# The registered body's mesh for a camera [param distance] away.
+func _pick_detail(distance: float) -> void:
+	var level := 0
+	for far in DotHumanoidAssets.lod_distances:
+		if distance > far and level + 1 < _details.size():
+			level += 1
+	# Swapped on a change of level only: a figure that replaced its own mesh (the view arms' stripped copy) keeps it near.
+	if level != _detail:
+		_detail = level
+		_mesh.mesh = _details[level]
+
+
 ## The look changed colours only: a new material, no rebuild.
 func recolour(p_look: DotHumanoidLook) -> void:
 	if p_look == null:
@@ -199,6 +226,8 @@ func _animate_step(speed: float, p_delta: float) -> void:
 		_frame += 1
 		var was_step := anim_step
 		anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
+		if not _details.is_empty():
+			_pick_detail(DotHumanoidFrames.last_distance)
 		# A figure coming into view (or nearer) is redrawn at once, not up to seven frames later.
 		if _frame % anim_step != 0 and anim_step >= was_step:
 			_owed += p_delta
