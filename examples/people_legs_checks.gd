@@ -22,6 +22,7 @@ func run() -> void:
 	await _check_floor_lift()
 	await _check_far_skip()
 	await _check_ranges()
+	await _check_bone_lod()
 	await _check_offscreen()
 	await _check_layers()
 	await _check_wall()
@@ -207,6 +208,49 @@ func _check_ranges() -> void:
 		"lift_range 20 at 60 m: the lift waits for a clip step (%.3f, held %.3f, stepped %.3f); 0 follows every frame (%.3f)" % [first, held, stepped, g.floor_lift])
 	g.queue_free()
 	step.queue_free()
+	cam.queue_free()
+	await suite.get_tree().process_frame
+
+
+## Past [member DotHumanoidFigure.bone_lod_range] the clip plays from the "lite" library: the finger joints past their
+## roots hold still while the rest runs on at the same time in the clip; back in range the full clip takes over.
+func _check_bone_lod() -> void:
+	var cam := Camera3D.new()
+	suite.add_child(cam)
+	cam.position = Vector3(0, 1.6, 60.0)
+	cam.make_current()
+	var g := _figure()
+	var vel := {"on_floor": true, "velocity": Vector3(0, 0, -4.0)}
+	g.set_motion(vel)
+	for i in 8:
+		g.animate(4.0, DT)
+	var full_name := String(g._anim.current_animation)
+	DotHumanoidFigure.bone_lod_range = 20.0
+	for i in 4:
+		g.animate(4.0, DT)
+	var lite_name := String(g._anim.current_animation)
+	var skel := g._skeleton
+	var finger := skel.find_bone("Index2.R")
+	var hand := skel.find_bone("Index1.R")
+	var thigh := skel.find_bone("UpperLeg.L")
+	var poses := [skel.get_bone_pose_rotation(finger), skel.get_bone_pose_rotation(hand), skel.get_bone_pose_rotation(thigh)]
+	for i in 12:
+		g.animate(4.0, DT)
+	var still := skel.get_bone_pose_rotation(finger).is_equal_approx(poses[0])
+	var moved := not skel.get_bone_pose_rotation(thigh).is_equal_approx(poses[2])
+	var lite: AnimationLibrary = g._anim.get_animation_library(&"lite")
+	var full: AnimationLibrary = g._anim.get_animation_library(&"")
+	var fewer := lite != null and lite.get_animation(g.clip).get_track_count() < full.get_animation(g.clip).get_track_count() \
+		and DotHumanoidAssets.lite_library(full) == lite
+	DotHumanoidFigure.bone_lod_range = 0.0
+	for i in 4:
+		g.animate(4.0, DT)
+	var back := String(g._anim.current_animation)
+	suite._check(finger >= 0 and hand >= 0 and thigh >= 0 and full_name == String(g.clip) and lite_name == "lite/" + String(g.clip)
+			and still and moved and fewer and back == String(g.clip),
+		"bone_lod_range 20 at 60 m: %s plays as %s, finger joints still %s, legs run on %s, fewer tracks %s; 0 plays %s again" \
+			% [full_name, lite_name, still, moved, fewer, back])
+	g.queue_free()
 	cam.queue_free()
 	await suite.get_tree().process_frame
 

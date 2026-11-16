@@ -60,6 +60,14 @@ static var lift_range: float = 0.0:
 	set(value):
 		if _range_ok("lift_range", value):
 			lift_range = value
+## Past [member bone_lod_range] from the camera a figure is posed cheaper: its clips play without the finger joints past
+## their roots ([method DotHumanoidAssets.lite_library]; those keep their last pose), and the foot plants on the floor, the
+## feet on a wall, the crawl plants and the limb turn limit are left out. The body still stands on the floor, aims and
+## twists. 0: every figure is posed in full at every distance (the default).
+static var bone_lod_range: float = 0.0:
+	set(value):
+		if _range_ok("bone_lod_range", value):
+			bone_lod_range = value
 ## The mesh's [member GeometryInstance3D.lod_bias]; under 1 its simpler levels come sooner. Must be above 0.
 static var lod_bias: float = LOD_BIAS:
 	set(value):
@@ -361,6 +369,10 @@ var _prop_pitch: float = 0.0
 var _view_pitch: float = 0.0
 var _own_back: float = 0.0
 var _own := DotHumanoidOwnView.new()
+## Whether the figure is past [member bone_lod_range] and plays the "lite" clips.
+var _lite := false
+## The clip the player was last told to play: [member clip], or its "lite" copy.
+var _now_playing: StringName = &""
 var legs := DotHumanoidLegs.new()
 var _auto_last: Vector3 = Vector3.INF
 var _auto_since: float = 0.0

@@ -87,6 +87,7 @@ static var _scenes: Dictionary = {}
 static var _team_shader: Shader = null
 static var _albedos: Dictionary = {}
 static var _libraries: Dictionary = {}
+static var _lite_libraries: Dictionary = {}
 static var _materials: Dictionary = {}
 static var _shader: Shader = null
 static var _atlas: Texture2D = null
@@ -214,6 +215,33 @@ static func library_for(id: StringName, skeleton: Skeleton3D) -> AnimationLibrar
 	if not _libraries.has(id):
 		_libraries[id] = DotHumanoidClips.retarget(_libraries[BASE], _libraries[&"rests"], skeleton)
 	return _libraries[id]
+
+
+## [param library] without the finger joints past their roots (the roots carry the hand and stay), for a figure past
+## [member DotHumanoidFigure.bone_lod_range]: about four tracks in ten fewer to sample and bones to pose. Built once per
+## library and shared; a clip added to [param library] later is not in it (a figure plays the full one then).
+static func lite_library(library: AnimationLibrary) -> AnimationLibrary:
+	if library == null:
+		return null
+	if _lite_libraries.has(library):
+		return _lite_libraries[library]
+	var out := AnimationLibrary.new()
+	for id in library.get_animation_list():
+		var clip: Animation = library.get_animation(id).duplicate(true)
+		for t in range(clip.get_track_count() - 1, -1, -1):
+			if _is_finger_joint(String(clip.track_get_path(t).get_concatenated_subnames())):
+				clip.remove_track(t)
+		var _err := out.add_animation(id, clip)
+	_lite_libraries[library] = out
+	return out
+
+
+## A finger's second or third joint ("Index2.L", "Thumb2.R"); the first joints sit at the wrist and move the hand.
+static func _is_finger_joint(bone: String) -> bool:
+	for finger in ["Pinky", "Middle", "Index", "Thumb", "Ring"]:
+		if bone.begins_with(finger) and bone.length() > finger.length() and bone[finger.length()] in ["2", "3", "4"]:
+			return true
+	return false
 
 
 ## Starts building the shared clip set and [param bodies]' retargets of it (each on its own model's

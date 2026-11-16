@@ -1,7 +1,10 @@
 extends Node3D
 
 ## 32 armed people moving like a match's remote players (gun held, aim pitch, support grip, mixed distances), stepped with a fixed delta. Prints `ANIM_BENCH us_per_call=` (median of rounds), the
-## phases with `--parts 1`, and `ANIM_DIGEST` (a hash of every pose_record every frame) to prove a change leaves the pose bit-identical. Args after `--`: --frames N --rounds N --parts 0|1.
+## phases with `--parts 1`, and `ANIM_DIGEST` (a hash of every pose_record every frame) to prove a change leaves the pose bit-identical. Args after `--`: --frames N --rounds N --parts 0|1,
+## --near M (the nearest ring's distance, default 4; 50 puts every figure past [constant DotHumanoidFigure.ANIM_FAR]), --front 1 (every figure in the camera's view),
+## --bone-lod M ([member DotHumanoidFigure.bone_lod_range], default as shipped), --ab M (rounds taken in turn with bone_lod_range 0 and M, both medians printed as `ANIM_BENCH_AB`;
+## one process, so the box and its load are the same for both).
 
 const COUNT := 32
 const DT := 1.0 / 60.0
@@ -16,12 +19,17 @@ func _ready() -> void:
 	add_child(_camera)
 	_camera.position = Vector3(0, 1.7, 0)
 	_camera.current = true
+	var near := float(_arg("near", 4))
+	var front := _arg("front", 0) == 1
+	var bone_lod := _arg("bone-lod", -1)
+	if bone_lod >= 0:
+		DotHumanoidFigure.bone_lod_range = float(bone_lod)
 	for i in COUNT:
 		var f := DotHumanoidFigure.new()
 		add_child(f)
 		f.build(DotHumanoidLook.stock(i * 31 + 7), 1.8)
-		var ring := 4.0 + float(i % 8) * 6.5
-		var angle := float(i) * 0.7
+		var ring := near + float(i % 8) * 6.5
+		var angle := float(i) * 0.7 if not front else (float(i % 9) - 4.0) * 0.08
 		f.position = Vector3(sin(angle) * ring, 0, -cos(angle) * ring)
 		f.set_hold(DotHumanoidFigure.Hold.GUN)
 		_people.append(f)
@@ -65,16 +73,29 @@ func _run() -> void:
 		for f in _people:
 			ctx.update(f.pose_record().to_byte_array())
 	print("ANIM_DIGEST frames=%d sha256=%s" % [frames, ctx.finish().hex_encode()])
+	var ab := _arg("ab", -1)
 	var per_round: Array[float] = []
-	for r in rounds:
+	var off_rounds: Array[float] = []
+	var on_rounds: Array[float] = []
+	for r in rounds * (2 if ab > 0 else 1):
+		if ab > 0:
+			DotHumanoidFigure.bone_lod_range = float(ab) if r % 2 == 1 else 0.0
 		var total := 0
 		for frame in frames:
 			var t0 := Time.get_ticks_usec()
 			_step(frames + r * frames + frame)
 			total += Time.get_ticks_usec() - t0
-		per_round.append(float(total) / float(frames * COUNT))
+		var us := float(total) / float(frames * COUNT)
+		per_round.append(us)
+		if ab > 0:
+			(on_rounds if r % 2 == 1 else off_rounds).append(us)
 	per_round.sort()
 	print("ANIM_BENCH us_per_call=%.2f rounds=%s" % [per_round[per_round.size() / 2], str(per_round)])
+	if ab > 0:
+		off_rounds.sort()
+		on_rounds.sort()
+		print("ANIM_BENCH_AB bone_lod=%d off=%.2f on=%.2f off_rounds=%s on_rounds=%s" % [ab, off_rounds[off_rounds.size() / 2],
+			on_rounds[on_rounds.size() / 2], str(off_rounds), str(on_rounds)])
 	if parts:
 		_parts(frames)
 	get_tree().quit()

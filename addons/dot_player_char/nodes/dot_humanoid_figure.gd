@@ -92,6 +92,8 @@ func build(p_look: DotHumanoidLook, p_height: float = 1.8) -> void:
 ## Drops the body built before and everything cached from it, for [method build] to start over.
 func _forget_body() -> void:
 	clip = &""
+	_now_playing = &""
+	_lite = false
 	overlay = &""
 	_ease.clear()
 	_turn_limit.clear()
@@ -272,6 +274,9 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	# Undone in the reverse of the order they were written: the turn limit last, so first.
 	_turn_limit.restore(_skeleton)
 	legs.restore(_skeleton)
+	var lite := bone_lod_range > 0.0 and far > bone_lod_range
+	if lite != _lite:
+		_set_lite(lite)
 	_play(wanted[0], wanted[1])
 	var matched := _matched_rate(legs.along_speed if _motion.has("velocity") else speed, delta)
 	if not is_nan(matched):
@@ -291,10 +296,11 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	_apply_swim(delta)
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, delta)
-	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
-	var planted := _apply_floor(seen, delta)
+	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(),
+		1.0 if not lite and bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
+	var planted := _apply_floor(seen and not lite, delta)
 	# On the pose as drawn: a floor IK let go on landing turns no faster than a clip.
-	_turn_limit.step(_skeleton, deg_to_rad(limb_turn_rate) if seen else 0.0, delta)
+	_turn_limit.step(_skeleton, deg_to_rad(limb_turn_rate) if seen and not lite else 0.0, delta)
 	# A leg held back can carry its ankle under the floor again; the lift only lifts, so a foot already up is left.
 	if planted and _turn_limit.turned():
 		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)
@@ -359,7 +365,8 @@ func _skeleton_up() -> Vector3:
 
 func _apply_crawl_feet(speed: float, dt: float) -> void:
 	var id := StringName(downed_clips.get(&"crawl", DotHumanoidClips.CRAWL))
-	_crawl.step(self, _skeleton, downed and not propped and clip == id and _anim.current_animation == String(id), speed, dt)
+	_crawl.step(self, _skeleton, not _lite and downed and not propped and clip == id and _anim.current_animation == String(_now_playing),
+		speed, dt)
 
 
 ## Puts back whatever a death took off: every bone at its own size again. For a respawn.

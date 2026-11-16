@@ -93,7 +93,7 @@ func _sprint_clip_for(speed: float) -> bool:
 func _matched_rate(speed: float, dt: float) -> float:
 	if dt <= 0.0 or not state in STRIDE_STATES:
 		return NAN
-	if not clip in STRIDE_CLIPS or _anim.current_animation != String(clip):
+	if not clip in STRIDE_CLIPS or _anim.current_animation != String(_now_playing):
 		return NAN
 	var table := _stride_for(clip)
 	if table.size() < 2 or table[-1] <= 0.0:
@@ -117,6 +117,10 @@ func _stride_for(clip_id: StringName) -> PackedFloat32Array:
 	return _strides[clip_id]
 
 
+## "lite/<clip>" for each clip id, made once.
+static var _lite_names: Dictionary = {}
+
+
 func _play(wanted: StringName, rate: float) -> void:
 	if _anim == null:
 		return
@@ -135,14 +139,41 @@ func _play(wanted: StringName, rate: float) -> void:
 	if cross:
 		_ease.begin(_skeleton, _upper, HAND_BONE)
 	var feet := DotHumanoidStride.feet_now(_skeleton, _to_figure()) if cross else PackedVector3Array()
-	_anim.play(wanted, 0.0 if cross else blend)
+	_now_playing = _played(wanted)
+	_anim.play(_now_playing, 0.0 if cross else blend)
 	if cross and not feet.is_empty():
 		_anim.seek(DotHumanoidStride.matching_time(_anim.get_animation(wanted), _skeleton, _model, _to_figure(), feet), true)
 
 
+## The name [param id] plays under: its copy in the "lite" library past [member bone_lod_range], else [param id].
+func _played(id: StringName) -> StringName:
+	if not _lite:
+		return id
+	if not _lite_names.has(id):
+		_lite_names[id] = StringName("lite/" + String(id))
+	var lite: StringName = _lite_names[id]
+	return lite if _anim.has_animation(lite) else id
+
+
+## Moves the playing clip into or out of the "lite" library ([member bone_lod_range]) at the same time in it.
+func _set_lite(on: bool) -> void:
+	_lite = on
+	if on and not _anim.has_animation_library(&"lite") and _anim.has_animation_library(&""):
+		var _err := _anim.add_animation_library(&"lite", DotHumanoidAssets.lite_library(_anim.get_animation_library(&"")))
+	if clip == &"" or _anim.current_animation != String(_now_playing):
+		return
+	var name := _played(clip)
+	if name == _now_playing:
+		return
+	var at := _anim.current_animation_position
+	_now_playing = name
+	_anim.play(name, 0.0)
+	_anim.seek(at, false)
+
+
 ## How far through its stride the playing clip's planted foot is, 0 to 1, or -1 when it is not a stride clip. A clip entered at this fraction keeps the foot it stands on travelling with the ground.
 func _stride_fraction() -> float:
-	if not clip in STRIDE_CLIPS or _anim.current_animation != String(clip):
+	if not clip in STRIDE_CLIPS or _anim.current_animation != String(_now_playing):
 		return -1.0
 	var table := _stride_for(clip)
 	if table.size() < 2 or table[-1] <= 0.0:
