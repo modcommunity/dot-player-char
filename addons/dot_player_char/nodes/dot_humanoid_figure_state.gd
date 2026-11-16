@@ -190,6 +190,32 @@ var auto_smooth_time: float = 0.0
 const STRIDE_CLIPS: Array[StringName] = [DotHumanoidClips.WALK, DotHumanoidClips.WALK_GUN, DotHumanoidClips.RUN,
 	DotHumanoidClips.RUN_GUN, DotHumanoidClips.CROUCH_WALK, DotHumanoidClips.SPRINT]
 const STRIDE_MAX_RATE := 4.0
+## Most the matched rate runs ahead of the clip's mean pace at the ground speed (a multiple of it); 0 (the default) leaves only [member stride_max_rate]. Lower trades a
+## little foot slide where the clip stands a foot still for a swing that does not snap through in a frame or two.
+var stride_rate_span: float = 0.0:
+	set(value):
+		if _rate_ok("stride_rate_span", value):
+			stride_rate_span = value
+## Most the matched rate plays a stride clip at, a multiple of its own pace; 0 no limit. Starts at [constant STRIDE_MAX_RATE].
+var stride_max_rate: float = STRIDE_MAX_RATE:
+	set(value):
+		if _rate_ok("stride_max_rate", value):
+			stride_max_rate = value
+## Fastest a limb bone (upper and lower legs, feet, upper and lower arms) turns on screen, degrees a second; 0 draws every pose as posed.
+## A clip run well past its own pace, a cut between clips or a foot let go by the floor IK otherwise swings a knee through 100 degrees in a frame or
+## two. 1300 keeps the worst limb under the 90 degrees in 1/15 s a pop is judged by, and above a sprinter's knee, so the clips play as made. Drawing only ([DotHumanoidTurnLimit]).
+var limb_turn_rate: float = 1300.0:
+	set(value):
+		if _rate_ok("limb_turn_rate", value):
+			limb_turn_rate = value
+
+
+static func _rate_ok(what: String, value: float) -> bool:
+	if is_finite(value) and value >= 0.0:
+		return true
+	push_error("DotHumanoidFigure.%s must be a finite number, 0 or more (0: no limit), got %s" % [what, value])
+	return false
+
 ## The states whose clip is a stride (its rate is matched to the ground), no floor lift, off the floor.
 const STRIDE_STATES: Array[StringName] = [DotPlayerAnimState.WALK, DotPlayerAnimState.RUN, DotPlayerAnimState.CROUCH_WALK]
 const NO_LIFT_STATES: Array[StringName] = [DotPlayerAnimState.SWIM, DotPlayerAnimState.CLIMB, DotPlayerAnimState.DEAD]
@@ -314,6 +340,7 @@ var _upper: Dictionary = {}
 # lookup in the frame path formats no strings.
 var _upper_paths: Dictionary = {}
 var _ease := DotHumanoidBlend.new()
+var _turn_limit := DotHumanoidTurnLimit.new()
 var _swim_pitch: float = 0.0
 var _prop_pitch: float = 0.0
 var _view_pitch: float = 0.0

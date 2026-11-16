@@ -47,6 +47,9 @@ var _state: StringName = IDLE
 var _air_time: float = 0.0
 var _land_time: float = 0.0
 var _was_on_floor: bool = true
+# The vertical speed on the last tick off the floor: a caller that measures speed from where the body has been reads the
+# landing tick itself as standing still, and the impact is the speed it came down at.
+var _air_vertical: float = 0.0
 
 
 ## One tick. [param motion] keys, all optional: speed, vertical (up positive), on_floor,
@@ -73,12 +76,14 @@ func advance(motion: Dictionary, delta: float, speed_now: float = NAN) -> String
 		return _state
 
 	if on_floor:
-		if not _was_on_floor and vertical < -land_threshold and land_time > 0.0:
+		if not _was_on_floor and minf(vertical, _air_vertical) < -land_threshold and land_time > 0.0:
 			_land_time = land_time
 
 		_air_time = 0.0
+		_air_vertical = 0.0
 	else:
 		_air_time += delta
+		_air_vertical = vertical
 
 	_was_on_floor = on_floor
 

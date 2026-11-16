@@ -104,7 +104,11 @@ func _matched_rate(speed: float, dt: float) -> float:
 	var want := DotHumanoidStride.distance_at(table, phase) + back * speed * dt
 	var laps := floorf(want / table[-1])
 	var to := DotHumanoidStride.phase_at(table, want - laps * table[-1]) + laps
-	return clampf((to - phase) * length / dt * back, 0.0, STRIDE_MAX_RATE) * back
+	var most := stride_max_rate if stride_max_rate > 0.0 else INF
+	# Where the table says the foot hardly moves the matched rate races the clip, and a leg swings through in a frame or two.
+	if stride_rate_span > 0.0:
+		most = minf(most, speed * length / table[-1] * stride_rate_span)
+	return clampf((to - phase) * length / dt * back, 0.0, most) * back
 
 
 func _stride_for(clip_id: StringName) -> PackedFloat32Array:

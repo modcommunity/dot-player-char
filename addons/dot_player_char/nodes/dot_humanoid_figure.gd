@@ -94,6 +94,7 @@ func _forget_body() -> void:
 	clip = &""
 	overlay = &""
 	_ease.clear()
+	_turn_limit.clear()
 	_hand = null
 	_crown = null
 	_upper.clear()
@@ -268,6 +269,8 @@ func _animate_step(speed: float, p_delta: float) -> void:
 			_stop_time += delta
 
 	var up := _skeleton_up()
+	# Undone in the reverse of the order they were written: the turn limit last, so first.
+	_turn_limit.restore(_skeleton)
 	legs.restore(_skeleton)
 	_play(wanted[0], wanted[1])
 	var matched := _matched_rate(legs.along_speed if _motion.has("velocity") else speed, delta)
@@ -289,7 +292,12 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	# After the body's tilt: a plant is a world point, so the model must already be where it is drawn.
 	_apply_crawl_feet(speed, delta)
 	legs.on_wall(_skeleton, _motion.get("wall", Plane()), facing.y.normalized(), 1.0 if bool(_motion.get("wall_running", false)) and is_inside_tree() else 0.0)
-	_apply_floor(seen)
+	var planted := _apply_floor(seen)
+	# On the pose as drawn: a floor IK let go on landing turns no faster than a clip.
+	_turn_limit.step(_skeleton, deg_to_rad(limb_turn_rate) if seen else 0.0, delta)
+	# A leg held back can carry its ankle under the floor again; the lift only lifts, so a foot already up is left.
+	if planted and _turn_limit.turned():
+		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)
 	_own.cap_colour = look.top
 	_own.apply(_skeleton, _mesh)
 
@@ -327,12 +335,14 @@ func _lift_body() -> void:
 ## Keeps a standing body's drawn feet out of the floor its origin stands on ([method DotHumanoidLegs.on_floor]):
 ## a clip's stride can carry an ankle under it; first the body is stood on the floor under its origin ([member floor_mask]).
 ## Not in the air, on a wall, a ladder, a seat or the ground.
-func _apply_floor(feet: bool = true) -> void:
+## Stands the body on the floor and lifts drawn ankles out of it; returns whether the feet were kept out of the floor.
+func _apply_floor(feet: bool = true) -> bool:
 	_lift_body()
 	var grounded := feet and _skeleton != null and not (downed or seated or driving) and bool(_motion.get("on_floor", true)) \
 		and not bool(_motion.get("wall_running", false)) and not state in OFF_FLOOR_STATES
 	if grounded:
 		legs.on_floor(_skeleton, _model.transform * _skel_to_model, _floor_ankles, floor_lift)
+	return grounded
 
 
 func _skeleton_up() -> Vector3:
@@ -346,6 +356,7 @@ func _apply_crawl_feet(speed: float, dt: float) -> void:
 
 ## Puts back whatever a death took off: every bone at its own size again. For a respawn.
 func mend() -> void:
+	_turn_limit.clear()
 	_own.mend(_skeleton, _mesh)
 
 
