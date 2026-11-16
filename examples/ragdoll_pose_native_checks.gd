@@ -2,7 +2,7 @@ class_name DotRagdollPoseNativeChecks
 extends RefCounted
 
 ## The ragdoll suite's native pose section: dot-sim's [code]DotSimRagdollPose[/code] against [method DotPlayerRagdoll._pose_bones_script] on falling skinned bodies, every bone to the bit,
-## and what each costs per call. With no library it says the native half was skipped and passes; [code]DOT_SIM_REQUIRE_NATIVE=1[/code] (CI) fails instead. Always two checks, so the suite's count
+## and what each costs per call. With no library it says the native half was skipped and passes; [code]GS_SIM_REQUIRE_NATIVE=1[/code] (CI) fails instead. Always two checks, so the suite's count
 ## holds either way.
 
 const FRAMES := 90
@@ -18,7 +18,7 @@ func _init(host: Node) -> void:
 func run() -> void:
 	suite._section("the native bone pose is the script's, to the bit")
 	var native := DotPlayerRagdoll.native_pose_available()
-	var required := OS.get_environment("DOT_SIM_REQUIRE_NATIVE") == "1"
+	var required := (OS.get_environment("GS_SIM_REQUIRE_NATIVE") if OS.has_environment("GS_SIM_REQUIRE_NATIVE") else OS.get_environment("DOT_SIM_REQUIRE_NATIVE")) == "1"
 	if not native:
 		suite._line("  dot-sim's ragdoll module is not loaded: the native half is skipped")
 	var yard := DotPlayerRagdolls.new()
