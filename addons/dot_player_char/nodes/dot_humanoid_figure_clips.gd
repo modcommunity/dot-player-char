@@ -290,3 +290,109 @@ func _to_figure() -> Transform3D:
 		_frame_tf = out
 		_frame_tf_ok = true
 	return out
+
+
+## Advances the state for a drawn step; true when the figure was drawn as its stand-in and nothing more is posed.
+func _stand_in_or_advance(speed: float, delta: float, far: float) -> bool:
+	if _anim != null and _stand_in_wanted(far):
+		return _stand_in_step(speed, delta)
+	leave_stand_in()
+	state = _machine.advance(_motion, delta, speed)
+	_end_action_if_moved()
+	return false
+
+
+## Whether a figure [param far] metres from the camera may be drawn as its stand-in ([member stand_in_range]): a standing
+## or moving body, not one seated, downed, swimming, climbing, dead or playing an action or overlay.
+func _stand_in_wanted(far: float) -> bool:
+	if stand_in_range <= 0.0 or _mesh == null or _skeleton == null or first_person != DotHumanoidOwnView.THIRD:
+		return false
+	if far <= (stand_in_range * 0.9 if _standing else stand_in_range):
+		return false
+	return _stand_in_state_ok()
+
+
+func _stand_in_state_ok() -> bool:
+	return not (downed or seated or driving) and _action_full == &"" and overlay == &"" and not state in NO_LIFT_STATES
+
+
+## One drawn step as a stand-in: the state and the clip move on, the skeleton is left as it is, and the skin shows the
+## shared pose nearest the clip's place. False (the state already advanced) when it cannot: the figure is posed as usual.
+func _stand_in_step(speed: float, delta: float) -> bool:
+	state = _machine.advance(_motion, delta, speed)
+	_end_action_if_moved()
+	if not _stand_in_state_ok():
+		leave_stand_in()
+		return false
+	var wanted := _clip_for(state, speed)
+	var playing: StringName = wanted[0]
+	if not _anim.has_animation(playing):
+		playing = DotHumanoidClips.IDLE
+	var source := _anim.get_animation(playing)
+	if source == null or source.length <= 0.0:
+		leave_stand_in()
+		return false
+	var rate := float(wanted[1])
+	if playing in STRIDE_CLIPS:
+		# A stride goes round once per stride length travelled, as the skin's matched rate does.
+		var table := _stride_for(playing)
+		if table.size() >= 2 and table[-1] > 0.0:
+			rate = speed * source.length / table[-1]
+	if playing != _stand_clip:
+		_stand_clip = playing
+		_stand_time = 0.0
+	_stand_time += delta * rate
+	var looped := source.loop_mode != Animation.LOOP_NONE
+	var t := fposmod(_stand_time, source.length) if looped else minf(_stand_time, source.length)
+	var phases := stand_in_phases
+	var phase := mini(int(t / source.length * phases), phases - 1)
+	var name := DotHumanoidStandIn.key(_stand_skin if _standing else _mesh.mesh, playing, phase, hold)
+	var baked := DotHumanoidStandIn.find(name)
+	if baked == null:
+		if not DotHumanoidStandIn.may_bake():
+			# Held on the pose drawn until a bake fits; a figure not yet standing in is posed as usual.
+			return _standing
+		leave_stand_in()
+		# Posed in the clip alone at the middle of its phase, with the held gun's arms over a clip that is not a gun
+		# clip; past ANIM_FAR the skin draws no carry or support either.
+		_turn_limit.restore(_skeleton)
+		legs.restore(_skeleton)
+		_ease.clear()
+		clip = playing
+		_anim.speed_scale = 1.0
+		_anim.play(playing, 0.0)
+		_anim.seek((phase + 0.5) / phases * source.length, true)
+		_apply_overlays()
+		baked = DotHumanoidStandIn.bake(_mesh, _skeleton, name)
+		if baked == null:
+			return false
+	if not _standing:
+		_standing = true
+		_stand_skin = _mesh.mesh
+		_stand_skeleton = _mesh.skeleton
+		_mesh.skeleton = NodePath()
+	if _mesh.mesh != baked:
+		_mesh.mesh = baked
+	return true
+
+
+## Puts the skin back in place of the stand-in (the next step poses it). [DotPlayerRagdoll] does before it reads the
+## skin ([method DotRagdollScan.meshes_of]); nothing else needs to.
+func leave_stand_in() -> void:
+	if not _standing:
+		return
+	_standing = false
+	if _mesh != null:
+		_mesh.mesh = _stand_skin
+		_mesh.skeleton = _stand_skeleton
+	_stand_skin = null
+
+
+## Whether the figure is drawn as its stand-in now.
+func standing_in() -> bool:
+	return _standing
+
+
+# The held gun's arms over a clip that is not a gun clip; [DotHumanoidFigure] draws them.
+func _apply_overlays() -> void:
+	pass

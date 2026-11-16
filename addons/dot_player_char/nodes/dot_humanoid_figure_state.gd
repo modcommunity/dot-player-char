@@ -67,6 +67,27 @@ static var lod_bias: float = LOD_BIAS:
 			lod_bias = value
 		else:
 			push_error("DotHumanoidFigure.lod_bias must be a finite number above 0, got %s" % value)
+## Past [member stand_in_range] from the camera a figure is drawn as a stand-in: a still copy of its body baked in its
+## clip's pose ([DotHumanoidStandIn], shared by every figure of that body), swapped as the clip goes round, and its
+## skeleton is not posed at all. 0 (the default): never. It is left at [member stand_in_range] less a tenth.
+static var stand_in_range: float = 0.0:
+	set(value):
+		if _range_ok("stand_in_range", value):
+			stand_in_range = value
+## Poses a stand-in's clip is baked in per lap. At least 1.
+static var stand_in_phases: int = 8:
+	set(value):
+		if value >= 1:
+			stand_in_phases = value
+		else:
+			push_error("DotHumanoidFigure.stand_in_phases must be 1 or more, got %s" % value)
+## Stand-ins baked per frame across every figure (0: no limit); a figure whose pose is not baked yet is posed as usual.
+static var stand_in_bakes_per_frame: int = 1:
+	set(value):
+		if value >= 0:
+			stand_in_bakes_per_frame = value
+		else:
+			push_error("DotHumanoidFigure.stand_in_bakes_per_frame must be 0 or more (0: no limit), got %s" % value)
 
 
 static func _range_ok(what: String, value: float) -> bool:
@@ -378,3 +399,10 @@ var _frame_tf := Transform3D.IDENTITY
 var _frame_tf_on := false
 var _frame_tf_ok := false
 var _floor_ankles: PackedFloat32Array = PackedFloat32Array()
+# The stand-in drawn now ([member stand_in_range]): the skin's own mesh and skeleton path while it is swapped out, the
+# clip it plays and how far into it, in seconds.
+var _standing := false
+var _stand_skin: Mesh = null
+var _stand_skeleton := NodePath()
+var _stand_clip: StringName = &""
+var _stand_time := 0.0

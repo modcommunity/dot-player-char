@@ -23,7 +23,10 @@ static func skinned_meshes(figure: Node, hidden := false) -> Array[MeshInstance3
 
 ## Every visible mesh under [param figure], minus top_level subtrees (effects that do not move with it);
 ## [param hidden] keeps hidden ones too, for a first-person body hidden by set_drawn that still leaves a corpse.
+## A far figure drawn as its stand-in ([member DotHumanoidFigure.stand_in_range]) gets its skin back first.
 static func meshes_of(figure: Node, hidden := false) -> Array[MeshInstance3D]:
+	if figure is DotHumanoidFigure:
+		(figure as DotHumanoidFigure).leave_stand_in()
 	var out: Array[MeshInstance3D] = []
 	_collect(figure, out, true, hidden)
 	return out

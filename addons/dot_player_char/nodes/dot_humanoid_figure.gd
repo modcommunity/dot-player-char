@@ -105,6 +105,9 @@ func _forget_body() -> void:
 	_aim_plans.clear()
 	_strides.clear()
 	_machine.forget_state()
+	_standing = false
+	_stand_skin = null
+	_stand_clip = &""
 	if _model != null:
 		remove_child(_model)
 		_model.queue_free()
@@ -229,7 +232,7 @@ func _animate_step(speed: float, p_delta: float) -> void:
 		anim_step = DotHumanoidFrames.step_for_distance(self, _mesh)
 		_step_distance = DotHumanoidFrames.last_distance
 		_step_seen = DotHumanoidFrames.last_seen
-		if not _details.is_empty():
+		if not _details.is_empty() and not _standing:
 			_pick_detail(DotHumanoidFrames.last_distance)
 		# A figure coming into view (or nearer) is redrawn at once, not up to seven frames later.
 		if _frame % anim_step != 0 and anim_step >= was_step:
@@ -243,8 +246,8 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	# The layers drawn this frame ([constant SUPPORT_RANGE]), from the step just worked out.
 	var seen := DotHumanoidFrames.last_seen if _anim != null else true
 	var far := DotHumanoidFrames.last_distance if _anim != null else 0.0
-	state = _machine.advance(_motion, delta, speed)
-	_end_action_if_moved()
+	if _stand_in_or_advance(speed, delta, far):
+		return
 	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
 	_sprint = move_toward(_sprint, 1.0 if carry_sprint and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)
 	var standing := not (downed or seated or driving) and _action_full == &"" and state != DotPlayerAnimState.DEAD
@@ -256,7 +259,6 @@ func _animate_step(speed: float, p_delta: float) -> void:
 	if downed or not standing:
 		arms.charge = -1.0
 	arms.step(delta, pumping, _speed, _stride_fraction() if _anim != null else -1.0)
-
 	if _anim == null:
 		return
 	var facing := global_basis if is_inside_tree() else basis
@@ -595,6 +597,7 @@ static func material_count() -> int:
 ## Drops every shared scene, library, material, shader and atlas so a process can exit without leaking them.
 static func clear_cache() -> void:
 	DotHumanoidAssets.clear_cache()
+	DotHumanoidStandIn.clear()
 
 
 func describe() -> Dictionary:
@@ -613,6 +616,7 @@ func describe() -> Dictionary:
 		"arms": arms.describe(),
 		"downed": downed,
 		"anim_step": anim_step,
+		"stand_in": _standing,
 		"visible": visible,
 	}
 
