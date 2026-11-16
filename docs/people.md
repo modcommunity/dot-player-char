@@ -10,10 +10,10 @@ The people are the four survivors of Quaternius' [Zombie Apocalypse Kit](https:/
 
 - **The zombies are already on it.** game-zombie-zone's zombies are the same kit's zombies, on the same rig with the same bone names, so a survivor and the thing chasing them are one style, and one ragdoll and one clip set serve both.
 - **It is animated, and the clips are the family's list.** Idle, walk, run, the three again holding a gun, jump, fall, land, slash, stab, punch, a hit, a death, a dodge, a wave, yes and no. The zombie's crawl is the same rig, so a downed player crawls with it.
-- **Kenney's kits are not.** Blocky Characters is rigid parts and Mini Characters has no skeleton; neither can bend a knee, which is what a crouch and a crawl are.
+- **Kenney's older kits are not.** Blocky Characters is rigid parts and Mini Characters has no skeleton; neither can bend a knee, which is what a crouch and a crawl are. His Animated Characters packs (Protagonists and Retro) are skinned and humanoid, and are here as a second set of people: [kenney-characters.md](kenney-characters.md).
 - Quaternius' Ultimate Animated Character Pack (also CC0, also downloaded and compared) has more costumes but thinner, smaller-headed bodies on a 23-bone rig: beside the kit's zombies it reads as a second art style, which is the problem being fixed.
 
-Kenney's assets stay first everywhere else; for animated people there is no Kenney kit that does the job.
+Kenney's assets stay first everywhere else; the animated people are the Quaternius kit's, with Kenney's Animated Characters beside them ([kenney-characters.md](kenney-characters.md)).
 
 ## Variety is colour, not texture
 
