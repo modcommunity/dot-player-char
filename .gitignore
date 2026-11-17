@@ -27,3 +27,4 @@ screenshots/
 
 # Render output of tools/ scripts, for looking at.
 /out/
+/addons/dot_weapon
