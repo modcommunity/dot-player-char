@@ -56,7 +56,7 @@ func _test_stock() -> void:
 	var g := _groups(zs)
 	for name in [&"head", &"neck", &"chest", &"arm", &"hand", &"leg", &"foot"]:
 		_check(name in g, "group %s present" % name)
-	_check(zs[0]["position"] == Vector3(0, 1.62, 0), "head at arena's height on a 1.8 body")
+	_check(zs[0]["position"] == Vector3(0, 1.62, 0), "head at FC's height on a 1.8 body")
 	var tall := DotPlayerHitboxPlan.stock(3.6)
 	_check(is_equal_approx((tall[0]["position"] as Vector3).y, 3.24), "positions scale with height")
 	_check(is_equal_approx(float(tall[0]["radius"]), 0.3), "radii scale with height")
