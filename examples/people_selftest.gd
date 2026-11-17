@@ -387,8 +387,12 @@ func _test_figure_mounts(f: DotHumanoidFigure) -> void:
 	add_child(walker)
 	walker.build(DotHumanoidLook.stock(4), 1.8)
 	walker.auto_animate = true
-	for i in 12:
-		walker.position.x += 3.0 * get_process_delta_time()
+	# Long enough for the speed measure to fill its window (DotHumanoidFigureState.AUTO_WINDOW) and the smoothing to settle, however fast frames come.
+	var carried := 0.0
+	while carried < 0.5:
+		var dt := get_process_delta_time()
+		walker.position.x += 3.0 * dt
+		carried += dt
 		await get_tree().process_frame
 	_check(walker.clip in [DotHumanoidClips.WALK, DotHumanoidClips.RUN, DotHumanoidClips.SPRINT],
 		"a figure carried by something else animates from how far it moved (%s)" % walker.clip)
