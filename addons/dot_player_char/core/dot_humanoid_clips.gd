@@ -266,7 +266,8 @@ static func synthesise(library: AnimationLibrary, skeleton: Skeleton3D = null) -
 		if library.has_animation(SWIM):
 			library.remove_animation(SWIM)
 		var _w := library.add_animation(SWIM, _swimming(idle, skeleton))
-		var _actions := DotHumanoidActions.add_to(library, idle, skeleton)
+		# DotHumanoidActions by uid, not by name: it names this file, and the pair was a parser cycle Godot 4.7 never frees.
+		var _actions: AnimationLibrary = load("uid://dmo2ealh0nrqf").add_to(library, idle, skeleton)
 
 	return library
 

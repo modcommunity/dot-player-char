@@ -1,6 +1,9 @@
 class_name DotRagdollScan
 extends RefCounted
 
+## The ragdoll's base, for its [enum DotPlayerRagdoll.Role]: naming DotPlayerRagdoll here closed a parser cycle.
+const State := preload("dot_player_ragdoll_state.gd")
+
 ## Reads a figure for [DotPlayerRagdoll]: which meshes it has and which body part each is.
 ## The public entry points are the static methods on [DotPlayerRagdoll].
 
@@ -45,12 +48,12 @@ static func role_of(figure: Node, mesh: Node) -> int:
 	var node: Node = mesh
 	while node != null:
 		var role := role_of_name(String(node.name))
-		if role != DotPlayerRagdoll.Role.OTHER:
+		if role != State.Role.OTHER:
 			return role
 		if node == figure:
 			break
 		node = node.get_parent()
-	return DotPlayerRagdoll.Role.OTHER
+	return State.Role.OTHER
 
 
 ## The role one name says, or OTHER. Case and separators do not matter.
@@ -59,17 +62,17 @@ static func role_of_name(text: String) -> int:
 	var left := t.contains("left") or t.ends_with("-l") or t.begins_with("l-")
 	var right := t.contains("right") or t.ends_with("-r") or t.begins_with("r-")
 	if t.contains("head") or t.contains("skull"):
-		return DotPlayerRagdoll.Role.HEAD
+		return State.Role.HEAD
 	if t.contains("arm") or t.contains("hand") or t.contains("shoulder") or t.contains("elbow"):
 		if left != right:
-			return DotPlayerRagdoll.Role.ARM_L if left else DotPlayerRagdoll.Role.ARM_R
+			return State.Role.ARM_L if left else State.Role.ARM_R
 	if t.contains("leg") or t.contains("foot") or t.contains("thigh") or t.contains("shin") or t.contains("knee"):
 		if left != right:
-			return DotPlayerRagdoll.Role.LEG_L if left else DotPlayerRagdoll.Role.LEG_R
+			return State.Role.LEG_L if left else State.Role.LEG_R
 	for word in ["torso", "chest", "spine", "pelvis", "hips", "trunk", "belly"]:
 		if t.contains(word):
-			return DotPlayerRagdoll.Role.TORSO
-	return DotPlayerRagdoll.Role.OTHER
+			return State.Role.TORSO
+	return State.Role.OTHER
 
 
 ## Meshes by role. An OTHER mesh joins the role whose meshes' centre is nearest its own.
@@ -83,7 +86,7 @@ static func group(meshes: Array[MeshInstance3D], role_fn: Callable) -> Dictionar
 	var others: Array[MeshInstance3D] = []
 	for mesh in meshes:
 		var role: int = role_fn.call(mesh)
-		if role == DotPlayerRagdoll.Role.OTHER:
+		if role == State.Role.OTHER:
 			others.append(mesh)
 			continue
 		if not groups.has(role):
@@ -101,7 +104,7 @@ static func group(meshes: Array[MeshInstance3D], role_fn: Callable) -> Dictionar
 					best_d = d
 					best = role
 		if best < 0:
-			best = DotPlayerRagdoll.Role.TORSO
+			best = State.Role.TORSO
 			if not groups.has(best):
 				groups[best] = [] as Array[MeshInstance3D]
 		(groups[best] as Array[MeshInstance3D]).append(mesh)

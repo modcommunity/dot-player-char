@@ -37,7 +37,7 @@ static func of(mesh: Mesh) -> Array:
 ## Returns the surfaces read.
 static func warm(figure: Node) -> int:
 	var n := 0
-	for mesh in DotPlayerRagdoll.skinned_meshes(figure):
+	for mesh in DotRagdollScan.skinned_meshes(figure):
 		n += of(mesh.mesh).size()
 	return n
 

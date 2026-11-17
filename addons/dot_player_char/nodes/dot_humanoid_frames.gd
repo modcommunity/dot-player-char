@@ -1,16 +1,19 @@
 class_name DotHumanoidFrames
 extends RefCounted
 
+## The figure's tuning base, by path: naming DotHumanoidFigure here closed a parser cycle Godot 4.7 never frees.
+const Tuning := preload("dot_humanoid_figure_tuning.gd")
+
 ## Measures a figure's body: where its hand sits, how tall its mesh is, and the stand-in capsule.
 
 
 ## The hand's frame in its bone's, from the held-gun pose: forward is the figure's forward and up
 ## is up there, so a weapon model made pointing down -Z points where the gun clips aim.
 static func hand_frame(skeleton: Skeleton3D, anim: AnimationPlayer, model: Node3D, to_figure: Transform3D) -> Transform3D:
-	var bone_global := held_pose(skeleton, anim, model, skeleton.find_bone(DotHumanoidFigure.HAND_BONE))
+	var bone_global := held_pose(skeleton, anim, model, skeleton.find_bone(Tuning.HAND_BONE))
 	var bone_in_figure := to_figure * bone_global
 	# Wanted: in the figure's frame, -Z forward, +Y up, metres; at the bone plus the grip offset.
-	var wanted := Transform3D(Basis.IDENTITY, bone_in_figure.origin + DotHumanoidFigure.HAND_OFFSET)
+	var wanted := Transform3D(Basis.IDENTITY, bone_in_figure.origin + Tuning.HAND_OFFSET)
 	return bone_in_figure.affine_inverse() * wanted
 
 
@@ -75,7 +78,7 @@ static func capsule(p_height: float, colour: Color) -> Node3D:
 
 ## The crown of the head in the head bone's frame: straight over it at the mesh's top, upright and metre scale.
 static func crown_local(skeleton: Skeleton3D, to_figure: Transform3D, height: float) -> Transform3D:
-	var head_in_figure := to_figure * skeleton.get_bone_global_rest(skeleton.find_bone(DotHumanoidFigure.HEAD_BONE))
+	var head_in_figure := to_figure * skeleton.get_bone_global_rest(skeleton.find_bone(Tuning.HEAD_BONE))
 	var top := Vector3(head_in_figure.origin.x, height, head_in_figure.origin.z)
 	return head_in_figure.affine_inverse() * Transform3D(Basis.IDENTITY, top)
 
@@ -106,24 +109,24 @@ static func step_for_distance(figure: Node3D, mesh: MeshInstance3D) -> int:
 	var at := placed.origin
 	var eye := camera.global_transform
 	var d := eye.origin.distance_to(at)
-	var shadow_range := DotHumanoidFigure.shadow_range
+	var shadow_range := Tuning.shadow_range
 	var shadowed := shadow_range <= 0.0 or d <= shadow_range
 	if mesh != null:
 		var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadowed else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY and mesh.cast_shadow != shadow:
 			mesh.cast_shadow = shadow
 		# Read live, so a client's cvar reaches the figures already built.
-		if mesh.visibility_range_end != DotHumanoidFigure.draw_range:
-			mesh.visibility_range_end = DotHumanoidFigure.draw_range
-		if mesh.lod_bias != DotHumanoidFigure.lod_bias:
-			mesh.lod_bias = DotHumanoidFigure.lod_bias
-	var step := 1 if d <= DotHumanoidFigure.ANIM_NEAR else (2 if d <= DotHumanoidFigure.ANIM_FAR else 4)
-	var tall := (figure as DotHumanoidFigure).height if figure is DotHumanoidFigure else 1.8
+		if mesh.visibility_range_end != Tuning.draw_range:
+			mesh.visibility_range_end = Tuning.draw_range
+		if mesh.lod_bias != Tuning.lod_bias:
+			mesh.lod_bias = Tuning.lod_bias
+	var step := 1 if d <= Tuning.ANIM_NEAR else (2 if d <= Tuning.ANIM_FAR else 4)
+	var tall: float = figure.get(&"height") if figure is Tuning else 1.8
 	last_distance = d
 	var shown := figure.is_visible_in_tree()
 	last_seen = shown and _in_cone(camera, eye, at + placed.basis.y.normalized() * tall * 0.5, tall)
 	if not last_seen:
-		step = DotHumanoidFigure.UNSEEN_STEP if not shown or not shadowed else step * DotHumanoidFigure.OFFSCREEN_STEP
+		step = Tuning.UNSEEN_STEP if not shown or not shadowed else step * Tuning.OFFSCREEN_STEP
 	return step
 
 

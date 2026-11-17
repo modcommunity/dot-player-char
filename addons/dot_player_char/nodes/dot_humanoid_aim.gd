@@ -1,6 +1,9 @@
 class_name DotHumanoidAim
 extends RefCounted
 
+## The figure's tuning base, by path: naming DotHumanoidFigure here closed a parser cycle Godot 4.7 never frees.
+const Tuning := preload("dot_humanoid_figure_tuning.gd")
+
 ## The view pitch bent into a figure's waist and chest, and its arms when it holds a gun.
 
 
@@ -48,6 +51,6 @@ static func apply_plan(skeleton: Skeleton3D, bones: Array, to_figure: Transform3
 		var i: int = bones[k]
 		var share: float = bones[k + 2]
 		var p := parents[n]
-		var drop := -DotHumanoidFigure.SPRINT_DROP * sprint_blend if bones[k + 3] else 0.0
+		var drop := -Tuning.SPRINT_DROP * sprint_blend if bones[k + 3] else 0.0
 		var turn := Quaternion(axis, pitch * share + drop)
 		skeleton.set_bone_pose_rotation(i, (p.inverse() * turn * p * skeleton.get_bone_pose_rotation(i)).normalized())
