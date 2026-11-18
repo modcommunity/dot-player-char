@@ -282,6 +282,10 @@ func _reach(skeleton: Skeleton3D) -> void:
 		_pose_debug.draw(skeleton, drawn)
 
 
+## The most the elbow turn may change in one frame, degrees.
+const MAX_TURN_STEP := 4.0
+
+
 ## The elbow direction (skeleton space) for an arm reaching [param target]: [param pole], turned about the
 ## shoulder-to-hand line to the least-buried of [constant CLEAR_ANGLES] when the arm would pass through the weapon.
 ## Eased part way each frame, so the elbow swings across rather than snapping.
@@ -307,6 +311,11 @@ func _clear_pole(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole:
 	var turned := Vector3(r[0], r[1], r[2])
 	var turn := r[3]
 	var depth := r[4]
+	# The scan eases a fraction of the gap, a big swing when the best angle flips by 60 degrees; cap the step so the forearm slews rather than jumps.
+	if absf(turn - prev) > MAX_TURN_STEP:
+		turn = prev + signf(turn - prev) * MAX_TURN_STEP
+		turned = pole.rotated(dir, deg_to_rad(turn))
+		depth = DotViewArmsClear.arm_depth(to_anchor, box, shoulder, DotViewArmsClear.elbow_for(shoulder, target, lengths, turned), target)
 	if right:
 		_turn_right = turn
 		arm_depth_right = depth
