@@ -149,6 +149,25 @@ func tick(speed: float, delta: float) -> void:
 		_delta = delta
 		_reach(skeleton)
 	_place_hands(skeleton)
+	_apply_draw_depth()
+
+
+## Hands [member draw_depth] and the eye to the arms' and real hands' material (instance uniforms of [DotViewArmsMaterial]).
+func _apply_draw_depth() -> void:
+	if not _detail_on or not is_inside_tree():
+		return
+	var camera := get_viewport().get_camera_3d()
+	var depth := draw_depth if camera != null and _holding() else 1.0
+	var eye := camera.global_position if camera != null else Vector3.ZERO
+	var meshes: Array[GeometryInstance3D] = []
+	if _arms is DotHumanoidFigure and (_arms as DotHumanoidFigure).mesh() != null:
+		meshes.append((_arms as DotHumanoidFigure).mesh())
+	for hand in _hands:
+		if is_instance_valid(hand) and hand.mesh_instance() != null:
+			meshes.append(hand.mesh_instance())
+	for m in meshes:
+		m.set_instance_shader_parameter(&"draw_depth", depth)
+		m.set_instance_shader_parameter(&"draw_eye", eye)
 
 
 ## The real hands are drawn: built, a weapon held, and the arms up.

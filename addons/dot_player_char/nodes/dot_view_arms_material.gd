@@ -15,6 +15,10 @@ uniform float weave_scale = 900.0;
 uniform float weave_depth = 0.0004;
 uniform float detail = 1.0;
 varying vec3 rest;
+// DotPlayerViewArms.draw_depth: the clip position of the view point grown by it about the eye (same pixel, further depth).
+// Only from draw_eye's own view: a shadow pass renders from the light, where the growth would move the shadow.
+instance uniform float draw_depth = 1.0;
+instance uniform vec3 draw_eye = vec3(0.0);
 
 float dot_hash(vec3 p) {
 	p = fract(p * 0.3183099 + 0.1);
@@ -32,6 +36,10 @@ float dot_noise(vec3 x) {
 
 void vertex() {
 	rest = CUSTOM0.xyz;
+	if (draw_depth > 1.0 && distance(INV_VIEW_MATRIX[3].xyz, draw_eye) < 0.01) {
+		vec4 v = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
+		POSITION = PROJECTION_MATRIX * vec4(v.xyz * draw_depth, 1.0);
+	}
 }
 """
 

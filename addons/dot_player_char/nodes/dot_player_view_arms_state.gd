@@ -116,6 +116,17 @@ var hand_min_depth: float = 0.0:
 			push_error("DotPlayerViewArms.hand_min_depth must be 0 or more, got %s" % value)
 			return
 		hand_min_depth = value
+## How many times further off than the arms the held weapon is drawn: a game that draws its gun beyond life size and
+## brings it to life size about the eye for the arms (a hands frame) sets it, and the arms' close-up material
+## ([DotViewArmsMaterial]) writes their depth as if grown by it about the eye. The pixels stay put, but the depth test
+## then sees the arms where the gun is: fingers wrap behind a grip, the gun covers the forearm under it, instead of the
+## whole arm drawing over the gun from a third of its distance. 1 is off; below 1 or non-finite is refused with an error.
+var draw_depth: float = 1.0:
+	set(value):
+		if value < 1.0 or not is_finite(value):
+			push_error("DotPlayerViewArms.draw_depth must be 1 or more, got %s" % value)
+			return
+		draw_depth = value
 ## Draws the grip sockets, hand targets and arm bone axes over the view ([DotViewArmsPoseDebug]).
 var debug_pose: bool = false:
 	set(value):
