@@ -69,6 +69,10 @@ func set_downed(on: bool) -> void:
 
 ## Poses the arms on [param grip]'s weapon (null puts the mode away). While downed the crawl still wins; with no grip the arms are as before.
 func set_held(grip: DotViewGrip) -> void:
+	if grip != _grip:
+		# A new weapon is a cut: the old gun's elbow side must not slew across 25 degrees a frame to the new one's (a 0.1 m a frame sweep).
+		_last_pole_right = Vector3.ZERO
+		_last_pole_left = Vector3.ZERO
 	_grip = grip
 	_apply_mode()
 
@@ -316,7 +320,9 @@ var _last_pole_right := Vector3.ZERO
 var _last_pole_left := Vector3.ZERO
 
 
-## [param pole] turned about [param line] no further than [constant MAX_POLE_STEP] from where [param last] pointed.
+## [param pole] turned about [param line] no further than [constant MAX_POLE_STEP] from where [param last] pointed. Returns the unit sideways part
+## (across [param line]) so [param last] next frame holds what the elbow used: a raw pole lying nearly along the line has a tiny sideways part
+## that swings a long way for a small move of the line, and the elbow jumped 0.24 m the frame the aim-in finished.
 func _slew_pole(last: Vector3, line: Vector3, pole: Vector3) -> Vector3:
 	if line.length() < 0.0001 or last == Vector3.ZERO:
 		return pole
@@ -327,7 +333,7 @@ func _slew_pole(last: Vector3, line: Vector3, pole: Vector3) -> Vector3:
 		return pole
 	var swing := was.signed_angle_to(now, dir)
 	if absf(swing) <= deg_to_rad(MAX_POLE_STEP):
-		return pole
+		return now.normalized()
 	return was.normalized().rotated(dir, signf(swing) * deg_to_rad(MAX_POLE_STEP))
 
 
