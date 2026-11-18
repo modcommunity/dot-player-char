@@ -246,7 +246,7 @@ func _reach(skeleton: Skeleton3D) -> void:
 
 	if not _right.is_empty():
 		reach_extended_right = _extend(skeleton, _right, right_target)
-		var pole := _clear_pole(skeleton, _right, to_skeleton * right_target, out, true)
+		var pole := _clear_pole(skeleton, _right, to_skeleton * right_target, _steady_pole(skeleton, _right, to_skeleton * right_target, out), true)
 		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * right_target, pole, 1.0)
 		drawn.append([_grip.grip_world(), right_target, "Middle1.R"])
 		hand_gap_right = _gap(skeleton, _right, right_target)
@@ -262,7 +262,7 @@ func _reach(skeleton: Skeleton3D) -> void:
 			reach_extended_left = _extend(skeleton, _left, support_target)
 			# What the stretch could not cover slides toward the firing hand, as before it.
 			target = _slide_to_reach(skeleton, _left, support_target, right_target + (support_target - _grip.support_world()))
-		var left_pole := Vector3(-out.x, out.y, out.z)
+		var left_pole := _steady_pole(skeleton, _left, to_skeleton * target, Vector3(-out.x, out.y, out.z))
 		if _grip.is_two_hand():
 			left_pole = _clear_pole(skeleton, _left, to_skeleton * target, left_pole, false)
 		elif absf(_turn_left) > 0.5:
@@ -280,6 +280,25 @@ func _reach(skeleton: Skeleton3D) -> void:
 			_pose_debug = DotViewArmsPoseDebug.new()
 			add_child(_pose_debug)
 		_pose_debug.draw(skeleton, drawn)
+
+
+## The share of the unit pole that must lie across the shoulder-to-hand line before [method _steady_pole] leaves it alone.
+const POLE_SIDE_MIN := 0.6
+
+
+## [param pole] kept off the shoulder-to-[param target] line. A hand reaching across the body (ADS, a reload) lines the shoulder-to-hand line up with the sideways pole, the part of the pole across
+## that line shrinks to nothing and flips, and the elbow jumped 0.4 m in a frame; below [constant POLE_SIDE_MIN] of the pole across the line, down is mixed in, so the elbow swings down and round instead.
+func _steady_pole(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole: Vector3) -> Vector3:
+	var line := target - DotHumanoidIk.global_pose(skeleton, bones[0]).origin
+	if line.length() < 0.0001:
+		return pole
+	var dir := line.normalized()
+	var unit := pole.normalized()
+	var side := sqrt(maxf(1.0 - unit.dot(dir) * unit.dot(dir), 0.0))
+	if side >= POLE_SIDE_MIN:
+		return pole
+	var down := skeleton.global_transform.basis.inverse() * (global_transform.basis * Vector3.DOWN)
+	return unit + down.normalized() * (2.0 * (POLE_SIDE_MIN - side) / POLE_SIDE_MIN)
 
 
 ## The most the elbow turn may change in one frame, degrees.
