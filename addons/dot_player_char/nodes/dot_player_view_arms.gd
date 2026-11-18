@@ -247,6 +247,8 @@ func _reach(skeleton: Skeleton3D) -> void:
 	if not _right.is_empty():
 		reach_extended_right = _extend(skeleton, _right, right_target)
 		var pole := _clear_pole(skeleton, _right, to_skeleton * right_target, _steady_pole(skeleton, _right, to_skeleton * right_target, out), true)
+		pole = _slew_pole(_last_pole_right, (to_skeleton * right_target) - DotHumanoidIk.global_pose(skeleton, _right[0]).origin, pole)
+		_last_pole_right = pole
 		DotHumanoidIk.two_bone(skeleton, _right, to_skeleton * right_target, pole, 1.0)
 		drawn.append([_grip.grip_world(), right_target, "Middle1.R"])
 		hand_gap_right = _gap(skeleton, _right, right_target)
@@ -271,6 +273,8 @@ func _reach(skeleton: Skeleton3D) -> void:
 			_turn_left = lerpf(_turn_left, 0.0, DotViewArmsClear.EASE)
 			if line.is_normalized():
 				left_pole = left_pole.rotated(line, deg_to_rad(_turn_left))
+		left_pole = _slew_pole(_last_pole_left, (to_skeleton * target) - DotHumanoidIk.global_pose(skeleton, _left[0]).origin, left_pole)
+		_last_pole_left = left_pole
 		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, left_pole, 1.0)
 		drawn.append([_grip.support_world() if _grip.is_two_hand() else rest, target, "Middle1.L"])
 		hand_gap_left = _gap(skeleton, _left, target)
@@ -303,6 +307,28 @@ func _steady_pole(skeleton: Skeleton3D, bones: Array[int], target: Vector3, pole
 
 ## The most the elbow turn may change in one frame, degrees.
 const MAX_TURN_STEP := 4.0
+
+## The most the elbow direction (the pole across the shoulder-to-hand line) may swing in one frame, degrees. The turn cap above only
+## bounds the clearance scan; a hand crossing the shoulder line (an aim-out finishing, a reload) can spin the sideways pole 180 degrees
+## in a frame whatever the scan does, and the forearm jumped 0.3 m for one frame, or lay straight out (a T-pose flash).
+const MAX_POLE_STEP := 25.0
+var _last_pole_right := Vector3.ZERO
+var _last_pole_left := Vector3.ZERO
+
+
+## [param pole] turned about [param line] no further than [constant MAX_POLE_STEP] from where [param last] pointed.
+func _slew_pole(last: Vector3, line: Vector3, pole: Vector3) -> Vector3:
+	if line.length() < 0.0001 or last == Vector3.ZERO:
+		return pole
+	var dir := line.normalized()
+	var was := last - dir * last.dot(dir)
+	var now := pole - dir * pole.dot(dir)
+	if was.length() < 0.0001 or now.length() < 0.0001:
+		return pole
+	var swing := was.signed_angle_to(now, dir)
+	if absf(swing) <= deg_to_rad(MAX_POLE_STEP):
+		return pole
+	return was.normalized().rotated(dir, signf(swing) * deg_to_rad(MAX_POLE_STEP))
 
 
 ## The elbow direction (skeleton space) for an arm reaching [param target]: [param pole], turned about the
