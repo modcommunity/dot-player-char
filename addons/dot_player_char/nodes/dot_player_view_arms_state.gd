@@ -62,6 +62,12 @@ var held_eye_from_head: Vector3 = Vector3(0.0, 0.18, 0.06)
 ## Where the idle hand rests, from the arms node, out of the view, when the weapon is held with one hand.
 const LEFT_REST := Vector3(-0.25, 0.9, 0.1)
 var elbow_pole: Vector3 = Vector3(1.0, -1.2, 0.5)
+## The support (left) elbow's direction in the same frame, as the left arm sees it; zero mirrors [member elbow_pole].
+## Mirrored, the support elbow went out to the left and its forearm and sleeve crossed the view toward a handguard.
+var support_elbow_pole: Vector3 = Vector3.ZERO
+## The support forearm's girth on a two-hand grip, its length kept: it runs from the view's corner to the fore-end, near
+## the eye, and at full girth its sleeve filled a quarter of the view (the sniper's). 1 draws it as built.
+var support_forearm_girth: float = 1.0
 ## The held arms' size and how much wider apart the shoulders sit: slimmer arms leave the weapon visible.
 var held_scale: float = 0.75
 var held_spread: float = 1.25

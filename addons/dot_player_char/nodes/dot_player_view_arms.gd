@@ -199,7 +199,12 @@ func _scale_left(skeleton: Skeleton3D, fore: float) -> void:
 		var i := skeleton.find_bone(bone)
 		if i >= 0:
 			var folded: bool = hide and not (swap and bone == "Shoulder.L")
-			skeleton.set_bone_pose_scale(i, Vector3.ONE * (0.001 if folded else (fore if bone == "UpperArm.L" else 1.0)))
+			var size := Vector3.ONE * (0.001 if folded else (fore if bone == "UpperArm.L" else 1.0))
+			# The bone runs along its Y: the girth thins X and Z only, so the hand still lands on its grip.
+			if bone == "LowerArm.L" and not folded and _holding() and _grip.is_two_hand():
+				var girth := clampf(support_forearm_girth, 0.2, 1.0) if is_finite(support_forearm_girth) else 1.0
+				size = Vector3(girth, 1.0, girth)
+			skeleton.set_bone_pose_scale(i, size)
 
 	var upper := skeleton.find_bone("UpperArm.R")
 	if upper >= 0:
@@ -292,7 +297,10 @@ func _reach(skeleton: Skeleton3D) -> void:
 			reach_extended_left = _extend(skeleton, _left, support_target)
 			# What the stretch could not cover slides toward the firing hand, as before it.
 			target = _slide_to_reach(skeleton, _left, support_target, right_target + (support_target - _grip.support_world()))
-		var left_pole := _steady_pole(skeleton, _left, to_skeleton * target, Vector3(-out.x, out.y, out.z))
+		var left_out := Vector3(-out.x, out.y, out.z)
+		if _grip.is_two_hand() and support_elbow_pole.is_finite() and support_elbow_pole.length_squared() > 0.000001:
+			left_out = to_skeleton.basis * (figure.global_transform.basis * support_elbow_pole)
+		var left_pole := _steady_pole(skeleton, _left, to_skeleton * target, left_out)
 		if _grip.is_two_hand():
 			left_pole = _clear_pole(skeleton, _left, to_skeleton * target, left_pole, false)
 		elif absf(_turn_left) > 0.5:
