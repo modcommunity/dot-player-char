@@ -46,10 +46,11 @@ static func table() -> Dictionary:
 	}
 	out[SNIPER] = {
 		&"firing": trigger.duplicate(),
-		# A long gun rests in a slightly looser hand, the fingers along the stock as well as round it.
-		&"support": {&"fingers": Vector3(0.55, 0.05, 0.85), &"palm": Vector3(-0.1, 1.0, 0.0), &"centre": Vector3(0.0, 0.065, 0.018),
-			&"thumb": Vector3(12.0, 18.0, 10.0), &"index": Vector3(60.0, 72.0, 42.0), &"middle": Vector3(64.0, 76.0, 44.0),
-			&"ring": Vector3(66.0, 76.0, 44.0), &"pinky": Vector3(68.0, 74.0, 42.0), &"spread": 2.0},
+		# The long handguard held from its left side, palm in and a little under it, the fingers forward and up, closing
+		# over its top; a palm-up hand under it showed its whole palm and sleeve over the gun.
+		&"support": {&"fingers": Vector3(-0.2, 0.4, 0.9), &"palm": Vector3(0.85, 0.5, 0.0), &"centre": Vector3(0.0, 0.065, 0.022),
+			&"thumb": Vector3(14.0, 20.0, 12.0), &"index": Vector3(64.0, 78.0, 46.0), &"middle": Vector3(68.0, 82.0, 48.0),
+			&"ring": Vector3(70.0, 82.0, 48.0), &"pinky": Vector3(72.0, 80.0, 46.0), &"spread": 1.0},
 	}
 	out[SHOTGUN] = {
 		&"firing": trigger.duplicate(),

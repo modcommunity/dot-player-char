@@ -16,10 +16,15 @@ func build(p_look: DotHumanoidLook = null, p_height: float = 1.8) -> void:
 
 	if arms_factory.is_valid():
 		_arms = arms_factory.call(look, height) as Node3D
+		if _arms is DotHumanoidFigure:
+			(_arms as DotHumanoidFigure).floor_mask = 0
 
 	if _arms == null:
 		var figure := DotHumanoidFigure.new()
 		figure.name = "Arms"
+		# Arms at the eye stand on no floor: the figure's feet hang under the camera, and a floor lift there would move
+		# the arms off their solved grips.
+		figure.floor_mask = 0
 		add_child(figure)
 		figure.build(look, height)
 		_arms = figure
