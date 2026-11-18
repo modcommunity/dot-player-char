@@ -877,11 +877,11 @@ func _hold_walls() -> void:
 		if body == null:
 			continue
 		var now := body.global_position
-		var known := _last_pos.has(body)
-		var before: Vector3 = _last_pos[body] if known else _anchor
+		var before: Vector3 = _last_pos.get(body, _anchor)
+		if not now.is_finite():  # a joint solved to NaN: back where it was last seen, at rest, instead of NaN rays from here on
+			body.global_position = before; body.linear_velocity = Vector3.ZERO; body.angular_velocity = Vector3.ZERO; continue
 		if before.distance_squared_to(now) < 0.0001:
-			if not known:
-				_last_pos[body] = now
+			if not _last_pos.has(body): _last_pos[body] = now
 			continue
 		_last_pos[body] = now
 		var hit := crossing(space, before, now, rules.collision_mask)

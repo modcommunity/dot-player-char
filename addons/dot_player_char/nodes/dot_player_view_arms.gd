@@ -265,6 +265,12 @@ func _reach(skeleton: Skeleton3D) -> void:
 		var left_pole := Vector3(-out.x, out.y, out.z)
 		if _grip.is_two_hand():
 			left_pole = _clear_pole(skeleton, _left, to_skeleton * target, left_pole, false)
+		elif absf(_turn_left) > 0.5:
+			# The support hand let go (a reload's mag hand): the turn it had eased to unwinds the same way, not in one frame.
+			var line := (to_skeleton * target - DotHumanoidIk.global_pose(skeleton, _left[0]).origin).normalized()
+			_turn_left = lerpf(_turn_left, 0.0, DotViewArmsClear.EASE)
+			if line.is_normalized():
+				left_pole = left_pole.rotated(line, deg_to_rad(_turn_left))
 		DotHumanoidIk.two_bone(skeleton, _left, to_skeleton * target, left_pole, 1.0)
 		drawn.append([_grip.support_world() if _grip.is_two_hand() else rest, target, "Middle1.L"])
 		hand_gap_left = _gap(skeleton, _left, target)
