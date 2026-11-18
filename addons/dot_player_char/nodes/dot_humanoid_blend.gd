@@ -9,10 +9,11 @@ const SECONDS := 0.15
 var rotations: Dictionary = {}
 var positions: Dictionary = {}
 var left: float = 0.0
+var seconds: float = SECONDS
 
 
 ## Remembers the pose on screen now for [param bones] (name to index), the hips and [param extra], to ease from.
-func begin(skeleton: Skeleton3D, bones: Dictionary, extra: String) -> void:
+func begin(skeleton: Skeleton3D, bones: Dictionary, extra: String, p_seconds := SECONDS) -> void:
 	rotations.clear()
 	for bone: String in bones:
 		rotations[bones[bone]] = skeleton.get_bone_pose_rotation(bones[bone])
@@ -21,7 +22,8 @@ func begin(skeleton: Skeleton3D, bones: Dictionary, extra: String) -> void:
 		if b >= 0:
 			rotations[b] = skeleton.get_bone_pose_rotation(b)
 			positions[b] = skeleton.get_bone_pose_position(b)
-	left = SECONDS
+	seconds = maxf(p_seconds, 0.01)
+	left = seconds
 
 
 func clear() -> void:
@@ -35,7 +37,7 @@ func step(skeleton: Skeleton3D, dt: float) -> void:
 	if left <= 0.0:
 		return
 	left = maxf(0.0, left - dt)
-	var w := 1.0 - left / SECONDS
+	var w := 1.0 - left / seconds
 	for index: int in rotations:
 		var from: Quaternion = rotations[index]
 		skeleton.set_bone_pose_rotation(index, from.slerp(skeleton.get_bone_pose_rotation(index), w))

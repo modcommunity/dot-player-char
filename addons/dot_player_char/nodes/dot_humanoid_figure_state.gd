@@ -21,6 +21,9 @@ const SLIDE_LIFT := 0.1
 ## Seconds to fall into and rise out of a slide.
 const SLIDE_BLEND := 0.35
 
+## Seconds the drawn crouch amount takes to go from standing to crouched or back ([member crouch_amount]), and the blend into or out of a crouched clip.
+const CROUCH_BLEND := 0.25
+
 ## How far back a propped, downed body leans about the hips, in radians.
 const PROP_LEAN := 1.2
 
@@ -245,6 +248,8 @@ var carry := DotHumanoidCarryPose.new()
 var arms := preload("dot_humanoid_arm_pose.gd").new()
 var _overlay_weight := 0.0
 var _slide_lift := 0.0
+## The drawn crouch, 0 standing to 1 crouched or sliding: the game's `crouch` key (or its `crouched` / `sliding` flag) moved toward over [constant CROUCH_BLEND], so a stance that arrives as a flip is drawn as a change. Render side only.
+var crouch_amount := 0.0
 
 ## Physics layers the drawn body is stood on (0 = off; the default is the shooter layout's `world`). A body whose origin is drawn under the floor beneath it, as one interpolated between ticks is across a step's riser or a
 ## slope's crest, is raised onto it by up to [member floor_reach] metres ([method DotHumanoidLegs.floor_lift]). Drawing only: the origin, the hull and the hit zones are not moved.

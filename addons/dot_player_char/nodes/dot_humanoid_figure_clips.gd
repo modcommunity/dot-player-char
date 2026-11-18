@@ -128,12 +128,16 @@ func _play(wanted: StringName, rate: float) -> void:
 	if clip == wanted:
 		return
 	var from := _stride_fraction()
-	var blend := SLIDE_BLEND if wanted == DotHumanoidClips.SLIDE or clip == DotHumanoidClips.SLIDE else 0.15
+	var low_from := clip == DotHumanoidClips.SLIDE or clip == DotHumanoidClips.CROUCH or clip == DotHumanoidClips.CROUCH_WALK
+	var low_to := wanted == DotHumanoidClips.SLIDE or wanted == DotHumanoidClips.CROUCH or wanted == DotHumanoidClips.CROUCH_WALK
+	# Into or out of a crouched or sliding clip: the stance's own time, not a stride's, so the head does not pop up or down.
+	var stance := low_from != low_to
+	var blend := SLIDE_BLEND if wanted == DotHumanoidClips.SLIDE or clip == DotHumanoidClips.SLIDE else (CROUCH_BLEND if stance else 0.15)
 	clip = wanted
 	var cross := from >= 0.0 and wanted in STRIDE_CLIPS
 	# A stride cut keeps the feet planted but would snap the arms, and the gun in the hand with them.
 	if cross:
-		_ease.begin(_skeleton, _upper, HAND_BONE)
+		_ease.begin(_skeleton, _upper, HAND_BONE, blend if stance else DotHumanoidBlend.SECONDS)
 	var feet := DotHumanoidStride.feet_now(_skeleton, _to_figure()) if cross else PackedVector3Array()
 	_anim.play(wanted, 0.0 if cross else blend)
 	if cross and not feet.is_empty():

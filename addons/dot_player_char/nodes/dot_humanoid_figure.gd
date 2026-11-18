@@ -309,6 +309,8 @@ func _skip_frame(p_delta: float) -> bool:
 func _step_state(delta: float, speed: float) -> void:
 	_machine.land_stride_speed = land_stride_speed
 	state = _machine.advance(_motion, delta, speed)
+	var crouch_to := clampf(float(_motion["crouch"]), 0.0, 1.0) if _motion.has("crouch") else (1.0 if bool(_motion.get("crouched", false)) or bool(_motion.get("sliding", false)) else 0.0)
+	crouch_amount = move_toward(crouch_amount, crouch_to, delta / CROUCH_BLEND)
 	_end_action_if_moved()
 	var carry_sprint := sprinting if _motion.has("sprinting") else state == DotPlayerAnimState.RUN
 	_sprint = move_toward(_sprint, 1.0 if carry_sprint and hold == Hold.GUN and not downed else 0.0, delta / SPRINT_SECONDS)

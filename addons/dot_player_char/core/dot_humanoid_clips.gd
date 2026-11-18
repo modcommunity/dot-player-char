@@ -37,6 +37,8 @@ const SWIM := &"swim"
 const SPRINT := &"ual_sprint"
 ## The slide, baked from the Universal Animation Library (CC0); a figure without it crouches through a slide.
 const SLIDE := &"ual_slide"
+## How far the slide's pose is turned toward the crouch's ([method _raise_slide]): 0 is the library's flat slide, 1 a crouch.
+const SLIDE_HULL_FIT := 0.55
 
 ## The library's zombie idle and shuffling walk, only from `people/people_ual.res`; a figure with [member DotHumanoidFigure.zombie_gait] but without them plays the made ones.
 const ZOMBIE_IDLE := &"ual_zombie_idle"
@@ -284,7 +286,31 @@ static func adopt(library: AnimationLibrary, real: AnimationLibrary) -> Animatio
 		if library.has_animation(clip):
 			library.remove_animation(clip)
 		var _a := library.add_animation(clip, animation)
+	_raise_slide(library)
 	return library
+
+
+## [constant SLIDE] with every key turned [constant SLIDE_HULL_FIT] of the way to the crouch's pose (in place, once, when the clips are adopted: no per-frame cost). The drawn slide lay almost flat on the floor (head about a third of the crouch's
+## height) while the slide's hit zones are the crouch's, so a shot at the drawn body went under the zones and a shot at the zones went over the body: leant back with the legs forward, but the head and chest up where the hull is.
+static func _raise_slide(library: AnimationLibrary) -> void:
+	if not library.has_animation(SLIDE) or not library.has_animation(CROUCH):
+		return
+	var slide := library.get_animation(SLIDE)
+	var crouch := library.get_animation(CROUCH)
+	for t in slide.get_track_count():
+		var type := slide.track_get_type(t)
+		if type != Animation.TYPE_ROTATION_3D and type != Animation.TYPE_POSITION_3D:
+			continue
+		var c := crouch.find_track(slide.track_get_path(t), type)
+		if c < 0:
+			continue
+		var to: Variant = _sample(crouch, c, 0.0)
+		for k in slide.track_get_key_count(t):
+			var v: Variant = slide.track_get_key_value(t, k)
+			if type == Animation.TYPE_ROTATION_3D:
+				slide.track_set_key_value(t, k, (v as Quaternion).slerp(to as Quaternion, SLIDE_HULL_FIT).normalized())
+			else:
+				slide.track_set_key_value(t, k, (v as Vector3).lerp(to as Vector3, SLIDE_HULL_FIT))
 
 
 ## How high the hips are above the feet in [constant SIT], in the clip body's units (the kit is
