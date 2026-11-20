@@ -1,3 +1,5 @@
+[![dot-player-char - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/250-dot-player-char)
+
 What a player looks like. It has four parts in one addon:
 
 | Part | What it gives you |
