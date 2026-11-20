@@ -1,4 +1,4 @@
-[![Player Char - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/250-dot-player-char)
+[![Player Char - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/38-gs-player-character)
 
 What a player looks like. It has four parts in one addon:
 
