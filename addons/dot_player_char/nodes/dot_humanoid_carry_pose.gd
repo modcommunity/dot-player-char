@@ -33,6 +33,12 @@ const RELOAD_PATH := 1.1
 const BELT := Vector3(-0.12, -0.26, -0.06)
 const WELL := Vector3(0.0, -0.10, -0.08)
 
+## The clip whose closed hands a gun is gripped with: the kit's gun clips hold the gun hand half open and the other
+## hand flat, which drawn round a stock and a foregrip read as a fanned claw. A body without it keeps the clip's hands.
+const GRIP_CLIP := &"ual_idle"
+## The forearms whose finger segments close round the gun.
+const GRIP_ARMS: Array[String] = ["LowerArm.R", "LowerArm.L"]
+
 ## Seconds for a shot's kick to settle.
 const KICK_SECONDS := 0.1
 
@@ -68,6 +74,16 @@ var _hand_frame := Transform3D.IDENTITY
 var _hand_frame_inv := Transform3D.IDENTITY
 var _chest_ref := Transform3D.IDENTITY
 var _skeleton_id := 0
+## The hand's other finger roots (the kit hangs every finger off the forearm, beside the hand bone): each turned
+## with the hand, or the stance turned the middle finger alone and the rest fanned out as a claw. Per animation,
+## whether the clip keys each ([method _finger_keys]).
+var _fingers := PackedInt32Array()
+var _hand_bone := -1
+var _finger_rest: Array[Quaternion] = []
+var _finger_keyed: Dictionary = {}
+## Every finger segment past the roots, both hands, and its closed pose from [constant GRIP_CLIP].
+var _grip_bones := PackedInt32Array()
+var _grip_pose: Array[Quaternion] = []
 
 
 ## How the gun is carried: a class ([constant DotHumanoidCarry.CLASSES]: &"rifle", &"pistol", &"sniper", ...), a
@@ -170,9 +186,45 @@ func apply(skeleton: Skeleton3D, model: Node3D, anim: AnimationPlayer, to_figure
 	var lower_global := upper_global * skeleton.get_bone_pose(bones[1])
 	var lower := lower_global.basis.get_rotation_quaternion()
 	var wanted := (lower.inverse() * hand.basis.get_rotation_quaternion()).normalized()
-	skeleton.set_bone_pose_rotation(bones[2], skeleton.get_bone_pose_rotation(bones[2]).slerp(wanted, w))
+	var was := skeleton.get_bone_pose_rotation(bones[2])
+	var now := was.slerp(wanted, w)
+	skeleton.set_bone_pose_rotation(bones[2], now)
+	_turn_fingers(skeleton, animation, model, was, now)
+	for i in _grip_bones.size():
+		var bone := _grip_bones[i]
+		skeleton.set_bone_pose_rotation(bone, skeleton.get_bone_pose_rotation(bone).slerp(_grip_pose[i], w))
 	if s.two_handed and explicit and swap < 0.5:
 		support_grip = _support(lower_global * skeleton.get_bone_pose(bones[2]), to_figure, chest.origin, size)
+
+
+## Turns the hand's other finger roots by the turn the stance gave the hand bone, from [param was] to [param now]
+## (all hang off the forearm at the wrist, so the hand stays one piece). A root the clip does not key keeps last
+## frame's pose, so it is set from its rest against the hand instead of turned again.
+func _turn_fingers(skeleton: Skeleton3D, animation: Animation, model: Node3D, was: Quaternion, now: Quaternion) -> void:
+	if _fingers.is_empty():
+		return
+	var keyed: PackedByteArray = _finger_keys(skeleton, model, animation)
+	var delta := (now * was.inverse()).normalized()
+	var hand_rest := skeleton.get_bone_rest(_hand_bone).basis.get_rotation_quaternion()
+	for i in _fingers.size():
+		var bone := _fingers[i]
+		if keyed[i] == 1:
+			skeleton.set_bone_pose_rotation(bone, (delta * skeleton.get_bone_pose_rotation(bone)).normalized())
+		else:
+			skeleton.set_bone_pose_rotation(bone, (now * hand_rest.inverse() * _finger_rest[i]).normalized())
+
+
+## Whether [param animation] keys each finger root's rotation, cached per animation.
+func _finger_keys(skeleton: Skeleton3D, model: Node3D, animation: Animation) -> PackedByteArray:
+	if _finger_keyed.has(animation):
+		return _finger_keyed[animation]
+	var prefix := String(model.get_path_to(skeleton))
+	var keys := PackedByteArray()
+	for bone in _fingers:
+		var path := NodePath("%s:%s" % [prefix, skeleton.get_bone_name(bone)])
+		keys.append(1 if animation.find_track(path, Animation.TYPE_ROTATION_3D) >= 0 else 0)
+	_finger_keyed[animation] = keys
+	return keys
 
 
 ## The other hand's point in skeleton space: the foregrip of the gun as drawn, or along the reload path.
@@ -212,10 +264,45 @@ func _measure(skeleton: Skeleton3D, model: Node3D, anim: AnimationPlayer, to_fig
 			or skeleton.get_bone_parent(lower) != upper or skeleton.get_bone_parent(hand) != lower:
 		_chest = -1
 		return
+	_hand_bone = hand
+	_fingers.clear()
+	_finger_rest.clear()
+	_finger_keyed.clear()
+	var hand_origin := skeleton.get_bone_rest(hand).origin
+	for child in skeleton.get_bone_children(lower):
+		if child != hand and skeleton.get_bone_rest(child).origin.distance_to(hand_origin) < 0.01:
+			_fingers.append(child)
+			_finger_rest.append(skeleton.get_bone_rest(child).basis.get_rotation_quaternion())
+	_measure_grip(skeleton, model, anim)
 	_hand_frame = DotHumanoidFrames.hand_frame(skeleton, anim, model, to_figure)
 	_hand_frame_inv = _hand_frame.affine_inverse()
 	_chest_ref = DotHumanoidFrames.held_pose(skeleton, anim, model, _chest)
 	_chest_chain = DotHumanoidIk.chain_to(skeleton, _chest)
+
+
+## The finger segments (each finger root's descendants, both hands) and their closed pose in [constant GRIP_CLIP].
+func _measure_grip(skeleton: Skeleton3D, model: Node3D, anim: AnimationPlayer) -> void:
+	_grip_bones.clear()
+	_grip_pose.clear()
+	var library := anim.get_animation_library(&"")
+	if library == null or not library.has_animation(GRIP_CLIP):
+		return
+	var clip := library.get_animation(GRIP_CLIP)
+	var prefix := String(model.get_path_to(skeleton))
+	for arm_name in GRIP_ARMS:
+		var arm := skeleton.find_bone(arm_name)
+		if arm < 0:
+			continue
+		var todo: Array[int] = []
+		for root in skeleton.get_bone_children(arm):
+			todo.append_array(Array(skeleton.get_bone_children(root)))
+		while not todo.is_empty():
+			var bone: int = todo.pop_back()
+			todo.append_array(Array(skeleton.get_bone_children(bone)))
+			var track := clip.find_track(NodePath("%s:%s" % [prefix, skeleton.get_bone_name(bone)]), Animation.TYPE_ROTATION_3D)
+			if track >= 0:
+				_grip_bones.append(bone)
+				_grip_pose.append(clip.rotation_track_interpolate(track, 0.0))
 
 
 func describe() -> Dictionary:
@@ -226,4 +313,6 @@ func describe() -> Dictionary:
 		"reload": snappedf(reload, 0.01),
 		"swap": snappedf(swap, 0.01),
 		"support": support_grip.is_finite(),
+		"fingers": _fingers.size(),
+		"grip": _grip_bones.size(),
 	}
