@@ -44,6 +44,151 @@ def view(j, blob, index):
 	return start, stride, dt, n, a["count"]
 
 
+def unseam(body, data):
+	"""A triangle with one corner moved to a split's pixel and another left on its old swatch
+	samples every texel between the two across the atlas: the white page and its neighbours' dark
+	edges, drawn as a jagged white shard at the hips (matt, shaun; avatar-polish judge round 1).
+	Each such old corner gets a copy of its vertex on the new pixel for that triangle only, so a
+	triangle samples one swatch. Run again it finds no mixed triangle and changes nothing."""
+	jlen = struct.unpack("<I", data[12:16])[0]
+	j = json.loads(data[20:20 + jlen])
+	blen = struct.unpack("<I", data[20 + jlen:24 + jlen])[0]
+	blob = bytearray(data[20 + jlen + 8:20 + jlen + 8 + blen])
+	pixels = {}
+	for k, (who, old, bones, _) in enumerate(SPLITS):
+		if who == body:
+			pixels[(X0 + k, Y)] = (old, bones)
+	names_ = [j["nodes"][n]["name"] for n in j["skins"][0]["joints"]]
+	split = 0
+	for mesh in j["meshes"]:
+		for prim in mesh["primitives"]:
+			assert "targets" not in prim, "morph targets are not copied"
+			names = sorted(prim["attributes"])
+			cols = {}
+			for name in names:
+				start, stride, dt, n, count = view(j, blob, prim["attributes"][name])
+				size = n * dt.itemsize
+				rows = np.frombuffer(bytes(blob), dtype=np.uint8, count=stride * (count - 1) + size, offset=start)
+				cols[name] = np.lib.stride_tricks.as_strided(rows, shape=(count, size), strides=(stride, 1)).copy()
+			istart, _, idt, _, icount = view(j, blob, prim["indices"])
+			tris = np.frombuffer(bytes(blob), dtype=idt, count=icount, offset=istart).astype(np.int64).reshape(-1, 3).copy()
+			uv = cols["TEXCOORD_0"].view("<f4").reshape(-1, 2)
+			px = np.minimum([W - 1, H - 1], (uv * [W, H]).astype(int))
+			colour = ["%02x%02x%02x" % atlas.getpixel((int(x), int(y))) for x, y in px]
+			bone = strongest(j, prim, cols, names_)
+			extra = []  # (vertex copied, its uv in that triangle)
+			for t in range(len(tris)):
+				corners = [(int(px[v][0]), int(px[v][1])) for v in tris[t]]
+				news = [c for c in corners if c in pixels]
+				if not news:
+					continue
+				to = news[0]
+				old, bones = pixels[to]
+				olds = [c for c in range(3) if corners[c] != to and colour[int(tris[t][c])] == old]
+				if not olds:
+					continue
+				if any(any(b in bone[int(tris[t][c])] for b in bones) for c in olds):
+					# A part of the split (a leg): its old corners join the new pixel.
+					uv_to, moving = ((to[0] + 0.5) / W, (to[1] + 0.5) / H), olds
+				else:
+					# A part that keeps the old swatch (a shoulder sharing the belt colour): the
+					# split corners go back to it, so arms and hands stay on mapped swatches.
+					uv_to = tuple(float(f) for f in uv[int(tris[t][olds[0]])])
+					moving = [c for c in range(3) if corners[c] == to]
+				for c in moving:
+					extra.append((int(tris[t][c]), uv_to))
+					tris[t][c] = len(uv) + len(extra) - 1
+			if not extra:
+				continue
+			split += len(extra)
+			# Vertices no triangle uses any more go, so a second run (which moves the shoulder
+			# copies to the pixel again and copies them back) writes the same file.
+			used = np.unique(tris)
+			remap = np.full(len(uv) + len(extra), -1, dtype=np.int64)
+			remap[used] = np.arange(len(used))
+			tris = remap[tris]
+			for name in names:
+				dup = cols[name][[v for v, _ in extra]].copy()
+				if name == "TEXCOORD_0":
+					fl = dup.view("<f4").reshape(-1, 2)
+					fl[:] = [u for _, u in extra]
+				packed = np.concatenate([cols[name], dup])[used].tobytes()
+				prim["attributes"][name] = add_accessor(j, blob, prim["attributes"][name], packed, len(used))
+			out = tris.ravel().astype("<u4" if tris.max() > 65535 else "<u2")
+			prim["indices"] = add_accessor(j, blob, prim["indices"], out.tobytes(), len(out), 5125 if out.dtype.itemsize == 4 else 5123)
+	if split == 0:
+		return data, 0
+	# Drop the accessors and views nothing reads any more, so the file does not carry the replaced copies.
+	refs = []  # (holder, key) pairs naming an accessor
+	for mesh in j["meshes"]:
+		for prim in mesh["primitives"]:
+			refs += [(prim["attributes"], k) for k in prim["attributes"]]
+			if "indices" in prim:
+				refs.append((prim, "indices"))
+	refs += [(s, "inverseBindMatrices") for s in j.get("skins", []) if "inverseBindMatrices" in s]
+	for anim in j.get("animations", []):
+		for s in anim["samplers"]:
+			refs += [(s, "input"), (s, "output")]
+	keep, accessors = {}, []
+	for holder, key in refs:
+		old = holder[key]
+		if old not in keep:
+			keep[old] = len(accessors)
+			accessors.append(j["accessors"][old])
+		holder[key] = keep[old]
+	j["accessors"] = accessors
+	users = [a for a in accessors if "bufferView" in a] + [i for i in j.get("images", []) if "bufferView" in i]
+	packed, remap, views = bytearray(), {}, []
+	for u in users:
+		old = u["bufferView"]
+		if old not in remap:
+			bv = dict(j["bufferViews"][old])
+			chunk = blob[bv.get("byteOffset", 0):bv.get("byteOffset", 0) + bv["byteLength"]]
+			packed.extend(b"\0" * (-len(packed) % 4))
+			bv["byteOffset"] = len(packed)
+			packed.extend(chunk)
+			remap[old] = len(views)
+			views.append(bv)
+		u["bufferView"] = remap[old]
+	j["bufferViews"] = views
+	blob = packed + b"\0" * (-len(packed) % 4)
+	j["buffers"][0]["byteLength"] = len(blob)
+	text = json.dumps(j, separators=(",", ":")).encode()
+	text += b" " * (-len(text) % 4)
+	total = 12 + 8 + len(text) + 8 + len(blob)
+	head = struct.pack("<4sII", b"glTF", 2, total) + struct.pack("<I4s", len(text), b"JSON")
+	return bytearray(head + text + struct.pack("<I4s", len(blob), b"BIN\x00") + blob), split
+
+
+def strongest(j, prim, cols, names):
+	"""The name of each vertex's most weighted bone."""
+	def decode(name):
+		a = j["accessors"][prim["attributes"][name]]
+		dt = {5126: "<f4", 5123: "<u2", 5121: "u1", 5125: "<u4"}[a["componentType"]]
+		return cols[name].view(dt).reshape(len(cols[name]), -1)
+	joints, weights = decode("JOINTS_0"), decode("WEIGHTS_0")
+	return [names[int(joints[i][int(weights[i].argmax())])] for i in range(len(joints))]
+
+
+def add_accessor(j, blob, old, payload, count, component=None):
+	"""A copy of accessor [old] reading [payload], packed at the end of [blob]; returns its index."""
+	blob.extend(b"\0" * (-len(blob) % 4))
+	j["bufferViews"].append({"buffer": 0, "byteOffset": len(blob), "byteLength": len(payload)})
+	blob.extend(payload)
+	blob.extend(b"\0" * (-len(blob) % 4))
+	a = dict(j["accessors"][old])
+	a.pop("byteOffset", None)
+	a.pop("sparse", None)
+	a["bufferView"] = len(j["bufferViews"]) - 1
+	a["count"] = count
+	if component is not None:
+		a["componentType"] = component
+		a.pop("min", None)
+		a.pop("max", None)
+	j["accessors"].append(a)
+	return len(j["accessors"]) - 1
+
+
 for body in ("matt", "lis", "sam", "shaun"):
 	path = os.path.join(directory, "people_%s.glb" % body)
 	data = bytearray(open(path, "rb").read())
@@ -73,5 +218,6 @@ for body in ("matt", "lis", "sam", "shaun"):
 						struct.pack_into("<ff", data, uo, (X0 + k + 0.5) / W, (Y + 0.5) / H)
 						moved += 1
 						break
+	data, seamed = unseam(body, data)
 	open(path, "wb").write(data)
-	print("split", body, "vertices moved", moved)
+	print("split", body, "vertices moved", moved, "seam corners split", seamed)
