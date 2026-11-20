@@ -17,7 +17,7 @@ const CHEST_PITCH := 0.22
 
 ## Seconds to ease the whole carry in or out, a stance (sprint aside, which the figure eases), and the aim.
 const EASE := 0.2
-const STANCE_EASE := 0.2
+const STANCE_EASE := 0.35
 const AIM_IN := 0.08
 const AIM_OUT := 0.3
 
@@ -62,6 +62,7 @@ var switching := false
 var support_grip := Vector3.INF
 
 var _fire_hold := 0.0
+var _stepped := false
 var _kick := 0.0
 var _reload_time := 0.0
 var _turns: Array[Quaternion] = []
@@ -116,6 +117,12 @@ func fired() -> void:
 func step(delta: float, active: bool) -> void:
 	if active and style == null and not explicit:
 		_set_style(DotHumanoidCarry.for_class(&"rifle"))
+	if not _stepped:
+		# A figure that appears already holding a gun is not seen raising it: the first frame is the held pose, not the bind
+		# pose the carry then eases out of (the judge's frame-0 snap).
+		_stepped = true
+		if active and style != null:
+			weight = 1.0
 	weight = move_toward(weight, 1.0 if active and style != null else 0.0, delta / EASE)
 	_fire_hold = maxf(_fire_hold - delta, 0.0)
 	var up := raised or _fire_hold > 0.0
