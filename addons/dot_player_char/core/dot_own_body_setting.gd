@@ -8,7 +8,7 @@ const DEFAULT := true
 const META := &"dot_own_body_follow"
 
 
-## The setting's definition (a DotSettingsDef, device scope), or null when dot-settings is not in the project: this addon does not require it.
+## The setting's definition (a DotSettingsDef, device scope), or null when GameSpice Settings is not in the project: this addon does not require it.
 static func def() -> Variant:
 	for entry: Dictionary in ProjectSettings.get_global_class_list():
 		if entry.get("class") == &"DotSettingsDef":

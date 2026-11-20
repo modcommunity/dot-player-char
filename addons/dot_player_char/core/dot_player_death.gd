@@ -87,7 +87,7 @@ static func from_dict(data: Dictionary) -> DotPlayerDeath:
 const REACTION_BYTES := 24
 
 
-## Writes this death onto a dot-net [code]DotNetWriter[/code] (duck-typed: no dot-net dependency), about seven bytes.
+## Writes this death onto a GameSpice Net [code]DotNetWriter[/code] (duck-typed: no GameSpice Net dependency), about seven bytes.
 ## The reaction goes as a short string because a game may add its own. Put it LAST in a message and read it
 ## only when bytes remain, so an older client reads the rest.
 func write_to(writer: Object) -> void:
@@ -101,7 +101,7 @@ func write_to(writer: Object) -> void:
 	writer.call(&"write_bool", headshot)
 
 
-## Reads [method write_to]'s fields off a dot-net [code]DotNetReader[/code].
+## Reads [method write_to]'s fields off a GameSpice Net [code]DotNetReader[/code].
 static func read_from(reader: Object) -> DotPlayerDeath:
 	var out := DotPlayerDeath.new()
 	var r := String(reader.call(&"read_string", REACTION_BYTES))

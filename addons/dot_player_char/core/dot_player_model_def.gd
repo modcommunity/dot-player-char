@@ -22,7 +22,7 @@ extends Resource
 @export_group("Mounts")
 
 ## slot id -> node name inside the rig, e.g. [code]{"head": "Skeleton3D/HeadAttachment"}[/code].
-## Names rather than [NodePath]s so the table survives JSON (dot-cloud catalogues).
+## Names rather than [NodePath]s so the table survives JSON (GameSpice Cloud catalogues).
 @export var mounts: Dictionary = {}
 
 ## The mount a weapon goes in.

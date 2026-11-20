@@ -3,7 +3,7 @@ extends RefCounted
 
 ## The files behind the stock death reactions' sound ids, as plain data a game turns into its own audio definitions.
 ## Kenney's CC0 sounds in [code]death/sounds/[/code] (credited in CREDITS.md).
-## Data, not dot-audio definitions, because this addon does not depend on dot-audio; a game with its own sounds ignores it.
+## Data, not GameSpice Audio definitions, because this addon does not depend on GameSpice Audio; a game with its own sounds ignores it.
 
 ## The directory the files are in, found from this script so a delivered pack mounted under
 ## another root still finds them.

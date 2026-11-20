@@ -168,7 +168,7 @@ func cvar_specs() -> Array[Dictionary]:
 
 
 ## Registers the [code]sv_ragdoll*[/code] cvars through [param add], shaped [code](name, default, description, flags) -> cvar[/code].
-## Duck-typed: dot-server is not a dependency. Pass FLAG_REPLICATED and have each client [method follow_cvars],
+## Duck-typed: GameSpice Server is not a dependency. Pass FLAG_REPLICATED and have each client [method follow_cvars],
 ## since a client draws the bodies. Returns the cvars.
 func bind_cvars(add: Callable, flags: int = 0) -> Array:
 	var made: Array = []
@@ -190,7 +190,7 @@ func bind_cvars(add: Callable, flags: int = 0) -> Array:
 	return made
 
 
-## Keeps these rules on a server's values, as [param source] reports them: dot-server's [code]DotClientLink[/code]
+## Keeps these rules on a server's values, as [param source] reports them: GameSpice Server's [code]DotClientLink[/code]
 ## or anything with [code]replicated_cvar(name, fallback)[/code] and a [code]replicated_cvar_changed[/code] signal.
 ## False when it cannot follow (an older shell's link); the rules keep their own values.
 func follow_cvars(source: Object) -> bool:

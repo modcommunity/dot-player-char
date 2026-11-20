@@ -85,7 +85,7 @@ static func stock(seed: int) -> DotHumanoidLook:
 
 ## A member's site avatar (the site's `builtin` document) as a person: the face's letter picks the body, skin and hair.
 ## Null for a document that is not the site's, or one with no face, top or legs this table knows.
-## Duck-typed (`schema_id`, `part_in(slot)`) so this addon does not depend on dot-user-avatar.
+## Duck-typed (`schema_id`, `part_in(slot)`) so this addon does not depend on GameSpice User Avatar.
 static func from_site(foreign: Object) -> DotHumanoidLook:
 	if foreign == null or not foreign.has_method(&"part_in"):
 		return null

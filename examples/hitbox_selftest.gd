@@ -1,6 +1,6 @@
 extends Node
 
-## Hit zones: the plan as data, the config layer, and the node built through stub factories (no dot-combat needed).
+## Hit zones: the plan as data, the config layer, and the node built through stub factories (no GameSpice Combat needed).
 ## Run: godot --headless --path . res://examples/hitbox_selftest.tscn
 
 const SECTIONS := 5

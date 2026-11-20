@@ -19,7 +19,7 @@ var reactions: DotPlayerDeathReactions = DotPlayerDeathReactions.stock()
 ## This machine's own limit: -1 for [method default_local_cap], 0 = unlimited, else a body count.
 var local_cap: int = -1
 
-## Called as [code]sound_fn.call(id, position, volume)[/code] for each body's sound; dot-audio's
+## Called as [code]sound_fn.call(id, position, volume)[/code] for each body's sound; GameSpice Audio's
 ## [code]DotAudioManager.play_at[/code] fits. Unset, sounds go only to the [signal sound] signal.
 var sound_fn: Callable = Callable()
 

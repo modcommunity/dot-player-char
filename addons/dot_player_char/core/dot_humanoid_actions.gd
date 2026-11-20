@@ -1,7 +1,7 @@
 class_name DotHumanoidActions
 extends RefCounted
 
-## The starter emotes, poses and gestures of dot-user-avatar (the site's BUILTIN_AVATAR_ACTIONS ids)
+## The starter emotes, poses and gestures of GameSpice User Avatar (the site's BUILTIN_AVATAR_ACTIONS ids)
 ## as clips on the people's rig, and the path an uploaded humanoid clip takes onto it.
 ## Poses are bone directions from the idle's first frame; `wave`, `nod`, `sit` are CC0 (README.md).
 

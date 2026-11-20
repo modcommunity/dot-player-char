@@ -27,7 +27,7 @@ const FORE_RATE := 2.0
 const LEAN_RATE := 1.2
 ## Elbow turns tried about the shoulder-to-hand line (degrees) to take an arm out of the weapon's box, and how much
 ## of the forearm next to the hand may stay inside it (the hand is on the gun).
-## The scan itself is [DotViewArmsClear], native when dot-sim's "arms" module is loaded.
+## The scan itself is [DotViewArmsClear], native when GameSpice Sim's "arms" module is loaded.
 const CLEAR_ANGLES: Array[float] = DotViewArmsClear.ANGLES
 const CLEAR_HAND_FREE := DotViewArmsClear.HAND_FREE
 
@@ -50,7 +50,7 @@ var arm_radius: float = 0.03
 ## How deep each arm (firing, support) sat inside the weapon's box after the last solve, metres; 0 is clear.
 var arm_depth_right: float = 0.0
 var arm_depth_left: float = 0.0
-## Run the elbow clearance scan in dot-sim's native [code]DotSimViewArms[/code] when it is loaded (bit-identical to
+## Run the elbow clearance scan in GameSpice Sim's native [code]DotSimViewArms[/code] when it is loaded (bit-identical to
 ## [DotViewArmsClear]); false keeps the script (the A/B baseline). Read once, on the first scan.
 var native_clear: bool = true
 var height: float = 1.8
@@ -162,7 +162,7 @@ var _override: DotHumanoidLook = null
 var _detail_on := false
 var _turn_right := 0.0
 var _turn_left := 0.0
-## dot-sim's DotSimViewArms, made on the first scan when [member native_clear] and the class exists; reached by name
+## GameSpice Sim's DotSimViewArms, made on the first scan when [member native_clear] and the class exists; reached by name
 ## (never typed) so this addon loads without the extension. [member _native_tried] keeps it to one probe.
 var _native: Object = null
 var _native_tried := false

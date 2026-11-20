@@ -1,6 +1,6 @@
 # Design
 
-Why dot-player-char is shaped the way it is, and why the obvious alternative is wrong in each case.
+Why GameSpice Player Char is shaped the way it is, and why the obvious alternative is wrong in each case.
 
 ## One number for how tall somebody is
 
@@ -64,7 +64,7 @@ With no anchor at all (a character screen with no spatial parent) the drawn node
 
 ## Smaller traps
 
-- **Shape aliasing.** A `Shape3D` handed to two bodies is shared by them, so `capsule_3d()` returns a fresh one; otherwise resizing one character resizes every player using the resource, which presents as everybody crouching at once. dot-physics' `to_physics_material` and the model builder's tints avoid the same family of bug.
+- **Shape aliasing.** A `Shape3D` handed to two bodies is shared by them, so `capsule_3d()` returns a fresh one; otherwise resizing one character resizes every player using the resource, which presents as everybody crouching at once. GameSpice Physics' `to_physics_material` and the model builder's tints avoid the same family of bug.
 - **`capsule_3d` clamps to two radii.** A capsule shorter than that is silently a sphere, which stops climbing stairs in a way that reads as a movement bug.
 - **`eye_offset()` returns a negative number for "no opinion"**, not zero: zero would put a first-person camera in the floor. A rig with a real head bone answers properly and `DotPlayerChar` asks it before reading the resource.
 - **The mirror offset in `_set_region`.** Godot mirrors about the node's origin and the anchor is measured from the left, so a flipped sprite moves by its own width. Its absence presents as *the collision being offset*, not the sprite.

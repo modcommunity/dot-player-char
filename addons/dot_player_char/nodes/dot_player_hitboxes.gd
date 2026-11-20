@@ -1,8 +1,8 @@
 class_name DotPlayerHitboxes
 extends Node3D
 
-## Optional hit zones (head to feet) for a player, built as dot-combat hitboxes. Off by default.
-## There is no dependency on dot-combat: classes are looked up by name, and without them or a
+## Optional hit zones (head to feet) for a player, built as GameSpice Combat hitboxes. Off by default.
+## There is no dependency on GameSpice Combat: classes are looked up by name, and without them or a
 ## [member hitbox_factory], [method build] fails and builds nothing.
 
 const CHANNEL := "player.hitboxes"
@@ -146,7 +146,7 @@ func _make_box(z: Dictionary) -> Node3D:
 	return node
 
 
-## A global script class by name, or null; avoids naming dot-combat in this file.
+## A global script class by name, or null; avoids naming GameSpice Combat in this file.
 static func class_script(class_name_: String) -> Script:
 	for entry in ProjectSettings.get_global_class_list():
 		if entry["class"] == class_name_:

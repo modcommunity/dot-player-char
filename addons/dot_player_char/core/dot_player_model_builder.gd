@@ -2,7 +2,7 @@ class_name DotPlayerModelBuilder
 extends RefCounted
 
 ## Works out what goes where ([method plan], pure), then puts it there ([method apply], the only node work).
-## Generalised from dot-user-avatar's builder: the plan is plain [Dictionary] steps (slot, mount, part, scene,
+## Generalised from GameSpice User Avatar's builder: the plan is plain [Dictionary] steps (slot, mount, part, scene,
 ## colours, layer, missing) so any source can share the node work.
 
 const CHANNEL := "player.model"
@@ -170,7 +170,7 @@ static func summarise(steps: Array[Dictionary]) -> Dictionary:
 	}
 
 
-## Turns dot-user-avatar's plan into this one's, without importing that addon.
+## Turns GameSpice User Avatar's plan into this one's, without importing that addon.
 ## Duck typed on purpose so neither addon depends on the other. Accepts an [Array] of
 ## [Dictionary] or of objects with the same fields.
 static func from_plan(rows: Array, mounts: Dictionary = {}) -> Array[Dictionary]:

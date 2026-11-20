@@ -351,7 +351,7 @@ func _test_plan() -> void:
 		"while an empty plan is trivially complete"
 	)
 
-	# The dot-user-avatar bridge, which is duck-typed both ways.
+	# The GameSpice User Avatar bridge, which is duck-typed both ways.
 	var avatar_rows: Array = [
 		{"slot": "head", "attach_to": "Head", "requested": "crown",
 			"scene_path": "res://x.tscn", "colours": [Color.RED], "layer": 5},

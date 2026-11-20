@@ -1,8 +1,8 @@
 class_name DotViewArmsClear
 extends RefCounted
 
-## The view arms' elbow clearance scan, free of nodes: which turn of the elbow pole about the shoulder-to-hand line keeps the arm out of the weapon. [DotPlayerViewArms] runs it per arm per frame; dot-sim's [code]DotSimViewArms[/code]
-## ("arms" module) is the native twin, bit-identical (dot-sim's selftest compares the two on seeded inputs), and this script is the fallback where the extension is not loaded (web, a build without it).
+## The view arms' elbow clearance scan, free of nodes: which turn of the elbow pole about the shoulder-to-hand line keeps the arm out of the weapon. [DotPlayerViewArms] runs it per arm per frame; GameSpice Sim's [code]DotSimViewArms[/code]
+## ("arms" module) is the native twin, bit-identical (GameSpice Sim's selftest compares the two on seeded inputs), and this script is the fallback where the extension is not loaded (web, a build without it).
 
 ## Turns tried, degrees; ties go to the earlier (smaller) one.
 const ANGLES: Array[float] = [0.0, 15.0, -15.0, 30.0, -30.0, 45.0, -45.0, 60.0, -60.0, 80.0, -80.0]

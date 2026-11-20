@@ -87,7 +87,7 @@ func ids_for(team: StringName, player_class: StringName = &"") -> Array[StringNa
 	return out
 
 
-## Never null for a built catalogue. Same reasoning as dot-player-class's.
+## Never null for a built catalogue. Same reasoning as GameSpice Player Class's.
 func fallback_for(team: StringName = &"", player_class: StringName = &"") -> DotPlayerCharDef:
 	_ensure_built()
 

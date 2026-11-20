@@ -1,7 +1,7 @@
 class_name DotPlayerSpriteVisual
 extends DotPlayerCharVisual
 
-## The 2D implementation of dot-player-char's visual seam: one [Sprite2D] per layer, all indexed by
+## The 2D implementation of GameSpice Player Char's visual seam: one [Sprite2D] per layer, all indexed by
 ## one frame number, which is why [DotPlayerSpriteDef] cuts every overlay on the base's grid.
 ## It does not animate; [DotPlayerAnimDriver] (or a game) calls [method set_frame] and [method set_facing_angle].
 

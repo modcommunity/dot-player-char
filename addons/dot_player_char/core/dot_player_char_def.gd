@@ -51,10 +51,10 @@ extends Resource
 ## [DotPlayerAnimSet] id.
 @export var animation_set: StringName = &""
 
-## dot-audio voice set id.
+## GameSpice Audio voice set id.
 @export var voice_set: StringName = &""
 
-## dot-audio footstep set id, if this character sounds different from the default.
+## GameSpice Audio footstep set id, if this character sounds different from the default.
 @export var footstep_set: StringName = &""
 
 @export_group("Customisation")

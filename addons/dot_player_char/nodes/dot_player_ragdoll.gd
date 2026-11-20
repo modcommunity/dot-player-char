@@ -5,7 +5,7 @@ extends "dot_player_ragdoll_state.gd"
 ## pushed per the death, settling and fading. Parts are named head, torso, arm, leg (left/right);
 ## other meshes ride the nearest part. Built by [DotPlayerRagdolls]; seeded from the death, never randf().
 
-## dot-sim's class that poses the bones natively (bit-identical to [method _pose_bones_script]),
+## GameSpice Sim's class that poses the bones natively (bit-identical to [method _pose_bones_script]),
 ## reached by name so this addon loads without the extension.
 const NATIVE_POSE_CLASS := &"DotSimRagdollPose"
 ## Pose a skinned body's bones in [constant NATIVE_POSE_CLASS] when it is loaded; false keeps the
@@ -591,7 +591,7 @@ func _carry_bones(part: Part, bones: Array, found: Dictionary, reshape: bool, co
 		part.local_centre = bounds.get_center()
 
 
-## Puts every carried bone where its part now is, natively when dot-sim has it ([member native_pose]).
+## Puts every carried bone where its part now is, natively when GameSpice Sim has it ([member native_pose]).
 func _pose_bones() -> void:
 	if _skel == null:
 		return
@@ -608,7 +608,7 @@ static func native_pose_available() -> bool:
 	return _native_known == 1
 
 
-## [method _pose_bones_script] in dot-sim: the same writes from the same transforms, to the bit.
+## [method _pose_bones_script] in GameSpice Sim: the same writes from the same transforms, to the bit.
 func _pose_bones_native() -> void:
 	if _poser == null:
 		_poser = ClassDB.instantiate(NATIVE_POSE_CLASS)

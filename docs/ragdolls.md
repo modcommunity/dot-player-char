@@ -37,7 +37,7 @@ The stock set: `limp` (4), `headshot_launch` (6, headshots only), `power_launch`
 
 ## The cvars
 
-`DotPlayerRagdollRules.bind_cvars(add_cvar, FLAG_REPLICATED)` on the server, `follow_cvars(link)` on each client, the same duck-typed shape as dot-combat's: a client draws the bodies, so the client is the one that needs the server's lifetime, cap and style.
+`DotPlayerRagdollRules.bind_cvars(add_cvar, FLAG_REPLICATED)` on the server, `follow_cvars(link)` on each client, the same duck-typed shape as GameSpice Combat's: a client draws the bodies, so the client is the one that needs the server's lifetime, cap and style.
 
 | Cvar | Default | What |
 | --- | --- | --- |
@@ -78,7 +78,7 @@ A one-piece body has "landed" only when it is lying down (its up axis well off v
 
 ## Sounds
 
-A reaction names a `start_sound` (the launches' whoosh) and a `land_sound` (a thud, the face plant's smack, a crumple's slump), played once, where and when the head or torso first hits something at `land_speed` or more. The bodies emit them; `DotPlayerRagdolls.sound_fn` (dot-audio's `play_at` fits) or its `sound` signal hand them to the game. The files are Kenney's CC0 impact and foley sounds in `addons/dot_player_char/death/sounds/` (credited in its `CREDITS.md`), described by `DotPlayerDeathSounds.rows()` as plain data, because this addon does not depend on dot-audio. The start sound is emitted deferred, since whoever built the body connects after `build` returns.
+A reaction names a `start_sound` (the launches' whoosh) and a `land_sound` (a thud, the face plant's smack, a crumple's slump), played once, where and when the head or torso first hits something at `land_speed` or more. The bodies emit them; `DotPlayerRagdolls.sound_fn` (GameSpice Audio's `play_at` fits) or its `sound` signal hand them to the game. The files are Kenney's CC0 impact and foley sounds in `addons/dot_player_char/death/sounds/` (credited in its `CREDITS.md`), described by `DotPlayerDeathSounds.rows()` as plain data, because this addon does not depend on GameSpice Audio. The start sound is emitted deferred, since whoever built the body connects after `build` returns.
 
 ## The fade
 

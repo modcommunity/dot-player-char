@@ -1,13 +1,13 @@
 class_name DotPlayerHitboxPlan
 extends RefCounted
 
-## The hit zones of a standing person as plain data, scaled from one height. Pure: no node, no dot-combat.
+## The hit zones of a standing person as plain data, scaled from one height. Pure: no node, no GameSpice Combat.
 
 const SPHERE := &"sphere"
 const CAPSULE := &"capsule"
 const BOX := &"box"
 
-## Zone ids a config may name; the group is the hit_group dot-combat's resolver and DotStatsHitzones read.
+## Zone ids a config may name; the group is the hit_group GameSpice Combat's resolver and DotStatsHitzones read.
 const STOCK_IDS: Array[StringName] = [
 	&"head", &"neck", &"torso", &"stomach", &"arm_l", &"arm_r", &"hand_l", &"hand_r",
 	&"leg_l", &"leg_r", &"knee_l", &"knee_r", &"foot_l", &"foot_r",

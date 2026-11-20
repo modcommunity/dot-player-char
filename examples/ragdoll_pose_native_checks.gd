@@ -1,7 +1,7 @@
 class_name DotRagdollPoseNativeChecks
 extends RefCounted
 
-## The ragdoll suite's native pose section: dot-sim's [code]DotSimRagdollPose[/code] against [method DotPlayerRagdoll._pose_bones_script] on falling skinned bodies, every bone to the bit,
+## The ragdoll suite's native pose section: GameSpice Sim's [code]DotSimRagdollPose[/code] against [method DotPlayerRagdoll._pose_bones_script] on falling skinned bodies, every bone to the bit,
 ## and what each costs per call. With no library it says the native half was skipped and passes; [code]GS_SIM_REQUIRE_NATIVE=1[/code] (CI) fails instead. Always two checks, so the suite's count
 ## holds either way.
 

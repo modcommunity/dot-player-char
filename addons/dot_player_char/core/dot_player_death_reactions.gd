@@ -206,7 +206,7 @@ func pick(
 
 
 ## The reaction a weapon definition names, or empty. Duck-typed over anything with a
-## [code]params[/code] dictionary (dot-weapon's [code]DotWeaponDef[/code]), so this addon names
+## [code]params[/code] dictionary (GameSpice Weapon's [code]DotWeaponDef[/code]), so this addon names
 ## no weapon class.
 static func weapon_reaction(weapon_def: Object) -> StringName:
 	var params := _params_of(weapon_def)

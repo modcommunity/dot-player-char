@@ -1,4 +1,4 @@
-# dot-player-char
+# GameSpice Player Char
 
 Who a player looks like: the metrics, the customisation document, a 3D rig and a 2D sheet to draw it with, the locomotion animation layer, the family's animated people (skinned, one rig, one clip set, coloured by a look or a site avatar), a body that comes apart on death, a dead body that falls as a ragdoll (rigid meshes or a skeleton, with death reactions a server picks), and your own body in first person.
 
@@ -43,7 +43,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `core/dot_player_death_sounds.gd`, `death/sounds/` | the stock sound ids' files (Kenney CC0, credited in `death/sounds/CREDITS.md`) as data a game makes audio defs from |
 | `nodes/dot_player_ragdoll.gd` | one dead body: parts by name, joints, the push, settle and freeze, the fade |
 | `nodes/dot_player_ragdolls.gd` | where bodies lie: `spawn`, the cap, sounds out |
-| `core/dot_player_hitbox_plan.gd`, `nodes/dot_player_hitboxes.gd` | optional hit zones (head, neck, torso, arms, hands, legs, feet) as pure data scaled from the height, and the node (off by default) that builds them as dot-combat hitboxes whose `group` is the hit_group the resolver and `DotStatsHitzones` read; `config` (`disabled`, `groups`, `zones`), `hitbox_factory` / `set_factory`, override `zones()` |
+| `core/dot_player_hitbox_plan.gd`, `nodes/dot_player_hitboxes.gd` | optional hit zones (head, neck, torso, arms, hands, legs, feet) as pure data scaled from the height, and the node (off by default) that builds them as GameSpice Combat hitboxes whose `group` is the hit_group the resolver and `DotStatsHitzones` read; `config` (`disabled`, `groups`, `zones`), `hitbox_factory` / `set_factory`, override `zones()` |
 | `nodes/dot_player_first_person_body.gd` | your own body in first person: head shadow-only, body back |
 | `core/dot_view_grip.gd` | where the hands go on a first-person weapon: anchor, grip, support |
 | `nodes/dot_player_view_arms.gd` | your own crawling arms in first person while downed, under the yaw pivot; `arms_factory` swaps them and `set_held` poses them on a weapon (`DotViewGrip`); no game mounts it yet |
@@ -54,7 +54,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `core/dot_foot_plant.gd` | feet held still on the ground over a gait phase, swung in an arc to the next step; bend the leg to it with `DotHumanoidIk.two_bone_to` |
 | `nodes/dot_humanoid_figure.gd` | a person drawn: palette material per look, clip from motion, overlays, the hand, LOD stepping |
 | `nodes/dot_humanoid_legs.gd`, `dot_humanoid_own_view.gd` | the legs turned toward the way it moves, walked backward, feet on a wall and out of the floor, the body stood on the floor under its origin (`floor_lift`); what is shrunk away when its own player looks down at it (`first_person`), and the shadow-only copy |
-| `core/dot_own_body_setting.gd` | `DotOwnBodySetting`: the client-only `cl_legs` option (default on, never server-enforced): `def()` for a dot-settings schema (null without dot-settings), `follow(figure, settings)`; off draws nothing of your own body in first person, only its shadow |
+| `core/dot_own_body_setting.gd` | `DotOwnBodySetting`: the client-only `cl_legs` option (default on, never server-enforced): `def()` for a GameSpice Settings schema (null without GameSpice Settings), `follow(figure, settings)`; off draws nothing of your own body in first person, only its shadow |
 | `core/dot_kenney_characters.gd` | Kenney's Animated Characters Protagonists and Retro (CC0) as people: eight "GS - <name>" skins in two packs on one rig, the family clips baked on; `build(pack, skin)`; [docs/kenney-characters.md](docs/kenney-characters.md) |
 | `people/` | the four bodies (Quaternius, CC0; `CREDITS.md`) and their atlas, built by `tools/build_people.py`; `people_ual.res`, the real sit (Universal Animation Library, CC0) |
 | `tools/` | `build_people.py` (Blender), `ual_retarget.gd` (library clips onto the rig: `people_ual.res`), `build_kenney_characters.py` (Blender: Kenney's fbx to `people/kenney/kenney_character.glb`), `kenney_retarget.gd` (the family clips onto Kenney's rig: `kenney_clips.res`), `people_palette.gd`, `kenney_site_colours.py`, `people_sheet.gd` (contact sheets; `--aim`, `--swim`, `--compare`, `--register` for a game's own body), `avatar_prep/` (Blender: a game's character to LODs, an atlas and the kit rig, `kit_rig.py`; [docs/avatar-prep.md](docs/avatar-prep.md)), `survivor_compare.gd` (made vs real clip strips), `crowd_bench.tscn` (a browser crowd measurement), `view_arms_web.tscn` (the arms materials side by side in a browser) |

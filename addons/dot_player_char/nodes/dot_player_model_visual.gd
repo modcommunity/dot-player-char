@@ -1,7 +1,7 @@
 class_name DotPlayerModelVisual
 extends DotPlayerCharVisual
 
-## The 3D implementation of dot-player-char's visual seam.
+## The 3D implementation of GameSpice Player Char's visual seam.
 ## Planning is [DotPlayerModelBuilder]'s and lookup [DotPlayerModelRig]'s; this decides
 ## when to rebuild: not on a stance change, but on a changed hat.
 
@@ -125,7 +125,7 @@ func weapon_mount() -> Node3D:
 
 
 ## Forces a rebuild, ignoring the signature. For content that arrived late.
-## dot-cloud can deliver a part after the first build with an identical plan.
+## GameSpice Cloud can deliver a part after the first build with an identical plan.
 func rebuild() -> void:
 	_last_signature = ""
 

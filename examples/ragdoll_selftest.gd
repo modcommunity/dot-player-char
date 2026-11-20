@@ -159,7 +159,7 @@ func _test_death() -> void:
 		and read.direction == d.direction and read.headshot, "write_to and read_from carry it over a writer and a reader")
 
 
-## Stands in for dot-net's writer and reader, which this addon does not depend on: what is
+## Stands in for GameSpice Net's writer and reader, which this addon does not depend on: what is
 ## written comes back in order.
 class _FakeWire:
 	extends RefCounted
@@ -441,7 +441,7 @@ func _person(at: Vector3) -> DotHumanoidFigure:
 	return person
 
 
-## A skinned person (dot-player-char's people) falls by its bones: the same parts and joints as a
+## A skinned person (GameSpice Player Char's people) falls by its bones: the same parts and joints as a
 ## block figure, carrying the copied skeleton's bones, so it is the skin that ends up on the floor.
 func _test_skinned() -> void:
 	_section("a skinned body falls by its bones")

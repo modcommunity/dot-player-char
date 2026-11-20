@@ -90,7 +90,7 @@ func fallback() -> DotPlayerModelDef:
 
 
 ## Every scene path this catalogue can possibly need.
-## For a preloader, a dot-cloud manifest builder or a packaging check: only the catalogue knows the full set,
+## For a preloader, a GameSpice Cloud manifest builder or a packaging check: only the catalogue knows the full set,
 ## and a hand-written list in a game ships a model with a part missing.
 func content_paths() -> PackedStringArray:
 	_ensure_built()
