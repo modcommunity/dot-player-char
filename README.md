@@ -13,7 +13,7 @@ It also includes ragdolls and death reactions, and a ready-made set of animated 
 
 ## Install
 
-1. Copy `addons/dot_player_char/`, `addons/dot_player/` and `addons/dot_core/` into your project.
+1. Copy `addons/dot_player_char/`, `addons/dot_player/`, `addons/dot_animation/` and `addons/dot_core/` into your project.
 2. Enable all three in *Project > Project Settings > Plugins*.
 
 Needs Godot 4.7 or newer.

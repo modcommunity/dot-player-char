@@ -4,7 +4,7 @@ Who a player looks like: the metrics, the customisation document, a 3D rig and a
 
 Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is specific to characters.
 
-**The distributable is `addons/dot_player_char/`.** It requires dot-core and dot-player (`DotPlayerChar` and `DotPlayerAnimDriver` extend `DotPlayerComponent`), both symlinked and in `.gitignore`.
+**The distributable is `addons/dot_player_char/`.** It requires dot-core and dot-player (`DotPlayerChar` and `DotPlayerAnimDriver` extend `DotPlayerComponent`), both symlinked and in `.gitignore`, and dot-animation (`DotPlayerAnimState` extends `DotAnimationLocomotion`; link `addons/dot_animation`).
 
 ## Read before
 
